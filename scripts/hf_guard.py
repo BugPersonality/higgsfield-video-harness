@@ -634,6 +634,154 @@ def _inspect_shotlist_guard(
     return version, None
 
 
+PRODUCT_PHOTOSHOOT_VALUE_FLAGS = frozenset(
+    {"--mode", "--count", "--brand_context", "--product_context", "--interval", "--timeout"}
+)
+PRODUCT_PHOTOSHOOT_BOOL_FLAGS = frozenset({"--enhance-only"})
+GLOBAL_CLI_BOOL_FLAGS = frozenset({"--json", "--no-color"})
+
+
+def _parse_positive_ascii_int(raw: str) -> int | None:
+    """Parse a positive ASCII integer (accepting Go pflag `+N`, rejecting `0`, `-N`, Unicode digits)."""
+    s = raw.strip()
+    if not s or not s.isascii():
+        return None
+    if s[0] == "+":
+        digits = s[1:]
+    elif s[0] == "-":
+        return None
+    else:
+        digits = s
+    if not digits or not digits.isdigit():
+        return None
+    val = int(digits)
+    return val if val >= 1 else None
+
+
+def _matches_flag_eq(tok: str, flags: frozenset[str]) -> tuple[str | None, str]:
+    for flag in flags:
+        prefix = f"{flag}="
+        if tok.startswith(prefix):
+            return flag, tok[len(prefix) :]
+    return None, ""
+
+
+def _sanitize_fallback_cost_args(
+    hf_command: str, extra_args: list[str]
+) -> tuple[list[str], int, dict[str, Any] | None]:
+    """Strip command-specific flags unsupported by `generate cost <model>` fallback."""
+    if hf_command != "product-photoshoot":
+        return list(extra_args), 1, None
+
+    filtered: list[str] = []
+    multiplier = 1
+    idx = 0
+    total = len(extra_args)
+    while idx < total:
+        tok = extra_args[idx]
+        if tok == "--" or tok in GLOBAL_CLI_BOOL_FLAGS or _matches_flag_eq(tok, GLOBAL_CLI_BOOL_FLAGS)[0]:
+            idx += 1
+            continue
+        if tok in PRODUCT_PHOTOSHOOT_BOOL_FLAGS or _matches_flag_eq(tok, PRODUCT_PHOTOSHOOT_BOOL_FLAGS)[0]:
+            idx += 1
+            continue
+        if tok in PRODUCT_PHOTOSHOOT_VALUE_FLAGS:
+            if idx + 1 >= total:
+                if tok == "--count":
+                    return [], 1, {
+                        "ok": False,
+                        "error_code": "invalid_count",
+                        "message": "--count requires a positive integer >= 1",
+                    }
+                idx += 1
+                continue
+            val = extra_args[idx + 1]
+            if tok == "--count":
+                parsed_count = _parse_positive_ascii_int(val)
+                if parsed_count is None:
+                    return [], 1, {
+                        "ok": False,
+                        "error_code": "invalid_count",
+                        "count": val,
+                        "message": f"--count must be a positive ASCII integer >= 1, got {val!r}",
+                    }
+                multiplier = parsed_count
+            idx += 2
+            continue
+        eq_flag, eq_val = _matches_flag_eq(tok, PRODUCT_PHOTOSHOOT_VALUE_FLAGS)
+        if eq_flag is not None:
+            if eq_flag == "--count":
+                parsed_count = _parse_positive_ascii_int(eq_val)
+                if parsed_count is None:
+                    return [], 1, {
+                        "ok": False,
+                        "error_code": "invalid_count",
+                        "count": eq_val,
+                        "message": f"--count must be a positive ASCII integer >= 1, got {eq_val!r}",
+                    }
+                multiplier = parsed_count
+            idx += 1
+            continue
+        filtered.append(tok)
+        if tok.startswith("--") and "=" not in tok and idx + 1 < total:
+            filtered.append(extra_args[idx + 1])
+            idx += 2
+        else:
+            idx += 1
+    return filtered, multiplier, None
+
+
+def _filter_workflow_cost_args(
+    extra_args: list[str], workflow_schema: dict[str, Any]
+) -> list[str] | None:
+    """Filter CLI args down to `cost_params` declared by `higgsfield workflow get --json`."""
+    cost_params = workflow_schema.get("cost_params")
+    if not isinstance(cost_params, list):
+        return None
+    allowed_names = {
+        str(p["name"]).strip().replace("-", "_")
+        for p in cost_params
+        if isinstance(p, dict) and isinstance(p.get("name"), str) and p["name"].strip()
+    }
+    bool_names = {"json", "no_color"} | {
+        str(p["name"]).strip().replace("-", "_")
+        for p in (*(workflow_schema.get("params") or []), *cost_params)
+        if isinstance(p, dict)
+        and isinstance(p.get("name"), str)
+        and str(p.get("type") or "").startswith("boolean")
+    }
+    filtered: list[str] = []
+    idx = 0
+    total = len(extra_args)
+    while idx < total:
+        tok = extra_args[idx]
+        if (
+            not tok.startswith("--")
+            or tok == "--"
+            or tok in GLOBAL_CLI_BOOL_FLAGS
+            or _matches_flag_eq(tok, GLOBAL_CLI_BOOL_FLAGS)[0]
+        ):
+            idx += 1
+            continue
+        if "=" in tok:
+            name = tok[2:].split("=", 1)[0].replace("-", "_")
+            if name in allowed_names:
+                filtered.append(tok)
+            idx += 1
+            continue
+        name = tok[2:].replace("-", "_")
+        has_value = idx + 1 < total and (
+            name not in bool_names
+            or extra_args[idx + 1].lower() in ("true", "false", "1", "0")
+        )
+        if name in allowed_names:
+            filtered.append(tok)
+            if has_value:
+                filtered.append(extra_args[idx + 1])
+        idx += 2 if has_value else 1
+    return filtered
+
+
 def _build_cost_cmd(
     hf_bin: str,
     hf_command: str,
@@ -810,6 +958,14 @@ def _do_preflight(
 
     warnings: list[str] = []
 
+    # Validate command-specific cost flags fail-closed before calling remote CLI
+    fb_args: list[str] = []
+    fb_mult = 1
+    if hf_command == "product-photoshoot":
+        fb_args, fb_mult, count_err = _sanitize_fallback_cost_args(hf_command, extra_args)
+        if count_err is not None:
+            return 2, count_err
+
     # Account status (non-fatal warning if unavailable)
     account_balance: float | None = None
     acc_rc, _, acc_err, acc_json = _run_cli([hf_bin, "account", "status", "--json"])
@@ -822,24 +978,38 @@ def _do_preflight(
         warnings.append(f"account status unavailable: {detail}")
 
     # Cost estimation (mandatory)
-    cost_cmd = _build_cost_cmd(hf_bin, hf_command, model, is_workflow, extra_args)
-    cost_rc, cost_out, cost_err, cost_json = _run_cli(cost_cmd)
-    if (
-        cost_rc not in (0, 127)
-        and hf_command != "generate"
-        and model
-        and model != hf_command
-    ):
-        fallback_cmd = _build_cost_cmd(hf_bin, "generate", model, is_workflow, extra_args)
-        fb_rc, fb_out, fb_err, fb_json = _run_cli(fallback_cmd)
-        if fb_rc == 0:
-            cost_cmd, cost_rc, cost_out, cost_err, cost_json = (
-                fallback_cmd,
-                fb_rc,
-                fb_out,
-                fb_err,
-                fb_json,
-            )
+    cost_multiplier = 1
+    if hf_command == "generate" and is_workflow and extra_args:
+        wf_cost_args: list[str] = extra_args
+        wf_rc, _, _, wf_json = _run_cli([hf_bin, "workflow", "get", model, "--json"])
+        if wf_rc == 0 and isinstance(wf_json, dict):
+            filtered_wf = _filter_workflow_cost_args(extra_args, wf_json)
+            if filtered_wf is not None:
+                wf_cost_args = filtered_wf
+        cost_cmd = _build_cost_cmd(hf_bin, "generate", model, True, wf_cost_args)
+        cost_rc, cost_out, cost_err, cost_json = _run_cli(cost_cmd)
+    else:
+        cost_cmd = _build_cost_cmd(hf_bin, hf_command, model, is_workflow, extra_args)
+        cost_rc, cost_out, cost_err, cost_json = _run_cli(cost_cmd)
+        if (
+            cost_rc not in (0, 127)
+            and hf_command != "generate"
+            and model
+            and model != hf_command
+        ):
+            if hf_command != "product-photoshoot":
+                fb_args, fb_mult, _ = _sanitize_fallback_cost_args(hf_command, extra_args)
+            fallback_cmd = _build_cost_cmd(hf_bin, "generate", model, False, fb_args)
+            fb_rc, fb_out, fb_err, fb_json = _run_cli(fallback_cmd)
+            if fb_rc != 127:
+                cost_cmd, cost_rc, cost_out, cost_err, cost_json = (
+                    fallback_cmd,
+                    fb_rc,
+                    fb_out,
+                    fb_err,
+                    fb_json,
+                )
+                cost_multiplier = fb_mult
     if cost_rc == 127:
         return 1, {
             "ok": False,
@@ -872,6 +1042,7 @@ def _do_preflight(
             "raw_output": cost_out.strip(),
             "message": "could not parse finite non-negative credit estimate from higgsfield cost output",
         }
+    estimated_credits *= cost_multiplier
 
     if account_balance is not None and account_balance < estimated_credits:
         warnings.append(

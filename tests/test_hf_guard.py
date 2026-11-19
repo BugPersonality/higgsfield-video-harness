@@ -47,7 +47,51 @@ MOCK_HF_SCRIPT = textwrap.dedent(
         print(json.dumps({"upload_id": upload_id, "url": f"https://cdn.example/uploads/{upload_id}"}))
         sys.exit(0)
 
+    if args[:2] == ["workflow", "get"]:
+        print(
+            json.dumps(
+                {
+                    "job_type": args[2],
+                    "cost_params": [
+                        {"name": "duration", "type": "integer"},
+                        {"name": "mode", "type": "string"},
+                        {"name": "resolution", "type": "string"},
+                        {"name": "video_references", "type": "array"},
+                    ],
+                    "params": [
+                        {"name": "aspect_ratio", "type": "string"},
+                        {"name": "prompt", "type": "string"},
+                        {"name": "start_image", "type": "object|null"},
+                        {"name": "image_references", "type": "array"},
+                    ],
+                }
+            )
+        )
+        sys.exit(0)
+
     if len(args) >= 2 and args[1] == "cost":
+        if os.environ.get("MOCK_HF_STRICT_WF_COST") == "1" and args[:3] == ["generate", "cost", "workflow"]:
+            bad = [a for a in args[4:] if a in ("--prompt", "--aspect_ratio", "--start_image", "--image_references")]
+            if bad:
+                print(f"Error: Unknown params: {', '.join(bad)}", file=sys.stderr)
+                sys.exit(4)
+        if os.environ.get("MOCK_HF_STRICT_PS_COST") == "1":
+            if args[0] == "product-photoshoot":
+                print("Error: unknown flag: --mode", file=sys.stderr)
+                sys.exit(1)
+            if args[0] == "generate":
+                bad = [
+                    a
+                    for a in args
+                    if a in ("--mode", "--count")
+                    or a.startswith("--enhance-only")
+                ]
+                if bad:
+                    print(f"Error: Unknown params: {', '.join(bad)}", file=sys.stderr)
+                    sys.exit(1)
+                if "--aspect_ratio" in args and "99:99" in args:
+                    print("Error: invalid aspect_ratio 99:99", file=sys.stderr)
+                    sys.exit(1)
         print(json.dumps({"estimated_credits": cost}))
         sys.exit(0)
 
@@ -337,6 +381,8 @@ class TestHfGuard(unittest.TestCase):
             "MOCK_HF_WAIT_RC",
             "MOCK_HF_TIMEOUT_NO_JOB",
             "MOCK_HF_TIMEOUT_WITH_JOB",
+            "MOCK_HF_STRICT_PS_COST",
+            "MOCK_HF_STRICT_WF_COST",
         ):
             env.pop(key, None)
         return mock_bin, env, log_path, list_path
@@ -903,6 +949,199 @@ class TestHfGuard(unittest.TestCase):
                 any(c[:2] == ["product-photoshoot", "create"] for c in calls),
                 msg=f"Expected product-photoshoot create call, got: {calls}",
             )
+
+    def test_product_photoshoot_cost_fallback_strips_command_only_flags(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            camp = tmp / "camp"
+            _write_brief(camp, campaign_cap=50, max_retries=2)
+            mock_bin, env, log_path, _ = self._setup_env(tmp)
+            env["MOCK_HF_COST"] = "7"
+            env["MOCK_HF_STRICT_PS_COST"] = "1"
+
+            # Valid fallback: strips --no-color, --enhance-only=true, --mode, --count +2 (2x), ignores --workflow
+            rc, data, err = self._run_guard(
+                [
+                    "preflight",
+                    "--campaign",
+                    str(camp),
+                    "--shot",
+                    "lb_hero",
+                    "--kind",
+                    "lookbook",
+                    "--round",
+                    "R2",
+                    "--round-cap",
+                    "35",
+                    "--variant",
+                    "A",
+                    "--command",
+                    "product-photoshoot",
+                    "--model",
+                    "gpt_image_2",
+                    "--workflow",
+                    "--higgsfield-bin",
+                    str(mock_bin),
+                    "--",
+                    "--no-color",
+                    "--enhance-only=true",
+                    "--mode",
+                    "lifestyle_scene",
+                    "--count",
+                    "+2",
+                    "--image",
+                    "00000000-0000-4000-8000-000000000001",
+                    "--prompt",
+                    "Matte saddle leather on pale limestone bench",
+                ],
+                env,
+            )
+            self.assertEqual(rc, 0, msg=f"err={err}\ndata={data}")
+            self.assertTrue(data["ok"])
+            self.assertEqual(data["estimated_credits"], 14, msg=data)
+            calls = self._read_mock_calls(log_path)
+            fb_calls = [c for c in calls if c[:3] == ["generate", "cost", "gpt_image_2"]]
+            self.assertEqual(len(fb_calls), 1, msg=f"Expected non-workflow fallback call: {calls}")
+            self.assertNotIn("--mode", fb_calls[0])
+            self.assertNotIn("--count", fb_calls[0])
+            self.assertNotIn("--enhance-only=true", fb_calls[0])
+            self.assertNotIn("--no-color", fb_calls[0])
+            self.assertIn("--prompt", fb_calls[0])
+
+            # Real fallback failure must surface fallback stderr, not stale primary stderr
+            rc_err, data_err, _ = self._run_guard(
+                [
+                    "preflight",
+                    "--campaign",
+                    str(camp),
+                    "--shot",
+                    "lb_hero",
+                    "--kind",
+                    "lookbook",
+                    "--round",
+                    "R2",
+                    "--round-cap",
+                    "35",
+                    "--variant",
+                    "A",
+                    "--command",
+                    "product-photoshoot",
+                    "--model",
+                    "gpt_image_2",
+                    "--higgsfield-bin",
+                    str(mock_bin),
+                    "--",
+                    "--mode",
+                    "lifestyle_scene",
+                    "--count=1",
+                    "--aspect_ratio",
+                    "99:99",
+                    "--prompt",
+                    "test",
+                ],
+                env,
+            )
+            self.assertEqual(rc_err, 1, msg=data_err)
+            self.assertIn("invalid aspect_ratio 99:99", data_err.get("stderr", ""), msg=data_err)
+
+            # Invalid --count variants (0, -2, abc, Unicode digit, missing value) must fail closed before CLI
+            log_path.write_text("", encoding="utf-8")
+            for bad_args in (
+                ["--count", "0"],
+                ["--count", "-2"],
+                ["--count", "abc"],
+                ["--count", "\u00b2"],
+                ["--count=0"],
+                ["--count"],
+            ):
+                rc_bad, data_bad, _ = self._run_guard(
+                    [
+                        "preflight",
+                        "--campaign",
+                        str(camp),
+                        "--shot",
+                        "lb_hero",
+                        "--kind",
+                        "lookbook",
+                        "--round",
+                        "R2",
+                        "--round-cap",
+                        "35",
+                        "--variant",
+                        "A",
+                        "--command",
+                        "product-photoshoot",
+                        "--model",
+                        "gpt_image_2",
+                        "--higgsfield-bin",
+                        str(mock_bin),
+                        "--",
+                        *bad_args,
+                    ],
+                    env,
+                )
+                self.assertEqual(rc_bad, 2, msg=f"Expected exit 2 for {bad_args}: {data_bad}")
+                self.assertEqual(data_bad.get("error_code"), "invalid_count", msg=data_bad)
+            self.assertEqual(self._read_mock_calls(log_path), [])
+
+    def test_workflow_cost_fallback_filters_to_cost_params(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            camp = tmp / "camp"
+            _write_brief(camp, campaign_cap=100, max_retries=2)
+            mock_bin, env, log_path, _ = self._setup_env(tmp)
+            env["MOCK_HF_COST"] = "15"
+            env["MOCK_HF_STRICT_WF_COST"] = "1"
+
+            rc, data, err = self._run_guard(
+                [
+                    "preflight",
+                    "--campaign",
+                    str(camp),
+                    "--shot",
+                    "s02",
+                    "--kind",
+                    "video",
+                    "--round",
+                    "R4A",
+                    "--round-cap",
+                    "20",
+                    "--model",
+                    "cinematic_studio_video_4_0",
+                    "--workflow",
+                    "--higgsfield-bin",
+                    str(mock_bin),
+                    "--",
+                    "--no-color",
+                    "--mode",
+                    "omni_reference",
+                    "--resolution",
+                    "1080p",
+                    "--duration",
+                    "5",
+                    "--aspect_ratio",
+                    "16:9",
+                    "--start_image",
+                    "00000000-0000-4000-8000-000000000001",
+                    "--prompt",
+                    "Slow push-in across matte leather clasp.",
+                ],
+                env,
+            )
+            self.assertEqual(rc, 0, msg=f"err={err}\ndata={data}")
+            self.assertTrue(data["ok"])
+            self.assertEqual(data["estimated_credits"], 15, msg=data)
+            calls = self._read_mock_calls(log_path)
+            wf_cost_calls = [
+                c for c in calls if c[:4] == ["generate", "cost", "workflow", "cinematic_studio_video_4_0"]
+            ]
+            self.assertEqual(len(wf_cost_calls), 1, msg=f"Expected single filtered cost call: {calls}")
+            self.assertNotIn("--prompt", wf_cost_calls[0])
+            self.assertNotIn("--start_image", wf_cost_calls[0])
+            self.assertNotIn("--no-color", wf_cost_calls[0])
+            self.assertIn("--mode", wf_cost_calls[0])
+            self.assertIn("--resolution", wf_cost_calls[0])
+            self.assertIn("1080p", wf_cost_calls[0])
 
     def test_rejected_cli_failure_without_job_id_does_not_consume_budget_or_retries(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_str:
