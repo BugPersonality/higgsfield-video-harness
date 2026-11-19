@@ -1,118 +1,108 @@
 # Workflow Router
 
-Select the smallest non-direct execution path and current decision owner for a
-video request. If [`AGENTS.md`](../../AGENTS.md#direct-work) selects
-`Direct Work`, stop routing here.
+Select the execution path and active production round for a video request. If
+[`AGENTS.md`](../../AGENTS.md#direct-work) selects `Direct Work`, stop routing
+here.
+
+**No end-to-end autonomous mode exists.** Visual taste, casting charisma,
+lighting feel, and cutting rhythm emerge when a human Director sees and hears
+concrete work. Every production round (`R0` → `R5`) runs full technical craft
+internally and terminates in a compact
+[**Dailies Packet**](interfaces/dailies-packet-v1.md) for Director feedback
+and explicit credit approval (`--round-cap`) before the next paid round starts.
 
 ## Terms
 
 | Term | Meaning |
 | --- | --- |
-| `Direct Work` | Single-owner local execution under [`AGENTS.md`](../../AGENTS.md#direct-work) with no campaign artifacts (`intent.md`, `treatment.md`, `shotlist.json`, `tasks.md`). |
-| `Campaign` | One persisted multi-shot video project living under `campaigns/<slug>/` with its own `intent.md`, creative/production specs, spend ledger (`receipts.jsonl`), and gitignored `media/`. |
-| `Shot Unit` | One bounded shot (`s01..sN`) or media deliverable (`reference`, `still`, `audio`, `pilot`, `video`, `assembly`, `qa`) mapped to one task packet (`tasks/TNN-*.md`) with disjoint writable paths. |
-| `Budget Envelope` | Requester-authorized spending limits recorded in `intent.md` (`status: ready`): `Autonomy mode`, `Draft cap`, `Final cap`, and `Max auto-retries/shot`, enforced mechanically by `scripts/hf_guard.py`. |
-| `Autonomy Mode` | Campaign checkpoint policy selected in `intent.md`: `autonomous-draft` (default) or `checkpointed`. |
-| `Draft Cut` | Full low-cost assembled preview (`media/exports/draft_cut.mp4`) rendered inside `Draft cap` (stills + `480p`/`720p` or `seedance_2_5 --draft` clips + draft audio) for holistic review before spending `Final cap`. |
-| `Master` | Final high-resolution deliverable (`media/exports/master.mp4`, typically `1080p`, `-14 LUFS`, FPS/aspect locked) plus separated `media/exports/stems/` verified by `qa_media.py render` and Delivery Review. |
-| `Smart Zone` | Lean working-context envelope where one actor holds one coherent outcome, bounded files, and primary artifacts without attention degradation from prior chat turns or unrelated shot histories. |
-| `Ready Frontier` | Set of tasks in `tasks.md` whose upstream `Depends on` prerequisites and `[effect:...]` gates are satisfied and whose `Mutable owners` and `Exclusive locks` are currently free for dispatch. |
+| `Direct Work` | Single-owner local execution under [`AGENTS.md`](../../AGENTS.md#direct-work) for one isolated deliverable (schema/balance check, doc/script edit, local `qa_media.py`/`assemble.sh`, or one standalone test asset after live cost confirmation) with no campaign folder, `brief.md`, or `taste-log.md`. |
+| `Campaign` | One persisted multi-shot video project under `campaigns/<slug>/` with its own `brief.md`, `taste-log.md`, creative specs, live `shotlist.json`, spend ledger (`receipts.jsonl`), and gitignored `media/`. |
+| `Dailies Packet` | The mandatory 4-block Director checkpoint ending every round (`R0`–`R5`): (1) single visual/readable artifact to inspect, (2) 1-line internal QC filter summary, (3) 2–3 jargon-free comparative taste questions, and (4) exact live Cost Ticket for the next round (`--round-cap`). Defined in [Dailies Packet V1](interfaces/dailies-packet-v1.md). |
+| `Taste Memory` | Cumulative, append-only creative direction recorded in `campaigns/<slug>/taste-log.md` (`TL-01`, `TL-02`, ...) and seeded from/graduated to `brands/<brand>/taste.md`. Binding on every prompt and internal Visual Critic check (`TASTE_REGRESSION` if violated). Defined in [Taste Log V1](interfaces/taste-log-v1.md). |
+| `LOCKED Asset` | Any Lookbook entity, keyframe still, audio stem, or video shot approved by the Director and marked `status: "LOCKED"` in `shotlist.json`. Immutable both in policy and mechanically in `scripts/hf_guard.py` (`asset_locked` refusal) unless explicitly unlocked by the Director. |
+| `Campaign Cap` | Hard ceiling on total campaign credit spend declared in `campaigns/<slug>/brief.md` (`Budget & round policy`), validated against `shotlist.json` by `make campaign-check` and enforced across all rounds by `scripts/hf_guard.py`. |
+| `Round Cap` | Mandatory cumulative per-round credit ceiling (`--round-cap <N>`) approved by the Director on the preceding Dailies Cost Ticket and passed to `scripts/hf_guard.py {preflight,run} --round <R2\|R3\|R4\|R4A\|R4B\|R5> --round-cap <N>`. Prevents runaway spend even when `Campaign cap` has headroom left. |
+| `Still Animatic` | Zero-video-credit playable movie (`media/exports/animatic.mp4`) built in `R3` via `make animatic` (`scripts/assemble.sh --animatic`) combining stills at shot durations with VO and rough music so the Director judges framing, voice cadence, and cut rhythm before spending a single video credit. |
+| `Risk-First Pilot` | Sub-round `R4A` shooting only `test_take_check != null` shots (grip, physics, legible text, reflection, comic timing, multi-subject blocking) at low-cost preview settings first so motion risk is proven or steered before fanning out batch video credits in `R4B`. |
+| `Smart Zone` | Lean working-context envelope where each actor holds one coherent outcome, bounded files, and primary artifacts (`brief.md`, `taste-log.md`, `shotlist.json`) without attention degradation from prior chat history or unrelated shots. |
 
-## Path Selection
+## Direct Work vs Feedback-Loop Studio
 
-Choose the lightest path that preserves meaning, consistency, and budget safety:
+Choose the smallest path that honors meaning, visual consistency, and spending
+control:
 
-- **`Direct Work`** — single bounded deliverable with clear scope: schema or
-  balance lookup, doc/script edit, local `qa_media.py` / `assemble.sh` run on
-  existing clips, or one isolated image/test clip after echoing
-  `higgsfield generate cost` and obtaining explicit user confirmation.
-- **`Structured` (single-owner campaign)** — small 1–2 shot piece where intent,
-  visual truth, and budget envelope must survive across turns or a fresh review
-  pass, but parallel multi-worker waves are unnecessary. Still enforces
-  `intent.md`, `hf_guard.py`, and `qa_media.py`.
-- **`Orchestrated` (multi-agent campaign)** — default for any multi-shot
-  commercial, launch video, UGC sequence, or branded spot where cross-shot
-  consistency, audio/VO sync, competing *Design It Twice* creative options,
-  parallel shot rendering, and fresh multimodal Visual Critic QA matter.
+- **`Direct Work`** — one isolated deliverable with zero cross-shot continuity
+  requirements: inspecting live schemas/balances/workspaces, editing harness
+  docs/scripts/skills, running local `qa_media.py` or `assemble.sh` on existing
+  files, or generating one standalone image or 5s test clip after echoing live
+  `higgsfield generate cost` and getting explicit user confirmation.
+- **Feedback-Loop Studio (`R0` → `R5`)** — mandatory for every multi-shot
+  video, commercial, launch film, UGC sequence, or branded spot. Runs as an
+  iterative loop between the **Director (Human)** and **Production Crew
+  (Agents)** through `R0`–`R5`, never bypassing Dailies approval or spending
+  credits without an approved `--round-cap`.
 
-Re-route upward immediately if a `Direct Work` exploration expands into multiple
-coordinated shots or recurring paid iterations.
+Re-route upward immediately from `Direct Work` into `R0` if a single test
+clip expands into coordinated shots or repeated paid iterations.
 
-## Macro Phases
+## The 6 Production Rounds (`R0` → `R5`)
 
-The Root Orchestrator conducts Phase 0 Intake directly with the requester until
-`campaigns/<slug>/intent.md` is confirmed at `status: ready`. Once `intent.md`
-is `ready`, the Root Orchestrator coordinates Phases 1–3 in fresh sessions
-(`fork_turns: "none"`) and executes Phase 4 waves under
-[Transition](shared/transition.md#cross-phase-continuation).
+Traverse rounds in order. Inside each paid round, agents own 100% of technical
+craft (schemas, prompting, parallel generation via `hf_guard.py`, `qa_media.py`,
+and internal `reviewer-agent` defect filtering), then stop cleanly with a
+**Dailies Packet**.
 
-| Phase | Owner | Primary artifacts | Required gate / review |
-| --- | --- | --- | --- |
-| Phase 0 — Intake | Root Orchestrator + [`Intake`](phases/intake.md) | `campaigns/<slug>/intent.md` (`status: ready`) | `make intent-check`, Cold-Start Intent Review (fresh `reviewer-agent`), **Gate 1** requester confirmation |
-| Phase 1 — Creative Definition | Fresh phase owner + [`Creative Definition`](phases/creative-definition.md) | `treatment.md`, `style-bible.md` *(plus `script.md`, `storyboard.md` on the commercial track)* | Commercial track (`[ad-references]` → `ad-concepts` → `ad-script` → `ad-storyboard`) or non-commercial *Design It Twice*, then fresh Treatment & Style Review (`reviewer-agent`) |
-| Phase 2 — Production Design | Fresh phase owner + [`Production Design`](phases/production-design.md) | `shotlist.json`, `prompts/*` | Live schema checks (`evidence-agent`), `higgsfield generate cost` ≤ caps, fresh Shotlist & Budget Review |
-| Phase 3 — Planning | Fresh phase owner + [`Planning`](phases/planning.md) | `tasks.md`, `tasks/TNN-*.md` | `make ledger-check`, fresh Task Readiness Review (`reviewer-agent`) |
-| Phase 4 — Production & Delivery | Root Orchestrator + [`Production`](phases/production.md) + [Agent Harness](../agent-harness.md) | `media/stills/*`, `media/shots/*`, `media/audio/*`, `media/exports/draft_cut.mp4`, `media/exports/master.mp4`, `stems/`, `qc/*.json`, `receipts.jsonl` | Per-wave `qa_media.py` + Visual Critic (`view_image`), autonomy checkpoints, Final Delivery Review |
+| Round | Playbook | Crew work inside the round | Dailies Packet shown to Director | Typical credits |
+| --- | --- | --- | --- | --- |
+| **R0 — Direction Seed** | [R0 Brief](rounds/r0-brief.md) | `evidence-agent` grounds in balance, workspace, `brands/*/brand.md`, `brands/*/taste.md`, and local photos; 3–5 meaning-only questions → `brief.md` (`active`) + seeded `taste-log.md` | **Dailies 0:** Short Direction Brief card + seeded taste anchors + `Campaign cap` sign-off | `0 cr.` |
+| **R1 — Story & Cost Ticket** | [R1 Story & Cost](rounds/r1-story-and-cost.md) | **1A:** Commercial track (`[ad-references]` → `ad-concepts`, 4–5 swap-tested pitches) or 2–3 contrasting treatments.<br>**1B:** `ad-script` + `ad-storyboard` (`continuity_lock`, `test_take_check`) + `style-bible.md` + `evidence-agent` live CLI schemas & `generate cost` → `shotlist.json` (`make campaign-check`) | **Dailies 1A:** Pick/blend 1 of 4–5 pitches (commercial) or 2–3 treatments.<br>**Dailies 1B:** Readable story + **exact round-by-round Cost Ticket** (approves `R2`/`R3` `--round-cap`) | `0 cr.` |
+| **R2 — Casting & World Lookbook** | [R2 Lookbook](rounds/r2-lookbook.md) | Parallel workers generate **2–3 contrasting variants (`A / B / C`)** per invented object/character/location via `hf_guard.py --round R2`; fresh `reviewer-agent` filters AI trash; `make lookbook` stitches `qc/lookbook.png` | **Dailies 2:** Single `lookbook.png` (`A / B / C`) + next-round Cost Ticket; pick/blend → upload & `LOCK` winning UUIDs | `~20–45 cr.` *(0 if skipped)* |
+| **R3 — Keyframe Stills & Animatic** | [R3 Stills & Animatic](rounds/r3-stills-and-animatic.md) | Parallel workers generate `s01..sN` stills locked to `LOCKED` UUIDs + `continuity_lock` + `taste-log.md`; generate VO (`qa_media.py voice`, zero `atempo`) + rough music; internal Visual Critic filter; build `qc/stills_strip.png` + **0-video-credit `animatic.mp4`** | **Dailies 3:** `stills_strip.png` + playable `animatic.mp4` + `R4A` Cost Ticket; `LOCK` winning stills, re-roll ONLY rejected stills | `~30–50 cr.` *(0 video cr.)* |
+| **R4 — Motion Dailies** | [R4 Motion Dailies](rounds/r4-motion-dailies.md) | **4A:** Shoot `test_take_check != null` pilot shot(s) at `480p`/`720p`/`--draft` + `qa_media.py clip` + internal Visual Critic.<br>**4B:** Parallel remaining unlocked shots + `make assemble` → `draft_cut.mp4` (`-14 LUFS`, `<= -1.0 dBTP`) | **Dailies 4A:** Pilot clip + `R4B` Cost Ticket.<br>**Dailies 4B:** Full `draft_cut.mp4` + **per-shot `1080p` upgrade prices** for `R5` | `~45–90 cr.` |
+| **R5 — Final Master (`1080p`)** | [R5 Mastering](rounds/r5-mastering.md) | Upgrade ONLY approved shots to `1080p` via `hf_guard.py --round R5`; re-verify every clip with `qa_media.py clip` + Visual Critic; `make assemble` → `master.mp4` + `stems/` + `make qa-render`; optional `brain_activity` Virality Predictor | **Final Dailies 5:** `master.mp4` + `stems/` + final spend receipt + optional graduation of `taste-log.md` → `brands/<brand>/taste.md` | Approved final quote |
 
-Traverse phases in order. Skip a phase only when an existing `status: ready`
-artifact already closes its decisions with zero invalidated upstream links.
+### Skip & Fast-Path Rules
 
-Inside Phase 1 ([Creative Definition](phases/creative-definition.md)), choose
-the creative track matching the campaign:
+Skip a round or sub-round ONLY when its exact observable condition holds:
 
-- **Commercial / product track:** `[ad-references]` (optional) → `ad-concepts`
-  → `ad-script` → `ad-storyboard`, governed by the shared commercial craft
-  vocabulary in [`docs/ad-craft-glossary.md`](../ad-craft-glossary.md), then
-  distilled into `treatment.md` and `style-bible.md`.
-- **Non-commercial / aesthetic track:** built-in *Design It Twice* (2–3
-  competing `specialist-agent` lanes) → `treatment.md` and `style-bible.md`.
+- **Skip `R2` (Lookbook) automatically** when every hero object, character,
+  and environment is already supplied as real reference photos under
+  `campaigns/<slug>/media/references/` (`lookbook: []` in `shotlist.json`).
+  Upload and verify those real photos directly at the start of `R3`.
+- **Skip `ad-references` inside `R1A`** when the Director already brings a
+  concrete creative angle or supplied reference spots; still run `ad-concepts`
+  for commercial spots to verify swap-tested contrast.
+- **Skip `R4A` pilot isolation** when zero shots in `shotlist.json` carry
+  `test_take_check != null` AND the Director explicitly approves shooting all
+  draft clips together on the `R3` Cost Ticket.
+- **Never skip Dailies or internal QC.** Even on a 1–2 shot campaign, every
+  executed round ends in a Dailies Packet, and every generated media asset
+  passes `qa_media.py` + fresh `reviewer-agent` filtering before Dailies.
 
-## Phase Selection
+## Round Entry & Re-Entry Triggers
 
-Evaluate observable triggers before loading a phase owner:
-
-| Observable trigger | Owner |
+| Observable state | Active round / action |
 | --- | --- |
-| New campaign lacks a confirmed `intent.md` at `status: ready`, or viewer meaning, brand truth, spoken pronunciation, `Must not`, autonomy mode, or credit cap changed | [Intake](phases/intake.md) |
-| `intent.md` is `ready`, but campaign lacks reviewed `treatment.md` and `style-bible.md` (or a visual/narrative direction fork reopened) | [Creative Definition](phases/creative-definition.md) |
-| `treatment.md` and `style-bible.md` are `ready`, but `shotlist.json`, live model params, reference graph, prompt files, or `generate cost` budget proof is missing or stale | [Production Design](phases/production-design.md) |
-| `shotlist.json` is `ready`, but `tasks.md` and disjoint `tasks/TNN-*.md` packets do not exist or must be resliced after a mid-pipeline reopen | [Planning](phases/planning.md) |
-| `tasks.md` is `ready` and passes `make ledger-check`, or an active production wave resumes after a user gate or recovery | [Production](phases/production.md) |
+| New campaign lacks `brief.md` at `status: active`, or core viewer meaning, brand truth, spoken pronunciation, taboos, or `Campaign cap` changed | [R0 — Direction Seed](rounds/r0-brief.md) |
+| `brief.md` is `active`, but no Director-picked concept (`R1A`) or validated `shotlist.json` + live Cost Ticket (`R1B`) exists | [R1 — Story & Cost Ticket](rounds/r1-story-and-cost.md) |
+| `shotlist.json` has unlocked `lookbook[]` entries (`status != LOCKED`) and `R2` `--round-cap` is approved | [R2 — Casting & World Lookbook](rounds/r2-lookbook.md) |
+| All `lookbook[]` entities are `LOCKED` (or `R2` skipped), unlocked stills/audio remain, and `R3` `--round-cap` is approved | [R3 — Keyframe Stills & Animatic](rounds/r3-stills-and-animatic.md) |
+| All stills are `LOCKED` (or pure T2V approved), unlocked draft shots remain, and `R4` `--round-cap` is approved | [R4 — Motion Dailies](rounds/r4-motion-dailies.md) |
+| `draft_cut.mp4` approved on Dailies 4B and `R5` `1080p` `--round-cap` is approved | [R5 — Final Master](rounds/r5-mastering.md) |
+| Director requests a change on one specific entity or shot while keeping other assets `LOCKED` | Stay in current round; run [Feedback Loop](shared/feedback-loop.md) + [Surgical Re-Iteration](shared/transition.md#surgical-single-asset-re-iteration) |
 
-## Autonomy Modes
+## Conditional Shared Protocols & Interfaces
 
-Selected explicitly by the requester in `intent.md` (`Constraints & boundaries`
-→ `Authority & budget envelope`) and encoded as `[effect:...]` gates in
-`tasks.md`:
+Load a protocol or interface contract immediately before its trigger:
 
-| Mode | Default? | Checkpoints after Gate 1 | Best for |
-| --- | --- | --- | --- |
-| **`autonomous-draft`** | **Yes (default)** | Runs Waves 1–4 end-to-end inside `Draft cap` (`480p`/`720p` or `seedance_2_5 --draft`) to deliver a complete reviewed `draft_cut.mp4` + contact sheets + QA report, pausing once at `user-draft-gate [effect:approve-draft]` before unlocking `1080p` Finals inside `Final cap`. | Fast end-to-end iteration where the requester prefers reacting to a full edited cut with sound rather than inspecting intermediate frames. |
-| **`checkpointed`** | Opt-in | Pauses at **Wave 1 Stills** (and optional Wave 1.5 Still Animatic via `make animatic`, `user-stills-gate [effect:approve-stills]`), **Wave 2 Risk-First Pilot + VO** (`user-pilot-gate [effect:approve-pilot]`), and before `1080p` Finals (`user-draft-gate [effect:approve-draft]` when draft pass precedes finals). | High-stakes brand hero spots, strict face/product likeness verification, or unfamiliar visual styles where early steering saves batch credits. |
-
-Both modes enforce identical `Draft cap`, `Final cap`, `Max auto-retries/shot`,
-`hf_guard.py`, `qa_media.py`, and fresh `reviewer-agent` Visual Critic gates.
-
-### Approval Gates
-
-Use consistent gate names across campaign artifacts, tasks, and user updates:
-
-| Gate | Trigger & Artifact | Active in |
-| --- | --- | --- |
-| **Gate 1 — Intent** | Requester confirms `intent.md` (`status: ready`) and Budget Envelope before Phase 1–4 start | Both modes |
-| **Gate 2 — Draft Cut (`autonomous-draft`) / Stills (`checkpointed`)** | In `autonomous-draft`: `user-draft-gate [effect:approve-draft]` on assembled `draft_cut.mp4` + QA report before unlocking `Final cap`. In `checkpointed`: `user-stills-gate [effect:approve-stills]` on Wave 1 Stills (and optional Wave 1.5 Still Animatic). | Both modes (scope varies by mode) |
-| **Gate 3 — Pilot + VO** | `user-pilot-gate [effect:approve-pilot]` on Wave 2 Risk-First Pilot + VO before fanning out routine Wave 3 shots (followed by `user-draft-gate [effect:approve-draft]` before `1080p` finals when a draft cut precedes finals) | `checkpointed` only |
-| **Gate 4 — Final Master** | Final Delivery Review (`PASS`), `qa_media.py render`, `media/exports/master.mp4` + `stems/`, and `receipts.jsonl` spend audit closing `tasks.md` at `status: done` | Both modes |
-
-## Conditional Shared Owners
-
-Load a shared protocol immediately before its trigger:
-
-| Trigger | Protocol |
+| Trigger | Reference |
 | --- | --- |
-| Conducting requester interviews or resolving a blocked taste fork | [Grilling](shared/grilling.md) |
-| Deciding persistence, Git vs `media/` boundary, or artifact status transitions | [Artifacts](shared/artifacts.md) |
-| Running Cold-Start, Treatment, Shotlist, Readiness, Visual Critic, or Delivery review | [Review](shared/review.md) |
-| Crossing phase boundaries, emitting `Blocked Exit`, recovering failures/timeouts, or reopening mid-pipeline | [Transition](shared/transition.md) |
-| Checking spend authorization, `hf_guard.py` usage, Draft/Final caps, or `receipts.jsonl` | [Budget Authority](shared/budget-authority.md) |
-| Applying shared commercial terms (`primary spot`, `swap test`, `mute test`, `Continuity lock`, `test-take check`) | [Ad Skills Glossary](../ad-craft-glossary.md) |
+| Translating Director reactions into `taste-log.md`, updating `LOCKED`/`ITERATING`, quoting micro re-rolls | [Feedback Loop](shared/feedback-loop.md) |
+| Running light meaning-only alignment in `R0`/`R1` or resolving a taste fork | [Grilling](shared/grilling.md) |
+| Filtering technical defects, `continuity_lock`, `test_take_check`, and `TASTE_REGRESSION` before Dailies | [Review](shared/review.md) |
+| Enforcing `Campaign cap`, per-round `--round-cap`, `asset_locked`, `hf_guard.py`, and `receipts.jsonl` | [Budget Authority](shared/budget-authority.md) |
+| Managing campaign folder layout, Git vs `media/` boundary, and status transitions | [Artifacts](shared/artifacts.md) |
+| Handling round handoffs, surgical single-asset re-rolls, timeouts, HTTP 429, or `ip_detected` recovery | [Transition](shared/transition.md) |
+| Authoring or checking campaign contracts | [Brief V1](interfaces/brief-v1.md), [Taste Log V1](interfaces/taste-log-v1.md), [Dailies Packet V1](interfaces/dailies-packet-v1.md), [Shotlist V1](interfaces/shotlist-v1.md), [Review Result V1](interfaces/review-result-v1.md) |
+| Applying shared commercial craft vocabulary (`primary spot`, `swap test`, `mute test`, `Continuity lock`, `test-take check`) | [Ad Craft Glossary](../ad-craft-glossary.md) |
+| Delegating to Codex Multi-Agent V2 roles and `view_image` / macOS `open` | [Agent Harness](../agent-harness.md) & [Codex Adapter](../agent-harness/codex.md) |

@@ -4,11 +4,10 @@
   "aspect_ratio": "16:9",
   "target_duration_s": 15,
   "fps_target": 24,
-  "autonomy_mode": "autonomous-draft",
   "continuity_lock": {
     "product": "Nord Atelier Soren Weekender 40L in matte full-grain Warm Saddle Tan leather (#8B5A2B), hand-burnished dark-espresso edges (#3A2618), solid satin-brushed antique brass (#B69659) square roller clasps and swivel D-rings, subtle blind-debossed uppercase NORD ATELIER mark centered 24 mm below front handle gusset.",
     "lighting_and_palette": "Fixed low-angle 4600K Nordic morning sunlight from screen-left with cool 6200K indirect limestone bounce fill on screen-right; 35mm Kodak Vision3 250D palette of Warm Saddle Tan, Limestone Chalk, Morning Slate, and Charcoal Wool; zero studio sweep glare.",
-    "space_cast_axis": "Single sunlit Scandinavian limestone-and-glass railway concourse; anonymous traveler in matte charcoal wool overcoat and heather-grey knit cuff; bag carried on right hip moving left-to-right into concourse depth without crossing the 180-degree axis."
+    "space_cast_axis": "Single sunlit Scandinavian limestone-and-glass railway concourse; anonymous traveler in matte charcoal wool overcoat and heather-grey knit cuff (lb_traveler_hand); bag carried on right hip moving left-to-right into concourse depth without crossing the 180-degree axis."
   },
   "references": [
     {
@@ -30,6 +29,22 @@
       "upload_id": null
     }
   ],
+  "lookbook": [
+    {
+      "id": "lb_traveler_hand",
+      "kind": "character",
+      "title": "Anonymous traveler bare hand and matte charcoal wool cuff",
+      "model": "gpt_image_2_6",
+      "prompt_file": "prompts/lb_traveler_v1.txt",
+      "variants_requested": 3,
+      "status": "LOCKED",
+      "version": 1,
+      "approved_variant": "B",
+      "approved_take": null,
+      "approved_upload_id": null,
+      "estimated_credits": 30
+    }
+  ],
   "shots": [
     {
       "id": "s01",
@@ -41,8 +56,11 @@
         "prompt_file": "prompts/s01_still_v1.txt",
         "references": [
           "ref_bag_front",
-          "ref_clasp_macro"
+          "ref_clasp_macro",
+          "lb_traveler_hand"
         ],
+        "status": "LOCKED",
+        "version": 1,
         "estimated_credits": 10,
         "selected_take": null,
         "selected_job_id": null
@@ -56,7 +74,8 @@
         "end_image_from": null,
         "image_references": [
           "ref_bag_front",
-          "ref_clasp_macro"
+          "ref_clasp_macro",
+          "lb_traveler_hand"
         ],
         "draft_params": {
           "resolution": "480p",
@@ -68,6 +87,8 @@
           "duration": 5,
           "aspect_ratio": "16:9"
         },
+        "status": "DRAFT",
+        "version": 1,
         "estimated_draft_credits": 15,
         "estimated_final_credits": 80,
         "selected_take": null,
@@ -80,15 +101,18 @@
       "duration_s": 5,
       "test_take_check": {
         "risk": "Hand-to-brass-clasp and rolled-handle grip during weighted bench lift may warp fingers, detach or shimmer brushed-brass swivel hardware, or deform matte saddle leather stiffly like plastic.",
-        "pass_check": "In a 5s 480p Risk-First Pilot take (T03), 3x2 contact-sheet inspection confirms anatomically stable five-fingered hands across all frames, attached satin-brushed brass D-rings/clasp without flicker, and realistic downward matte leather crease physics under gravity."
+        "pass_check": "In a 5s 480p R4 Risk-First Pilot take, 3x2 contact-sheet inspection confirms anatomically stable five-fingered hands across all frames, attached satin-brushed brass D-rings/clasp without flicker, and realistic downward matte leather crease physics under gravity."
       },
       "still": {
         "model": "gpt_image_2_6",
         "prompt_file": "prompts/s02_still_v1.txt",
         "references": [
           "ref_bag_front",
-          "ref_bag_profile"
+          "ref_bag_profile",
+          "lb_traveler_hand"
         ],
+        "status": "ITERATING",
+        "version": 1,
         "estimated_credits": 10,
         "selected_take": null,
         "selected_job_id": null
@@ -102,7 +126,8 @@
         "end_image_from": null,
         "image_references": [
           "ref_bag_front",
-          "ref_bag_profile"
+          "ref_bag_profile",
+          "lb_traveler_hand"
         ],
         "draft_params": {
           "resolution": "480p",
@@ -114,6 +139,8 @@
           "duration": 5,
           "aspect_ratio": "16:9"
         },
+        "status": "DRAFT",
+        "version": 1,
         "estimated_draft_credits": 15,
         "estimated_final_credits": 80,
         "selected_take": null,
@@ -130,8 +157,11 @@
         "prompt_file": "prompts/s03_still_v1.txt",
         "references": [
           "ref_bag_profile",
-          "ref_bag_front"
+          "ref_bag_front",
+          "lb_traveler_hand"
         ],
+        "status": "LOCKED",
+        "version": 1,
         "estimated_credits": 10,
         "selected_take": null,
         "selected_job_id": null
@@ -145,7 +175,8 @@
         "end_image_from": null,
         "image_references": [
           "ref_bag_profile",
-          "ref_bag_front"
+          "ref_bag_front",
+          "lb_traveler_hand"
         ],
         "draft_params": {
           "resolution": "480p",
@@ -157,6 +188,8 @@
           "duration": 5,
           "aspect_ratio": "16:9"
         },
+        "status": "DRAFT",
+        "version": 1,
         "estimated_draft_credits": 15,
         "estimated_final_credits": 80,
         "selected_take": null,
@@ -170,14 +203,19 @@
       "model": "elevenlabs_music_v2_5",
       "duration_s": 15,
       "prompt": "Sparse intimate acoustic chamber score for solo warm cello and soft felt upright piano, slow reflective tempo at 68 BPM, unhurried Nordic morning atmosphere, gentle rising harmonic sustain across 15 seconds, no percussion, no vocals, clean natural decay.",
+      "status": "DRAFT",
+      "version": 1,
       "estimated_credits": 10,
-      "selected_file": null
+      "selected_file": null,
+      "selected_job_id": null
     },
     "voiceover": {
       "enabled": false,
       "model": null,
       "voice_id": null,
       "voice_type": null,
+      "status": "DRAFT",
+      "version": 1,
       "estimated_credits": 0,
       "tracks": []
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Budget-enforcing, atomic-reservation, idempotent wrapper around the higgsfield CLI."""
+"""Two-layer budget-enforcing, lock-aware, atomic-reservation wrapper around the higgsfield CLI."""
 
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ import hashlib
 import http.client
 import importlib.util
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -26,8 +27,8 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-VALID_PHASES = ("draft", "final")
-VALID_KINDS = ("still", "video", "audio", "analysis")
+VALID_ROUNDS = ("R2", "R3", "R4", "R4A", "R4B", "R5")
+VALID_KINDS = ("lookbook", "still", "video", "audio", "analysis")
 VALID_HF_COMMANDS = ("generate", "product-photoshoot", "soul-id")
 
 IN_FLIGHT_STATUSES = frozenset(
@@ -40,11 +41,25 @@ IN_FLIGHT_STATUSES = frozenset(
         "processing",
         "submitted",
         "starting",
+        "timeout",
+        "timed_out",
     }
 )
 COMPLETED_STATUSES = frozenset({"completed", "succeeded", "success", "done", "finished"})
 FAILED_STATUSES = frozenset(
-    {"failed", "error", "cancelled", "canceled", "rejected", "ip_detected", "timeout"}
+    {"failed", "error", "cancelled", "canceled", "rejected", "ip_detected"}
+)
+
+AMBIGUOUS_TRANSPORT_MARKERS = (
+    "timeout",
+    "timed out",
+    "deadline exceeded",
+    "connection reset",
+    "broken pipe",
+    "unexpected eof",
+    "502",
+    "503",
+    "504",
 )
 
 
@@ -52,9 +67,13 @@ class CorruptReceiptsError(RuntimeError):
     """Raised when receipts.jsonl contains malformed JSONL data."""
 
 
-def _load_check_intent():
-    mod_path = Path(__file__).resolve().with_name("check-intent.py")
-    spec = importlib.util.spec_from_file_location("check_intent", mod_path)
+class CorruptShotlistError(RuntimeError):
+    """Raised when shotlist.json exists but cannot be parsed as a JSON object."""
+
+
+def _load_check_brief():
+    mod_path = Path(__file__).resolve().with_name("check-brief.py")
+    spec = importlib.util.spec_from_file_location("check_brief", mod_path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load sibling module: {mod_path}")
     mod = importlib.util.module_from_spec(spec)
@@ -62,7 +81,7 @@ def _load_check_intent():
     return mod
 
 
-_CHECK_INTENT = _load_check_intent()
+_CHECK_BRIEF = _load_check_brief()
 
 
 def _utc_now_iso() -> str:
@@ -75,11 +94,15 @@ def _utc_now_iso() -> str:
 
 
 def _is_number(val: Any) -> bool:
-    return isinstance(val, (int, float)) and not isinstance(val, bool)
+    return (
+        isinstance(val, (int, float))
+        and not isinstance(val, bool)
+        and math.isfinite(float(val))
+    )
 
 
 def _extract_numeric_field(payload: Any, keys: tuple[str, ...]) -> float | None:
-    """Search payload (shallow then nested dicts) for the first numeric value matching keys."""
+    """Search payload (shallow then nested dicts) for the first finite numeric value matching keys."""
     if not isinstance(payload, dict):
         return None
     for k in keys:
@@ -89,7 +112,9 @@ def _extract_numeric_field(payload: Any, keys: tuple[str, ...]) -> float | None:
                 return float(v)
             if isinstance(v, str):
                 try:
-                    return float(v.strip())
+                    f = float(v.strip())
+                    if math.isfinite(f):
+                        return f
                 except ValueError:
                     pass
     for nested_key in ("data", "estimate", "result", "account", "billing", "job", "cost"):
@@ -141,17 +166,21 @@ def compute_params_hash(
     *,
     shot: str,
     kind: str,
-    phase: str,
+    round_name: str,
     model: str,
     is_workflow: bool,
     args: list[str],
     hf_command: str = "generate",
+    variant: str = "",
+    version: int = 1,
 ) -> str:
     """Compute deterministic SHA-256 over canonical generation parameters."""
     payload: dict[str, Any] = {
         "shot": shot,
         "kind": kind,
-        "phase": phase,
+        "round": round_name,
+        "variant": variant,
+        "version": version,
         "model": model,
         "is_workflow": bool(is_workflow),
         "args": list(args),
@@ -262,10 +291,10 @@ def _effective_credits(rec: dict[str, Any]) -> float:
             if _is_number(v) and float(v) > 0:
                 return float(v)
         v = rec.get("credits")
-        return float(v) if _is_number(v) else 0.0
+        return float(v) if _is_number(v) and float(v) >= 0 else 0.0
     for key in ("actual_credits", "credits"):
         v = rec.get(key)
-        if _is_number(v):
+        if _is_number(v) and float(v) >= 0:
             return float(v)
     return 0.0
 
@@ -278,23 +307,58 @@ def _counts_as_attempt(rec: dict[str, Any]) -> bool:
     return not (status == "rejected" and not str(rec.get("job_id") or "").strip())
 
 
+def _record_variant(rec: dict[str, Any]) -> str:
+    val = rec.get("variant")
+    return val.strip() if isinstance(val, str) else ""
+
+
+def _record_version(rec: dict[str, Any]) -> int:
+    val = rec.get("version")
+    if isinstance(val, int) and not isinstance(val, bool) and val >= 1:
+        return val
+    return 1
+
+
 def _summarize_receipts(
     records: list[dict[str, Any]],
-) -> tuple[dict[str, float], dict[tuple[str, str, str], int]]:
-    """Return (spent_by_phase, attempts_by_shot_kind_phase) from collapsed receipts."""
+) -> tuple[
+    float,
+    dict[str, float],
+    dict[tuple[str, str, str, str, int], int],
+    dict[tuple[str, str, int], set[str]],
+    float,
+]:
+    """Return (total_spent, spent_by_round, attempts, lookbook_variants_seen, active_reserved)."""
     collapsed = _collapse_receipts(records)
-    spent: dict[str, float] = {"draft": 0.0, "final": 0.0}
-    attempts: dict[tuple[str, str, str], int] = {}
+    total_spent = 0.0
+    active_reserved = 0.0
+    spent_by_round: dict[str, float] = {r: 0.0 for r in VALID_ROUNDS}
+    attempts: dict[tuple[str, str, str, str, int], int] = {}
+    lookbook_variants_seen: dict[tuple[str, str, int], set[str]] = {}
+
     for rec in collapsed:
-        phase = str(rec.get("phase") or "")
+        round_name = str(rec.get("round") or "")
         shot = str(rec.get("shot") or "")
         kind = str(rec.get("kind") or "video")
-        if phase in spent:
-            spent[phase] += _effective_credits(rec)
-        if shot and phase and _counts_as_attempt(rec):
-            key = (shot, kind, phase)
+        status = str(rec.get("status") or "").lower()
+        variant = _record_variant(rec)
+        version = _record_version(rec)
+
+        eff = _effective_credits(rec)
+        total_spent += eff
+        if status in IN_FLIGHT_STATUSES:
+            active_reserved += eff
+        if round_name in spent_by_round:
+            spent_by_round[round_name] += eff
+
+        if shot and round_name and _counts_as_attempt(rec):
+            key = (shot, kind, round_name, variant, version)
             attempts[key] = attempts.get(key, 0) + 1
-    return spent, attempts
+            if kind == "lookbook" and variant:
+                lb_key = (shot, round_name, version)
+                lookbook_variants_seen.setdefault(lb_key, set()).add(variant)
+
+    return total_spent, spent_by_round, attempts, lookbook_variants_seen, active_reserved
 
 
 def _run_cli(cmd: list[str]) -> tuple[int, str, str, Any]:
@@ -335,22 +399,22 @@ def _resolve_hf_bin(cli_value: str | None) -> str:
 def _load_envelope_or_error(
     campaign_dir: Path,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
-    intent_path = campaign_dir / "intent.md"
-    if not intent_path.is_file():
+    brief_path = campaign_dir / "brief.md"
+    if not brief_path.is_file():
         return None, {
             "ok": False,
-            "error_code": "intent_not_ready",
-            "message": f"intent.md not found in campaign directory: {campaign_dir}",
+            "error_code": "brief_not_active",
+            "message": f"brief.md not found in campaign directory: {campaign_dir}",
         }
-    envelope = _CHECK_INTENT.parse_budget_envelope(intent_path)
-    if envelope.get("status") != "ready":
+    envelope = _CHECK_BRIEF.parse_budget_envelope(brief_path)
+    if envelope.get("status") != "active":
         return None, {
             "ok": False,
-            "error_code": "intent_not_ready",
+            "error_code": "brief_not_active",
             "status": envelope.get("status"),
             "message": (
-                f"intent.md status is '{envelope.get('status')}' "
-                "(paid generations and uploads require status: ready)"
+                f"brief.md status is '{envelope.get('status')}' "
+                "(paid generations and uploads require status: active)"
             ),
         }
     if envelope.get("errors"):
@@ -361,6 +425,213 @@ def _load_envelope_or_error(
             "errors": envelope["errors"],
         }
     return envelope, None
+
+
+def _validate_round_cap(round_cap: float | None) -> dict[str, Any] | None:
+    if round_cap is None or not math.isfinite(round_cap) or round_cap < 0:
+        return {
+            "ok": False,
+            "error_code": "invalid_round_cap",
+            "round_cap": round_cap,
+            "message": f"--round-cap must be a finite number >= 0, got {round_cap!r}",
+        }
+    return None
+
+
+def _validate_variant_arg(kind: str, raw_variant: str | None) -> tuple[str, dict[str, Any] | None]:
+    variant = (raw_variant or "").strip()
+    if variant and kind != "lookbook":
+        return "", {
+            "ok": False,
+            "error_code": "invalid_variant",
+            "kind": kind,
+            "variant": variant,
+            "message": f"--variant is only allowed when --kind is 'lookbook' (got kind='{kind}')",
+        }
+    return variant, None
+
+
+def _load_shotlist(campaign_dir: Path) -> dict[str, Any] | None:
+    """Load shotlist.json fail-closed if present."""
+    shotlist_path = campaign_dir / "shotlist.json"
+    if not shotlist_path.is_file():
+        return None
+    try:
+        data = json.loads(shotlist_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise CorruptShotlistError(
+            f"failed to read or parse {shotlist_path}: {exc}"
+        ) from exc
+    if not isinstance(data, dict):
+        raise CorruptShotlistError(
+            f"expected JSON object in {shotlist_path}, got {type(data).__name__}"
+        )
+    return data
+
+
+def _resolve_shotlist_asset(
+    data: dict[str, Any], shot: str, kind: str
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, str | None]:
+    """Resolve (asset_dict, parent_dict, asset_path) in shotlist.json for (shot, kind)."""
+    if kind == "lookbook":
+        for item in data.get("lookbook") or []:
+            if isinstance(item, dict) and item.get("id") == shot:
+                return item, None, f"lookbook.{shot}"
+        return None, None, None
+
+    if kind in ("still", "video"):
+        for s in data.get("shots") or []:
+            if isinstance(s, dict) and s.get("id") == shot:
+                sub = s.get(kind)
+                if isinstance(sub, dict):
+                    return sub, None, f"shots.{shot}.{kind}"
+        return None, None, None
+
+    if kind == "audio":
+        audio = data.get("audio")
+        if isinstance(audio, dict):
+            # (a) Direct section key match (e.g. music, voiceover, sfx)
+            direct = audio.get(shot)
+            if isinstance(direct, dict):
+                return direct, None, f"audio.{shot}"
+
+            # (c) Exact track ID match inside audio.<section>.tracks[]
+            for sec_name, sec_obj in audio.items():
+                if not isinstance(sec_obj, dict):
+                    continue
+                tracks = sec_obj.get("tracks")
+                if isinstance(tracks, list):
+                    for tr in tracks:
+                        if isinstance(tr, dict) and tr.get("id") == shot:
+                            return tr, sec_obj, f"audio.{sec_name}.tracks.{shot}"
+
+            # (b) Prefix aliases (music*, vo*/voice*, sfx*)
+            alias_target: str | None = None
+            if shot.startswith("music"):
+                alias_target = "music"
+            elif shot.startswith(("vo", "voice")):
+                alias_target = "voiceover"
+            elif shot.startswith("sfx"):
+                alias_target = "sfx"
+            if alias_target and isinstance(audio.get(alias_target), dict):
+                return audio[alias_target], None, f"audio.{alias_target}"
+
+        # (d) Per-shot audio matching shots[].id
+        for s in data.get("shots") or []:
+            if isinstance(s, dict) and s.get("id") == shot:
+                sa = s.get("audio")
+                if isinstance(sa, dict):
+                    return sa, None, f"shots.{shot}.audio"
+
+    return None, None, None
+
+
+def _check_asset_locked(
+    shotlist_data: dict[str, Any] | None, shot: str, kind: str
+) -> tuple[bool, str | None]:
+    """Return (is_locked, asset_path) against loaded shotlist.json."""
+    if shotlist_data is None:
+        return False, None
+    asset, parent, asset_path = _resolve_shotlist_asset(shotlist_data, shot, kind)
+    if asset is None:
+        return False, None
+    asset_status = str(asset.get("status") or "").strip().upper()
+    parent_status = (
+        str(parent.get("status") or "").strip().upper() if isinstance(parent, dict) else ""
+    )
+    if asset_status == "LOCKED" or parent_status == "LOCKED":
+        return True, asset_path
+    return False, None
+
+
+def _resolve_and_validate_version(
+    shotlist_data: dict[str, Any] | None,
+    shot: str,
+    kind: str,
+    cli_version: int | None,
+) -> tuple[int | None, dict[str, Any] | None]:
+    """Validate --version and reconcile against shotlist.json asset version."""
+    if cli_version is not None and (isinstance(cli_version, bool) or cli_version < 1):
+        return None, {
+            "ok": False,
+            "error_code": "invalid_version",
+            "version": cli_version,
+            "message": f"--version must be an integer >= 1, got {cli_version!r}",
+        }
+
+    shotlist_version: int | None = None
+    asset_path: str | None = None
+    if shotlist_data is not None:
+        asset, parent, asset_path = _resolve_shotlist_asset(shotlist_data, shot, kind)
+        raw_ver = None
+        if isinstance(asset, dict) and asset.get("version") is not None:
+            raw_ver = asset.get("version")
+        elif isinstance(parent, dict) and parent.get("version") is not None:
+            raw_ver = parent.get("version")
+        if isinstance(raw_ver, int) and not isinstance(raw_ver, bool) and raw_ver >= 1:
+            shotlist_version = raw_ver
+
+    if shotlist_version is not None:
+        if cli_version is None:
+            return shotlist_version, None
+        if cli_version != shotlist_version:
+            return None, {
+                "ok": False,
+                "error_code": "version_mismatch",
+                "shot": shot,
+                "kind": kind,
+                "asset": asset_path,
+                "version": cli_version,
+                "shotlist_version": shotlist_version,
+                "message": (
+                    f"--version {cli_version} does not match shotlist.json "
+                    f"{asset_path} version {shotlist_version}"
+                ),
+            }
+        return cli_version, None
+
+    return (cli_version if cli_version is not None else 1), None
+
+
+def _inspect_shotlist_guard(
+    campaign_dir: Path,
+    shot: str,
+    kind: str,
+    round_name: str,
+    cli_version: int | None,
+) -> tuple[int | None, dict[str, Any] | None]:
+    """Fail-closed shotlist load, LOCKED check, and version validation."""
+    try:
+        shotlist_data = _load_shotlist(campaign_dir)
+    except CorruptShotlistError as exc:
+        return None, {
+            "ok": False,
+            "error_code": "corrupt_shotlist",
+            "campaign": str(campaign_dir),
+            "message": str(exc),
+        }
+
+    is_locked, asset_path = _check_asset_locked(shotlist_data, shot, kind)
+    if is_locked:
+        return None, {
+            "ok": False,
+            "error_code": "asset_locked",
+            "campaign": str(campaign_dir),
+            "shot": shot,
+            "kind": kind,
+            "round": round_name,
+            "asset": asset_path,
+            "message": (
+                f"asset '{asset_path}' is LOCKED in shotlist.json; "
+                "Root Producer must transition status to ITERATING and bump version "
+                "after explicit Director unlock"
+            ),
+        }
+
+    version, ver_err = _resolve_and_validate_version(shotlist_data, shot, kind, cli_version)
+    if ver_err is not None:
+        return None, ver_err
+    return version, None
 
 
 def _build_cost_cmd(
@@ -400,7 +671,35 @@ def _build_exec_cmd(
             wait_timeout,
             "--json",
         ]
+    if hf_command == "product-photoshoot":
+        has_timeout = any(
+            arg == "--timeout" or arg.startswith("--timeout=") for arg in cli_args
+        )
+        timeout_args = [] if has_timeout else ["--timeout", wait_timeout]
+        return [hf_bin, hf_command, "create", *cli_args, *timeout_args, "--json"]
     return [hf_bin, hf_command, "create", *cli_args, "--json"]
+
+
+def _build_get_cmd(hf_bin: str, hf_command: str, job_id: str) -> list[str]:
+    if hf_command == "soul-id":
+        return [hf_bin, "soul-id", "get", job_id, "--json"]
+    return [hf_bin, "generate", "get", job_id, "--json"]
+
+
+def _build_wait_cmd(
+    hf_bin: str, hf_command: str, job_id: str, wait_timeout: str
+) -> list[str]:
+    if hf_command == "soul-id":
+        return [hf_bin, "soul-id", "wait", job_id, "--json"]
+    return [
+        hf_bin,
+        "generate",
+        "wait",
+        job_id,
+        "--wait-timeout",
+        wait_timeout,
+        "--json",
+    ]
 
 
 def _do_preflight(
@@ -408,17 +707,38 @@ def _do_preflight(
     campaign_dir: Path,
     shot: str,
     kind: str,
-    phase: str,
+    round_name: str,
+    round_cap: float,
+    variant: str,
+    cli_version: int | None,
     model: str,
     is_workflow: bool,
     hf_command: str,
     hf_bin: str,
     extra_args: list[str],
     records: list[dict[str, Any]] | None = None,
+    resolved_version: int | None = None,
 ) -> tuple[int, dict[str, Any]]:
+    rcap_err = _validate_round_cap(round_cap)
+    if rcap_err is not None:
+        return 2, rcap_err
+
+    clean_variant, var_err = _validate_variant_arg(kind, variant)
+    if var_err is not None:
+        return 2, var_err
+
     envelope, env_err = _load_envelope_or_error(campaign_dir)
     if env_err is not None or envelope is None:
-        return 2, env_err or {"ok": False, "error_code": "intent_not_ready"}
+        return 2, env_err or {"ok": False, "error_code": "brief_not_active"}
+
+    if resolved_version is None:
+        version, sl_err = _inspect_shotlist_guard(
+            campaign_dir, shot, kind, round_name, cli_version
+        )
+        if sl_err is not None or version is None:
+            return 2, sl_err or {"ok": False, "error_code": "asset_locked"}
+    else:
+        version = resolved_version
 
     if records is None:
         try:
@@ -430,13 +750,43 @@ def _do_preflight(
                 "message": str(exc),
             }
 
-    spent_map, attempts_map = _summarize_receipts(records)
-    spent_in_phase = spent_map.get(phase, 0.0)
-    phase_cap = int(envelope["draft_cap"] if phase == "draft" else envelope["final_cap"])
-    max_retries = int(envelope["max_auto_retries"])
+    (
+        total_spent,
+        spent_by_round,
+        attempts_map,
+        lb_variants_seen,
+        _,
+    ) = _summarize_receipts(records)
+    round_spent = spent_by_round.get(round_name, 0.0)
+    campaign_cap = int(envelope["campaign_cap"])
+    max_retries = int(envelope["max_retries"])
+    lookbook_variants_cap = int(envelope["lookbook_variants"])
     max_attempts = 1 + max_retries
-    attempts_used = attempts_map.get((shot, kind, phase), 0)
 
+    # Enforce Lookbook variant count limit
+    if kind == "lookbook" and clean_variant:
+        seen_for_entity = set(lb_variants_seen.get((shot, round_name, version), set()))
+        projected_variants = seen_for_entity | {clean_variant}
+        if len(projected_variants) > lookbook_variants_cap:
+            return 2, {
+                "ok": False,
+                "error_code": "variant_limit_exceeded",
+                "campaign": str(campaign_dir),
+                "shot": shot,
+                "kind": kind,
+                "round": round_name,
+                "variant": clean_variant,
+                "version": version,
+                "variants_seen": sorted(seen_for_entity),
+                "lookbook_variants": lookbook_variants_cap,
+                "message": (
+                    f"lookbook '{shot}' ({round_name}/v{version}) variant '{clean_variant}' "
+                    f"exceeds brief.md Lookbook variants limit ({lookbook_variants_cap}; "
+                    f"already seen: {sorted(seen_for_entity)})"
+                ),
+            }
+
+    attempts_used = attempts_map.get((shot, kind, round_name, clean_variant, version), 0)
     if attempts_used >= max_attempts:
         return 2, {
             "ok": False,
@@ -444,13 +794,17 @@ def _do_preflight(
             "campaign": str(campaign_dir),
             "shot": shot,
             "kind": kind,
-            "phase": phase,
+            "round": round_name,
+            "variant": clean_variant or None,
+            "version": version,
             "attempts_used": attempts_used,
             "max_attempts": max_attempts,
-            "max_auto_retries": max_retries,
+            "max_retries": max_retries,
             "message": (
-                f"shot '{shot}' ({kind}/{phase}) has already used {attempts_used}/{max_attempts} "
-                f"allowed attempts (max_auto_retries={max_retries})"
+                f"asset '{shot}' ({kind}/{round_name}"
+                f"{'/' + clean_variant if clean_variant else ''}/v{version}) "
+                f"has already used {attempts_used}/{max_attempts} allowed attempts "
+                f"(max_retries={max_retries})"
             ),
         }
 
@@ -476,7 +830,6 @@ def _do_preflight(
         and model
         and model != hf_command
     ):
-        # Fallback to `generate cost <model>` if sub-namespace lacks a `cost` subcommand
         fallback_cmd = _build_cost_cmd(hf_bin, "generate", model, is_workflow, extra_args)
         fb_rc, fb_out, fb_err, fb_json = _run_cli(fallback_cmd)
         if fb_rc == 0:
@@ -507,13 +860,17 @@ def _do_preflight(
     estimated_credits = _extract_numeric_field(
         cost_json, ("estimated_credits", "credits", "cost", "total_credits", "price")
     )
-    if estimated_credits is None or estimated_credits < 0:
+    if (
+        estimated_credits is None
+        or not math.isfinite(estimated_credits)
+        or estimated_credits < 0
+    ):
         return 1, {
             "ok": False,
             "error_code": "cost_parse_failed",
             "command": cost_cmd,
             "raw_output": cost_out.strip(),
-            "message": "could not parse numeric credit estimate from higgsfield cost output",
+            "message": "could not parse finite non-negative credit estimate from higgsfield cost output",
         }
 
     if account_balance is not None and account_balance < estimated_credits:
@@ -522,30 +879,66 @@ def _do_preflight(
             f"estimated cost ({_clean_num(estimated_credits)} credits)"
         )
 
-    projected_total = spent_in_phase + estimated_credits
-    remaining_after = phase_cap - projected_total
+    projected_campaign = total_spent + estimated_credits
+    remaining_campaign_after = campaign_cap - projected_campaign
 
-    if projected_total > phase_cap:
+    if projected_campaign > campaign_cap:
         return 2, {
             "ok": False,
-            "error_code": "budget_exceeded",
+            "error_code": "campaign_budget_exceeded",
             "campaign": str(campaign_dir),
             "shot": shot,
             "kind": kind,
-            "phase": phase,
+            "round": round_name,
+            "variant": clean_variant or None,
+            "version": version,
             "model": model,
             "estimated_credits": _clean_num(estimated_credits),
-            "spent_in_phase": _clean_num(spent_in_phase),
-            "phase_cap": phase_cap,
-            "remaining_before": _clean_num(phase_cap - spent_in_phase),
-            "remaining_after": _clean_num(remaining_after),
+            "total_spent": _clean_num(total_spent),
+            "campaign_cap": campaign_cap,
+            "remaining_campaign_before": _clean_num(campaign_cap - total_spent),
+            "remaining_campaign_after": _clean_num(remaining_campaign_after),
+            "round_spent": _clean_num(round_spent),
+            "round_cap": _clean_num(round_cap),
             "attempts_used": attempts_used,
             "max_attempts": max_attempts,
             "account_balance": _clean_num(account_balance) if account_balance is not None else None,
             "warnings": warnings,
             "message": (
-                f"{phase} budget cap exceeded: spent {_clean_num(spent_in_phase)} + "
-                f"estimated {_clean_num(estimated_credits)} > cap {phase_cap} credits"
+                f"Campaign budget cap exceeded: spent {_clean_num(total_spent)} + "
+                f"estimated {_clean_num(estimated_credits)} > campaign cap {campaign_cap} credits"
+            ),
+        }
+
+    projected_round = round_spent + estimated_credits
+    remaining_round_after = round_cap - projected_round
+    if projected_round > round_cap:
+        return 2, {
+            "ok": False,
+            "error_code": "round_budget_exceeded",
+            "campaign": str(campaign_dir),
+            "shot": shot,
+            "kind": kind,
+            "round": round_name,
+            "variant": clean_variant or None,
+            "version": version,
+            "model": model,
+            "estimated_credits": _clean_num(estimated_credits),
+            "total_spent": _clean_num(total_spent),
+            "campaign_cap": campaign_cap,
+            "remaining_campaign": _clean_num(campaign_cap - total_spent),
+            "round_spent": _clean_num(round_spent),
+            "round_cap": _clean_num(round_cap),
+            "remaining_round_before": _clean_num(round_cap - round_spent),
+            "remaining_round_after": _clean_num(remaining_round_after),
+            "attempts_used": attempts_used,
+            "max_attempts": max_attempts,
+            "account_balance": _clean_num(account_balance) if account_balance is not None else None,
+            "warnings": warnings,
+            "message": (
+                f"{round_name} round budget cap exceeded: round spent "
+                f"{_clean_num(round_spent)} + estimated {_clean_num(estimated_credits)} "
+                f"> round cap {_clean_num(round_cap)} credits"
             ),
         }
 
@@ -554,14 +947,19 @@ def _do_preflight(
         "campaign": str(campaign_dir),
         "shot": shot,
         "kind": kind,
-        "phase": phase,
+        "round": round_name,
+        "variant": clean_variant or None,
+        "version": version,
         "command": hf_command,
         "model": model,
         "is_workflow": is_workflow,
         "estimated_credits": _clean_num(estimated_credits),
-        "spent_in_phase": _clean_num(spent_in_phase),
-        "phase_cap": phase_cap,
-        "remaining_after": _clean_num(remaining_after),
+        "total_spent": _clean_num(total_spent),
+        "campaign_cap": campaign_cap,
+        "remaining_campaign_after": _clean_num(remaining_campaign_after),
+        "round_spent": _clean_num(round_spent),
+        "round_cap": _clean_num(round_cap),
+        "remaining_round_after": _clean_num(remaining_round_after),
         "attempts_used": attempts_used,
         "max_attempts": max_attempts,
         "account_balance": _clean_num(account_balance) if account_balance is not None else None,
@@ -596,23 +994,60 @@ def _find_download_failed_receipt(
     return None
 
 
+def _recover_job_id_from_list(
+    *,
+    hf_bin: str,
+    model: str,
+    params_hash: str,
+    known_job_ids: set[str],
+) -> tuple[str | None, str | None]:
+    """Query `generate list --json` once after an ambiguous timeout to reclaim a remote job_id."""
+    list_rc, _, list_err, list_json = _run_cli([hf_bin, "generate", "list", "--json"])
+    if list_rc != 0 or list_json is None:
+        detail = list_err.strip() or f"exit code {list_rc}"
+        return None, f"generate list recovery unavailable after ambiguous failure: {detail}"
+
+    remote_jobs = _extract_job_list(list_json)
+    # 1. Exact params_hash match
+    for job in remote_jobs:
+        rstatus = str(job.get("status") or "").lower()
+        if rstatus in IN_FLIGHT_STATUSES or rstatus in COMPLETED_STATUSES:
+            meta_hash = _extract_string_field(job, ("params_hash",))
+            if not meta_hash and isinstance(job.get("metadata"), dict):
+                meta_hash = _extract_string_field(job["metadata"], ("params_hash",))
+            if meta_hash == params_hash:
+                jid = _extract_string_field(
+                    job, ("job_id", "id", "request_set_id", "request_id")
+                )
+                if jid:
+                    return jid, None
+
+    # 2. Match recent unseen job by model (prefer in-flight over completed)
+    completed_fallback: str | None = None
+    for job in remote_jobs:
+        jid = _extract_string_field(job, ("job_id", "id", "request_set_id", "request_id"))
+        if not jid or jid in known_job_ids:
+            continue
+        job_model = _extract_string_field(
+            job, ("model", "model_id", "workflow", "workflow_id", "job_set_type")
+        )
+        if job_model != model:
+            continue
+        rstatus = str(job.get("status") or "").lower()
+        if rstatus in IN_FLIGHT_STATUSES:
+            return jid, None
+        if rstatus in COMPLETED_STATUSES and completed_fallback is None:
+            completed_fallback = jid
+    return completed_fallback, None
+
+
 def _find_in_flight_job(
     records: list[dict[str, Any]],
     params_hash: str,
     hf_bin: str,
     hf_command: str,
 ) -> dict[str, Any]:
-    """Inspect collapsed receipts, `generate list`, and `generate get` for in-flight work.
-
-    Returns dict with keys:
-      action: "none" | "wait" | "use_get_result" | "blocked_reservation"
-      job_id: str | None
-      reservation_id: str | None
-      attempt: int | None
-      estimated_credits: float | None
-      get_payload: dict | None
-      warnings: list[str]
-    """
+    """Inspect collapsed receipts, `generate list`, and `<cmd> get` for in-flight work."""
     warnings: list[str] = []
     collapsed = _collapse_receipts(records)
 
@@ -625,7 +1060,7 @@ def _find_in_flight_job(
 
     remote_jobs: list[dict[str, Any]] = []
     list_ok = False
-    if hf_command == "generate":
+    if hf_command in ("generate", "product-photoshoot"):
         list_rc, _, list_err, list_json = _run_cli([hf_bin, "generate", "list", "--json"])
         list_ok = list_rc == 0 and list_json is not None
         if list_ok:
@@ -657,16 +1092,6 @@ def _find_in_flight_job(
         )
 
         if rec_jid:
-            if hf_command != "generate":
-                return {
-                    "action": "blocked_reservation",
-                    "job_id": rec_jid,
-                    "reservation_id": rec_rid,
-                    "attempt": attempt_int,
-                    "estimated_credits": est_val,
-                    "get_payload": None,
-                    "warnings": warnings,
-                }
             remote_job = remote_by_id.get(rec_jid)
             if remote_job is not None:
                 rstatus = str(remote_job.get("status") or "").lower()
@@ -681,10 +1106,8 @@ def _find_in_flight_job(
                         "warnings": warnings,
                     }
             else:
-                # Fallback to `generate get <job_id> --json` before ever submitting a new job
-                get_rc, _, get_err, get_json = _run_cli(
-                    [hf_bin, "generate", "get", rec_jid, "--json"]
-                )
+                get_cmd = _build_get_cmd(hf_bin, hf_command, rec_jid)
+                get_rc, _, get_err, get_json = _run_cli(get_cmd)
                 if get_rc == 0 and isinstance(get_json, dict):
                     gstatus = str(
                         _extract_string_field(get_json, ("status", "state")) or ""
@@ -735,7 +1158,7 @@ def _find_in_flight_job(
                 elif not list_ok:
                     detail = get_err.strip() or f"exit code {get_rc}"
                     warnings.append(
-                        f"generate get fallback unavailable ({detail}); waiting on {rec_jid}"
+                        f"job get fallback unavailable ({detail}); waiting on {rec_jid}"
                     )
                     return {
                         "action": "wait",
@@ -747,10 +1170,9 @@ def _find_in_flight_job(
                         "warnings": warnings,
                     }
                 else:
-                    # Not in list AND get failed — fail safe by calling wait rather than double-spending
                     detail = get_err.strip() or f"exit code {get_rc}"
                     warnings.append(
-                        f"job '{rec_jid}' absent from list and generate get failed ({detail}); "
+                        f"job '{rec_jid}' absent from list and job get failed ({detail}); "
                         "attempting wait before refusing"
                     )
                     return {
@@ -763,7 +1185,6 @@ def _find_in_flight_job(
                         "warnings": warnings,
                     }
         else:
-            # Active `reserved` record without a job_id yet: check remote list by params_hash first
             for job in remote_jobs:
                 rstatus = str(job.get("status") or "").lower()
                 if rstatus in IN_FLIGHT_STATUSES or rstatus in COMPLETED_STATUSES:
@@ -784,7 +1205,6 @@ def _find_in_flight_job(
                                 "get_payload": None,
                                 "warnings": warnings,
                             }
-            # Another worker holds an unresolved reservation for this exact params_hash
             return {
                 "action": "blocked_reservation",
                 "job_id": None,
@@ -795,7 +1215,6 @@ def _find_in_flight_job(
                 "warnings": warnings,
             }
 
-    # Check generate list for any active job tagged with our params_hash
     for job in remote_jobs:
         rstatus = str(job.get("status") or "").lower()
         if rstatus in IN_FLIGHT_STATUSES:
@@ -861,7 +1280,9 @@ def _download_or_copy(url_or_path: str, dest: Path) -> None:
         shutil.copyfile(src, dest)
 
 
-def _append_prompt_file(prompt_file: str | None, extra_args: list[str]) -> tuple[list[str] | None, dict[str, Any] | None]:
+def _append_prompt_file(
+    prompt_file: str | None, extra_args: list[str]
+) -> tuple[list[str] | None, dict[str, Any] | None]:
     cli_args = list(extra_args)
     if not prompt_file:
         return cli_args, None
@@ -904,7 +1325,10 @@ def _cmd_preflight(args: argparse.Namespace, extra_args: list[str]) -> int:
         campaign_dir=campaign_dir,
         shot=args.shot,
         kind=args.kind,
-        phase=args.phase,
+        round_name=args.round,
+        round_cap=args.round_cap,
+        variant=args.variant,
+        cli_version=args.version,
         model=model,
         is_workflow=args.workflow,
         hf_command=hf_command,
@@ -925,7 +1349,7 @@ def _cmd_upload(args: argparse.Namespace) -> int:
             json.dumps(
                 {
                     "ok": False,
-                    "error_code": "intent_not_ready",
+                    "error_code": "brief_not_active",
                     "message": f"campaign directory not found: {campaign_dir}",
                 },
                 indent=2,
@@ -950,6 +1374,23 @@ def _cmd_upload(args: argparse.Namespace) -> int:
             )
         )
         return 2
+
+    # Fail closed on corrupt receipts BEFORE uploading any private asset remotely
+    with _receipts_lock(campaign_dir):
+        try:
+            _read_receipts_raw(campaign_dir)
+        except CorruptReceiptsError as exc:
+            print(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "error_code": "corrupt_receipts",
+                        "message": str(exc),
+                    },
+                    indent=2,
+                )
+            )
+            return 2
 
     upload_cmd = [hf_bin, "upload", "create", str(file_path), "--json"]
     rc, out, err, parsed = _run_cli(upload_cmd)
@@ -1021,7 +1462,10 @@ def _cmd_upload(args: argparse.Namespace) -> int:
         "shot": ref_id,
         "ref_id": ref_id,
         "kind": "upload",
-        "phase": "draft",
+        "round": args.round,
+        "round_cap": None,
+        "variant": None,
+        "version": 1,
         "model": "upload",
         "is_workflow": False,
         "params_hash": params_hash,
@@ -1060,6 +1504,7 @@ def _cmd_upload(args: argparse.Namespace) -> int:
                 "ok": True,
                 "upload_id": upload_id,
                 "ref_id": ref_id,
+                "round": args.round,
                 "file": str(file_path),
                 "url": media_url,
                 "credits": 0,
@@ -1090,6 +1535,16 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
         )
         return 2
 
+    rcap_err = _validate_round_cap(args.round_cap)
+    if rcap_err is not None:
+        print(json.dumps(rcap_err, indent=2))
+        return 2
+
+    clean_variant, var_err = _validate_variant_arg(args.kind, args.variant)
+    if var_err is not None:
+        print(json.dumps(var_err, indent=2))
+        return 2
+
     cli_args, pf_err = _append_prompt_file(args.prompt_file, extra_args)
     if pf_err is not None or cli_args is None:
         print(json.dumps(pf_err, indent=2))
@@ -1100,7 +1555,7 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
             json.dumps(
                 {
                     "ok": False,
-                    "error_code": "intent_not_ready",
+                    "error_code": "brief_not_active",
                     "message": f"campaign directory not found: {campaign_dir}",
                 },
                 indent=2,
@@ -1108,29 +1563,40 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
         )
         return 2
 
-    # Verify intent envelope even for resumed/download-retried runs
+    # Verify brief envelope even for resumed/download-retried runs
     _, env_err = _load_envelope_or_error(campaign_dir)
     if env_err is not None:
         print(json.dumps(env_err, indent=2, ensure_ascii=False))
         return 2
 
+    # Fail-closed shotlist load, LOCKED asset check, and version validation
+    version, sl_err = _inspect_shotlist_guard(
+        campaign_dir, args.shot, args.kind, args.round, args.version
+    )
+    if sl_err is not None or version is None:
+        print(json.dumps(sl_err, indent=2, ensure_ascii=False))
+        return 2
+
     params_hash = compute_params_hash(
         shot=args.shot,
         kind=args.kind,
-        phase=args.phase,
+        round_name=args.round,
         model=model,
         is_workflow=args.workflow,
         args=cli_args,
         hf_command=hf_command,
+        variant=clean_variant,
+        version=version,
     )
 
     reservation_id: str | None = None
-    attempt_idx: int = 0
-    estimated_credits: float = 0.0
+    attempt_idx = 0
+    estimated_credits = 0.0
     resumed_job_id: str | None = None
     resumed_get_payload: dict[str, Any] | None = None
     download_retry_rec: dict[str, Any] | None = None
     preflight_info: dict[str, Any] | None = None
+    known_job_ids: set[str] = set()
     warnings: list[str] = []
 
     # Phase 1: locked duplicate check, download_failed check, preflight, and atomic reservation
@@ -1150,6 +1616,12 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
             )
             return 2
 
+        known_job_ids = {
+            str(r.get("job_id") or "").strip()
+            for r in records
+            if str(r.get("job_id") or "").strip()
+        }
+
         # 1a. Check if a previous run completed remotely but failed locally on download
         download_retry_rec = _find_download_failed_receipt(records, params_hash)
 
@@ -1161,7 +1633,9 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
             resumed_job_id = str(download_retry_rec.get("job_id") or "")
             attempt_idx = int(download_retry_rec.get("attempt") or 0)
             est_r = download_retry_rec.get("estimated_credits")
-            estimated_credits = float(est_r) if _is_number(est_r) else _effective_credits(download_retry_rec)
+            estimated_credits = (
+                float(est_r) if _is_number(est_r) else _effective_credits(download_retry_rec)
+            )
             if args.dry_run:
                 print(
                     json.dumps(
@@ -1170,6 +1644,10 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
                             "dry_run": True,
                             "resumed": True,
                             "download_retry": True,
+                            "round": args.round,
+                            "round_cap": _clean_num(args.round_cap),
+                            "variant": clean_variant or None,
+                            "version": version,
                             "job_id": resumed_job_id,
                             "url": download_retry_rec.get("url"),
                             "out": args.out,
@@ -1212,11 +1690,13 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
                 resumed_job_id = dup_info["job_id"]
                 reservation_id = dup_info["reservation_id"] or f"res-{uuid.uuid4().hex[:12]}"
                 resumed_get_payload = dup_info["get_payload"]
-                _, cur_attempts = _summarize_receipts(records)
+                _, _, cur_attempts, _, _ = _summarize_receipts(records)
                 attempt_idx = (
                     dup_info["attempt"]
                     if dup_info["attempt"] is not None
-                    else cur_attempts.get((args.shot, args.kind, args.phase), 0)
+                    else cur_attempts.get(
+                        (args.shot, args.kind, args.round, clean_variant, version), 0
+                    )
                 )
                 estimated_credits = (
                     float(dup_info["estimated_credits"])
@@ -1224,39 +1704,42 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
                     else 0.0
                 )
                 if args.dry_run:
+                    wait_cmd = _build_wait_cmd(
+                        hf_bin, hf_command, resumed_job_id or "", args.wait_timeout
+                    )
                     plan = {
                         "ok": True,
                         "dry_run": True,
                         "resumed": True,
+                        "round": args.round,
+                        "round_cap": _clean_num(args.round_cap),
+                        "variant": clean_variant or None,
+                        "version": version,
                         "job_id": resumed_job_id,
                         "params_hash": params_hash,
-                        "command": [
-                            hf_bin,
-                            "generate",
-                            "wait",
-                            resumed_job_id,
-                            "--wait-timeout",
-                            args.wait_timeout,
-                            "--json",
-                        ],
+                        "command": wait_cmd,
                         "out": args.out,
                         "warnings": warnings,
                     }
                     print(json.dumps(plan, indent=2, ensure_ascii=False))
                     return 0
             else:
-                # 1c. Fresh submission: run preflight under lock so reservations count toward caps
+                # 1c. Fresh submission: run preflight under lock so reservations count toward both caps
                 pf_rc, preflight_info = _do_preflight(
                     campaign_dir=campaign_dir,
                     shot=args.shot,
                     kind=args.kind,
-                    phase=args.phase,
+                    round_name=args.round,
+                    round_cap=args.round_cap,
+                    variant=clean_variant,
+                    cli_version=args.version,
                     model=model,
                     is_workflow=args.workflow,
                     hf_command=hf_command,
                     hf_bin=hf_bin,
                     extra_args=cli_args,
                     records=records,
+                    resolved_version=version,
                 )
                 if pf_rc != 0:
                     print(json.dumps(preflight_info, indent=2, ensure_ascii=False))
@@ -1276,7 +1759,10 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
                         "campaign": str(campaign_dir),
                         "shot": args.shot,
                         "kind": args.kind,
-                        "phase": args.phase,
+                        "round": args.round,
+                        "round_cap": _clean_num(args.round_cap),
+                        "variant": clean_variant or None,
+                        "version": version,
                         "command_type": hf_command,
                         "model": model,
                         "is_workflow": args.workflow,
@@ -1296,7 +1782,10 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
                     "reservation_id": reservation_id,
                     "shot": args.shot,
                     "kind": args.kind,
-                    "phase": args.phase,
+                    "round": args.round,
+                    "round_cap": _clean_num(args.round_cap),
+                    "variant": clean_variant or None,
+                    "version": version,
                     "command": hf_command,
                     "model": model,
                     "is_workflow": bool(args.workflow),
@@ -1331,7 +1820,10 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
             "reservation_id": reservation_id,
             "shot": args.shot,
             "kind": args.kind,
-            "phase": args.phase,
+            "round": args.round,
+            "round_cap": _clean_num(args.round_cap),
+            "variant": clean_variant or None,
+            "version": version,
             "command": hf_command,
             "model": model,
             "is_workflow": bool(args.workflow),
@@ -1352,6 +1844,10 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
             "ok": download_error is None,
             "resumed": True,
             "download_retried": True,
+            "round": args.round,
+            "round_cap": _clean_num(args.round_cap),
+            "variant": clean_variant or None,
+            "version": version,
             "reservation_id": reservation_id,
             "job_id": terminal_rec["job_id"],
             "status": final_status,
@@ -1371,22 +1867,14 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
         print(json.dumps(result, indent=2, ensure_ascii=False))
         return 0 if download_error is None else 1
 
-    # Phase 2: Execute remote CLI outside lock so parallel shots run concurrently
+    # Phase 2: Execute remote CLI outside lock so parallel assets run concurrently
     if resumed_get_payload is not None:
         exec_rc = 0
         exec_out = json.dumps(resumed_get_payload)
         exec_err = ""
         exec_json: Any = resumed_get_payload
     elif resumed_job_id is not None:
-        exec_cmd = [
-            hf_bin,
-            "generate",
-            "wait",
-            resumed_job_id,
-            "--wait-timeout",
-            args.wait_timeout,
-            "--json",
-        ]
+        exec_cmd = _build_wait_cmd(hf_bin, hf_command, resumed_job_id, args.wait_timeout)
         exec_rc, exec_out, exec_err, exec_json = _run_cli(exec_cmd)
     else:
         exec_cmd = _build_exec_cmd(
@@ -1434,23 +1922,49 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
         if isinstance(exec_json, dict)
         else None
     )
+    if reported_credits is not None and (
+        not math.isfinite(reported_credits) or reported_credits < 0
+    ):
+        reported_credits = None
 
     # Classify terminal outcome and exact accounting
     download_error = None
     out_recorded = None
     actual_credits: float | None = None
-    recorded_credits: float = 0.0
+    recorded_credits = 0.0
 
     if not job_id and not is_completed:
-        # Immediate CLI error / HTTP 429 with NO remote job created: release reservation!
-        status = "rejected"
-        actual_credits = 0.0
-        recorded_credits = 0.0
-    elif status == "in_progress" or (
-        resumed_job_id is not None and raw_status is None and exec_rc != 0
-    ):
-        # Timed out, still running remotely, or transient wait failure on known job_id:
-        # keep status in_progress and retain estimated_credits reserved!
+        combined_text = f"{exec_err} {exec_out}".lower()
+        is_ambiguous_transport = exec_rc != 127 and any(
+            marker in combined_text for marker in AMBIGUOUS_TRANSPORT_MARKERS
+        )
+        if is_ambiguous_transport:
+            if hf_command == "generate":
+                recovered_jid, rec_warn = _recover_job_id_from_list(
+                    hf_bin=hf_bin,
+                    model=model,
+                    params_hash=params_hash,
+                    known_job_ids=known_job_ids,
+                )
+                if rec_warn:
+                    warnings.append(rec_warn)
+                if recovered_jid:
+                    job_id = recovered_jid
+            status = "in_progress"
+            actual_credits = None
+            recorded_credits = estimated_credits
+            warnings.append(
+                "ambiguous timeout/transport failure without terminal job status; "
+                "keeping reservation in_progress to prevent double-spend"
+            )
+        else:
+            # Explicit non-timeout rejection with NO remote job created: release reservation
+            status = "rejected"
+            actual_credits = 0.0
+            recorded_credits = 0.0
+    elif status == "in_progress" or (job_id and raw_status is None and exec_rc != 0):
+        # Timed out, still running remotely, or non-zero exit with known job_id & no terminal status:
+        # preserve in_progress and retain estimated_credits reserved!
         status = "in_progress"
         actual_credits = None
         recorded_credits = (
@@ -1487,7 +2001,10 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
         "reservation_id": reservation_id,
         "shot": args.shot,
         "kind": args.kind,
-        "phase": args.phase,
+        "round": args.round,
+        "round_cap": _clean_num(args.round_cap),
+        "variant": clean_variant or None,
+        "version": version,
         "command": hf_command,
         "model": model,
         "is_workflow": bool(args.workflow),
@@ -1507,6 +2024,10 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
     result = {
         "ok": is_completed,
         "resumed": resumed_job_id is not None,
+        "round": args.round,
+        "round_cap": _clean_num(args.round_cap),
+        "variant": clean_variant or None,
+        "version": version,
         "reservation_id": reservation_id,
         "job_id": job_id,
         "status": status,
@@ -1539,12 +2060,12 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
 
 def _cmd_status(args: argparse.Namespace) -> int:
     campaign_dir = Path(args.campaign)
-    intent_path = campaign_dir / "intent.md"
-    if not intent_path.is_file():
+    brief_path = campaign_dir / "brief.md"
+    if not brief_path.is_file():
         err = {
             "ok": False,
-            "error_code": "intent_not_found",
-            "message": f"intent.md not found in {campaign_dir}",
+            "error_code": "brief_not_found",
+            "message": f"brief.md not found in {campaign_dir}",
         }
         if args.as_json:
             print(json.dumps(err, indent=2))
@@ -1552,7 +2073,7 @@ def _cmd_status(args: argparse.Namespace) -> int:
             print(f"ERROR: {err['message']}", file=sys.stderr)
         return 2
 
-    envelope = _CHECK_INTENT.parse_budget_envelope(intent_path)
+    envelope = _CHECK_BRIEF.parse_budget_envelope(brief_path)
     try:
         records = _read_receipts_raw(campaign_dir)
     except CorruptReceiptsError as exc:
@@ -1568,11 +2089,13 @@ def _cmd_status(args: argparse.Namespace) -> int:
         return 2
 
     collapsed = _collapse_receipts(records)
-    spent_map, attempts_map = _summarize_receipts(records)
+    total_spent, spent_by_round, attempts_map, _, active_reserved = _summarize_receipts(records)
 
-    draft_cap = envelope.get("draft_cap")
-    final_cap = envelope.get("final_cap")
-    max_retries = envelope.get("max_auto_retries")
+    campaign_cap = envelope.get("campaign_cap")
+    max_retries = envelope.get("max_retries")
+    remaining_campaign = (
+        _clean_num(campaign_cap - total_spent) if campaign_cap is not None else None
+    )
 
     shots_summary: dict[str, dict[str, Any]] = {}
     for rec in collapsed:
@@ -1580,7 +2103,9 @@ def _cmd_status(args: argparse.Namespace) -> int:
             continue
         shot = str(rec.get("shot") or "unknown")
         kind = str(rec.get("kind") or "video")
-        phase = str(rec.get("phase") or "draft")
+        round_name = str(rec.get("round") or "unknown")
+        variant = _record_variant(rec)
+        version = _record_version(rec)
         entry = shots_summary.setdefault(
             shot,
             {
@@ -1590,8 +2115,15 @@ def _cmd_status(args: argparse.Namespace) -> int:
                 "latest_status": None,
             },
         )
-        kp = f"{kind}/{phase}"
-        entry["attempts"][kp] = attempts_map.get((shot, kind, phase), 0)
+        kr_parts = [kind, round_name]
+        if variant:
+            kr_parts.append(variant)
+        if version != 1:
+            kr_parts.append(f"v{version}")
+        kr = "/".join(kr_parts)
+        entry["attempts"][kr] = attempts_map.get(
+            (shot, kind, round_name, variant, version), 0
+        )
         entry["credits"] = _clean_num(float(entry["credits"]) + _effective_credits(rec))
         entry["latest_job_id"] = rec.get("job_id")
         entry["latest_status"] = rec.get("status")
@@ -1599,28 +2131,16 @@ def _cmd_status(args: argparse.Namespace) -> int:
     report = {
         "ok": True,
         "campaign": str(campaign_dir),
-        "intent_status": envelope.get("status"),
-        "autonomy_mode": envelope.get("autonomy_mode"),
-        "max_auto_retries": max_retries,
-        "phases": {
-            "draft": {
-                "spent": _clean_num(spent_map["draft"]),
-                "cap": draft_cap,
-                "remaining": (
-                    _clean_num(draft_cap - spent_map["draft"])
-                    if draft_cap is not None
-                    else None
-                ),
-            },
-            "final": {
-                "spent": _clean_num(spent_map["final"]),
-                "cap": final_cap,
-                "remaining": (
-                    _clean_num(final_cap - spent_map["final"])
-                    if final_cap is not None
-                    else None
-                ),
-            },
+        "brief_status": envelope.get("status"),
+        "campaign_cap": campaign_cap,
+        "total_spent": _clean_num(total_spent),
+        "active_reserved": _clean_num(active_reserved),
+        "remaining_campaign": remaining_campaign,
+        "lookbook_variants": envelope.get("lookbook_variants"),
+        "max_retries": max_retries,
+        "auto_open_dailies": envelope.get("auto_open_dailies"),
+        "rounds": {
+            r: {"spent": _clean_num(spent_by_round[r])} for r in VALID_ROUNDS
         },
         "receipt_count": len(records),
         "unique_job_count": len(collapsed),
@@ -1630,22 +2150,20 @@ def _cmd_status(args: argparse.Namespace) -> int:
     if args.as_json:
         print(json.dumps(report, indent=2, ensure_ascii=False))
     else:
-        dp = report["phases"]["draft"]
-        fp = report["phases"]["final"]
         print(
-            f"Campaign: {campaign_dir} (intent={report['intent_status']}, "
-            f"mode={report['autonomy_mode']}, max_retries={max_retries})"
+            f"Campaign: {campaign_dir} (brief={report['brief_status']}, "
+            f"max_retries={max_retries}, lookbook_variants={report['lookbook_variants']})"
         )
         print(
-            f"  Draft phase: spent {dp['spent']} / {dp['cap']} credits "
-            f"(remaining: {dp['remaining']})"
+            f"  Campaign cap: spent {report['total_spent']} / {campaign_cap} credits "
+            f"(active_reserved: {report['active_reserved']}, remaining: {remaining_campaign})"
         )
-        print(
-            f"  Final phase: spent {fp['spent']} / {fp['cap']} credits "
-            f"(remaining: {fp['remaining']})"
+        round_parts = ", ".join(
+            f"{r}={report['rounds'][r]['spent']}" for r in VALID_ROUNDS
         )
+        print(f"  Rounds spent: {round_parts}")
         if shots_summary:
-            print("  Shots:")
+            print("  Assets:")
             for sid in sorted(shots_summary):
                 s = shots_summary[sid]
                 att_str = ", ".join(f"{k}={v}" for k, v in sorted(s["attempts"].items()))
@@ -1654,13 +2172,13 @@ def _cmd_status(args: argparse.Namespace) -> int:
                     f"latest_job={s['latest_job_id']} status={s['latest_status']}"
                 )
         else:
-            print("  Shots: (no receipts yet)")
+            print("  Assets: (no receipts yet)")
     return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Budget-enforcing, atomic-reservation wrapper around the higgsfield CLI."
+        description="Two-layer budget-enforcing, lock-aware wrapper around the higgsfield CLI."
     )
     parser.add_argument(
         "--higgsfield-bin",
@@ -1672,17 +2190,39 @@ def build_parser() -> argparse.ArgumentParser:
     # preflight
     pf = sub.add_parser(
         "preflight",
-        help="Check intent status, retry cap, and credit budget before generating.",
+        help="Check brief status, asset lock, retry cap, Campaign cap, and mandatory --round-cap.",
     )
-    pf.add_argument("--campaign", required=True, help="Campaign directory containing intent.md.")
-    pf.add_argument("--shot", required=True, help="Shot or asset identifier (e.g. s01).")
+    pf.add_argument("--campaign", required=True, help="Campaign directory containing brief.md.")
+    pf.add_argument("--shot", required=True, help="Shot, lookbook, or audio asset identifier.")
     pf.add_argument(
         "--kind",
         choices=VALID_KINDS,
         default="video",
-        help="Generation kind for retry accounting (default: video).",
+        help="Generation kind for lock and retry accounting (default: video).",
     )
-    pf.add_argument("--phase", required=True, choices=VALID_PHASES, help="Budget phase.")
+    pf.add_argument(
+        "--round",
+        required=True,
+        choices=VALID_ROUNDS,
+        help="Production round (R2, R3, R4, R4A, R4B, or R5).",
+    )
+    pf.add_argument(
+        "--round-cap",
+        type=float,
+        required=True,
+        help="Mandatory Director-approved cumulative credit ceiling for --round.",
+    )
+    pf.add_argument(
+        "--variant",
+        default="",
+        help="Optional Lookbook variant tag (e.g. A, B, C); allowed only when --kind lookbook.",
+    )
+    pf.add_argument(
+        "--version",
+        type=int,
+        default=None,
+        help="Optional asset version (>= 1); auto-resolved from shotlist.json when omitted.",
+    )
     pf.add_argument(
         "--command",
         dest="hf_command",
@@ -1706,12 +2246,34 @@ def build_parser() -> argparse.ArgumentParser:
     # run
     rn = sub.add_parser(
         "run",
-        help="Run a guarded, deduplicated paid generation and record immutable receipts.",
+        help="Run a guarded, lock-checked, deduplicated paid generation and record immutable receipts.",
     )
-    rn.add_argument("--campaign", required=True, help="Campaign directory.")
-    rn.add_argument("--shot", required=True, help="Shot or asset identifier (e.g. s01).")
+    rn.add_argument("--campaign", required=True, help="Campaign directory containing brief.md.")
+    rn.add_argument("--shot", required=True, help="Shot, lookbook, or audio asset identifier.")
     rn.add_argument("--kind", required=True, choices=VALID_KINDS, help="Generation kind.")
-    rn.add_argument("--phase", required=True, choices=VALID_PHASES, help="Budget phase.")
+    rn.add_argument(
+        "--round",
+        required=True,
+        choices=VALID_ROUNDS,
+        help="Production round (R2, R3, R4, R4A, R4B, or R5).",
+    )
+    rn.add_argument(
+        "--round-cap",
+        type=float,
+        required=True,
+        help="Mandatory Director-approved cumulative credit ceiling for --round.",
+    )
+    rn.add_argument(
+        "--variant",
+        default="",
+        help="Optional Lookbook variant tag (e.g. A, B, C); allowed only when --kind lookbook.",
+    )
+    rn.add_argument(
+        "--version",
+        type=int,
+        default=None,
+        help="Optional asset version (>= 1); auto-resolved from shotlist.json when omitted.",
+    )
     rn.add_argument(
         "--command",
         dest="hf_command",
@@ -1727,7 +2289,7 @@ def build_parser() -> argparse.ArgumentParser:
     rn.add_argument("--workflow", action="store_true", help="Invoke `generate workflow` instead of `create`.")
     rn.add_argument("--prompt-file", default=None, help="Read prompt text from file and append --prompt.")
     rn.add_argument("--out", default=None, help="Download or copy resulting media to this path.")
-    rn.add_argument("--wait-timeout", default="20m", help="Timeout passed to --wait-timeout (default: 20m).")
+    rn.add_argument("--wait-timeout", default="20m", help="Timeout passed to --wait-timeout / --timeout (default: 20m).")
     rn.add_argument(
         "--dry-run",
         action="store_true",
@@ -1744,9 +2306,15 @@ def build_parser() -> argparse.ArgumentParser:
         "upload",
         help="Upload a local reference asset via `higgsfield upload create` and record a 0-credit receipt.",
     )
-    up.add_argument("--campaign", required=True, help="Campaign directory containing intent.md.")
+    up.add_argument("--campaign", required=True, help="Campaign directory containing brief.md.")
     up.add_argument("--file", required=True, help="Local image/video/audio file to upload.")
     up.add_argument("--ref-id", default=None, help="Reference identifier (e.g. ref_bag_front).")
+    up.add_argument(
+        "--round",
+        choices=VALID_ROUNDS,
+        default="R2",
+        help="Production round for receipt metadata (default: R2).",
+    )
     up.add_argument(
         "--higgsfield-bin",
         default=argparse.SUPPRESS,
@@ -1756,7 +2324,7 @@ def build_parser() -> argparse.ArgumentParser:
     # status
     st = sub.add_parser(
         "status",
-        help="Show spent vs remaining credit envelope and per-shot attempts.",
+        help="Show spent vs remaining Campaign cap, active reserved, per-round spend, and per-asset attempts.",
     )
     st.add_argument("--campaign", required=True, help="Campaign directory.")
     st.add_argument("--json", action="store_true", dest="as_json", help="Emit JSON summary.")

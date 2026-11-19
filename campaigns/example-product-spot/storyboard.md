@@ -1,9 +1,10 @@
 # Storyboard: Nord Atelier Soren Weekender — Morning Departure 15s Spot
 
-Intent: [intent.md](intent.md)
+Brief: [brief.md](brief.md)
+Taste Log: [taste-log.md](taste-log.md)
 Script: [script.md](script.md)
-Treatment: [treatment.md](treatment.md)
 Style Bible: [style-bible.md](style-bible.md)
+Shotlist: [shotlist.json](shotlist.json)
 Brand: [Nord Atelier Brand Profile](../../brands/example-brand/brand.md)
 
 ## Continuity Lock
@@ -33,7 +34,7 @@ Brand: [Nord Atelier Brand Profile](../../brands/example-brand/brand.md)
 - **Cut trigger:** **Cut-on-action** + **audio cut** — cut cleanly on the momentum of the first leather-soled footstep and forward shoulder turn into the wide colonnade stride.
 - **Audio sync:** `SFX:` Soft scuff of matte leather clearing limestone; quiet leather handle creak under packed weight; muted heavy wool coat rustle as the strap settles; single measured leather-soled footstep on travertine. `[PAUSE 1.5s]` `MUSIC:` Warm solo cello note enters cleanly at `0:05.5` underneath diegetic foley.
 - **Continuity carry:** Inherits fastened brass clasp, matte saddle leather, charcoal wool overcoat, heather-grey cuff, and screen-left morning sun from `S01`; hands off right-hip carry position, forward screen-right stride vector, and warm cello sustain into `S03`.
-- **Test-take check:** *Risk:* Two-hand grip around rolled leather handles near the brushed-brass swivel clasp and weighted matte leather crease/slouch physics during lift can cause warped fingers, detached/flickering brass hardware, or rigid plastic-like bag deformation. *Pass check:* Run `S02` first as the 5s 480p Risk-First Pilot (`T03`); inspect the 3x2 contact sheet to verify anatomically natural five-fingered hands across all six frames, solid attached satin-brushed brass D-rings/clasp without shimmer, and believable downward matte leather crease response under gravity.
+- **Test-take check:** *Risk:* Two-hand grip around rolled leather handles near the brushed-brass swivel clasp and weighted matte leather crease/slouch physics during lift can cause warped fingers, detached/flickering brass hardware, or rigid plastic-like bag deformation. *Pass check:* Run `S02` first as the 5s 480p `R4` Risk-First Pilot; inspect the 3x2 contact sheet to verify anatomically natural five-fingered hands across all six frames, solid attached satin-brushed brass D-rings/clasp without shimmer, and believable downward matte leather crease response under gravity.
 
 ### S03 | 0:10-0:15 (5.0s) | WS architectural one-point perspective, 35mm eye-level, barely perceptible slow dolly-in (job: preserve monumental calm while closing button recedes into light)
 
@@ -51,4 +52,4 @@ Brand: [Nord Atelier Brand Profile](../../brands/example-brand/brand.md)
 - **Seam `S01 -> S02`:** Scale change `ECU/Macro (85mm) -> MS (50mm)` plus >45-degree side-profile camera shift satisfies the **30-degree rule**. Screen-left 4600K morning light, matte Warm Saddle Tan leather, fastened brass clasp, and charcoal wool / heather-grey knit sleeve carry seamlessly from `S01 End frame` to `S02 Start frame`; focal entry stays centered on the bag; zero **180-degree axis** crossing.
 - **Seam `S02 -> S03`:** Scale change `MS (50mm) -> WS (35mm)` plus ~60-degree rear three-quarter angle shift satisfies the **30-degree rule**. Right-shoulder/right-hip bag carry, charcoal wool coat, matte saddle leather hue, and screen-left sunlight direction bridge cleanly on the first forward stride (**cut-on-action**); zero **180-degree axis** crossing.
 - **Proof & button hold check:** `S01` holds the fastened brass clasp and blind-debossed `NORD ATELIER` mark unobstructed for `1.8s` (`0:03.2-0:05.0`, exceeding the `1.5s` readability floor); `S02` sustains weighted lift physics across `3.6s`; `S03` holds the closing **button** silhouette in golden morning light across the final `2.0s` (`0:13.0-0:15.0`).
-- **Highest-risk seam & pilot order:** `S02` carries the sole `Test-take check` (two-hand grip around rolled leather handles near brushed-brass swivel clasp + weighted matte leather crease physics), so production runs **`S02` first as Risk-First Pilot (`T03`)** before batching `S01` and `S03` (`T04`).
+- **Highest-risk seam & pilot order:** `S02` carries the sole `Test-take check` (two-hand grip around rolled leather handles near brushed-brass swivel clasp + weighted matte leather crease physics), so `R4` Draft Motion runs **`S02` first as the Risk-First Pilot** before batching `S01` and `S03`.

@@ -6,7 +6,7 @@
 - **Single-minded proposition:** Honest matte full-grain saddle leather and solid brushed-brass hardware built to carry real morning weight with quiet Scandinavian restraint.
 - **Runtime:** `15.0s` (`0:00-0:15`, contiguous 5-second visual beats)
 - **Brand entry:** `0:00` (hero bag resting in morning sunlight on honed limestone bench; blind-debossed `NORD ATELIER` wordmark revealed cleanly at `0:03.2-0:05.0`)
-- **Delivery cadence:** Visual/SFX-only + sparse acoustic underscore (`0.0 wps`, ceiling `<= 1.8 wps` dramatic tier; zero spoken voiceover per `I1` in [intent.md](intent.md))
+- **Delivery cadence:** Visual/SFX-only + sparse acoustic underscore (`0.0 wps`, ceiling `<= 1.8 wps` dramatic tier; zero spoken voiceover per `M1` in [brief.md](brief.md))
 - **Dramatic situation:** Early morning departure inside a quiet sunlit Scandinavian railway concourse where an understated traveler fastens the solid brass clasp, lifts the weighted 40L weekender onto a wool shoulder, and walks calmly toward the morning light.
 
 ## Three-column script

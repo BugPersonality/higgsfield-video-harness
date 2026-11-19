@@ -8,14 +8,29 @@ import sys
 sys.dont_write_bytecode = True
 
 import argparse
+import importlib.util
 import json
 import re
 import tomllib
+import urllib.parse
 from pathlib import Path
 from typing import Any
 
 REQUIRED_ROLE_KEYS = ("name", "description", "class", "output_schema", "instructions")
 DECISION_SKILL_MAX_LINES = 300
+
+
+def _load_check_docs():
+    mod_path = Path(__file__).resolve().with_name("check-docs.py")
+    spec = importlib.util.spec_from_file_location("check_docs", mod_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load sibling module: {mod_path}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_CHECK_DOCS = _load_check_docs()
 
 
 def _strip_inline_comment(raw: str) -> str:
@@ -309,6 +324,7 @@ def validate_instructions(repo_root: Path) -> dict[str, Any]:
     # 3. Validate .agents/roles/*.toml
     roles_dir = repo_root / ".agents" / "roles"
     role_classes_dir = repo_root / ".agents" / "role-classes"
+    schema_anchor_cache: dict[Path, set[str]] = {}
     if not roles_dir.is_dir():
         errors.append("missing directory: .agents/roles")
     else:
@@ -338,6 +354,30 @@ def validate_instructions(repo_root: Path) -> dict[str, Any]:
                         f"{rel}: role class '{rclass}' has no matching file "
                         f"'.agents/role-classes/{rclass}.md'"
                     )
+            rschema = rdata.get("output_schema")
+            if isinstance(rschema, str) and rschema.strip():
+                raw_schema = rschema.strip()
+                if "#" in raw_schema:
+                    schema_file, schema_frag = raw_schema.split("#", 1)
+                else:
+                    schema_file, schema_frag = raw_schema, ""
+                schema_file = schema_file.strip()
+                if schema_file.endswith(".md"):
+                    schema_path = (repo_root / schema_file).resolve()
+                    if not schema_path.is_file():
+                        errors.append(
+                            f"{rel}: output_schema references missing file '{schema_file}'"
+                        )
+                    elif schema_frag.strip():
+                        if schema_path not in schema_anchor_cache:
+                            schema_anchor_cache[schema_path] = _CHECK_DOCS.extract_anchors(
+                                schema_path
+                            )
+                        frag_norm = urllib.parse.unquote(schema_frag).strip().lower()
+                        if frag_norm not in schema_anchor_cache[schema_path]:
+                            errors.append(
+                                f"{rel}: output_schema anchor '#{schema_frag}' not found in '{schema_file}'"
+                            )
 
     # 4. Validate .agents/skills/<dir>/SKILL.md
     skills_dir = repo_root / ".agents" / "skills"

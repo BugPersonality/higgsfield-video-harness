@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static structural validator for Video Intent V1 (campaigns/<slug>/intent.md)."""
+"""Static structural validator for Direction Brief V1 (campaigns/<slug>/brief.md)."""
 
 from __future__ import annotations
 
@@ -21,12 +21,11 @@ REQUIRED_SECTIONS = (
     "Success signal",
 )
 
-VALID_STATUSES = frozenset({"draft", "ready"})
-VALID_AUTONOMY_MODES = frozenset({"autonomous-draft", "checkpointed"})
-VALID_BINDINGS = frozenset({"hard", "default"})
+VALID_STATUSES = frozenset({"draft", "active", "done"})
+ACTIVE_STATUSES = frozenset({"active", "done"})
 
 REQUESTER_OWNER_RE = re.compile(
-    r"\b(?:user|human|requester|client|founder|owner|pm|me)\b",
+    r"\b(?:user|human|requester|director|client|founder|owner|pm|me)\b",
     re.IGNORECASE,
 )
 
@@ -95,20 +94,21 @@ def _strip_fenced_blocks(text: str) -> str:
     return "\n".join(out)
 
 
-def is_placeholder(value: str | None) -> bool:
-    """Return True if value is empty or contains unresolved placeholder markers."""
-    if value is None:
+def is_placeholder(text: str | None) -> bool:
+    """Return True if text is empty or contains unresolved placeholder markers."""
+    if text is None:
         return True
-    cleaned = _strip_md_wrapper(value)
+    cleaned = _strip_md_wrapper(text)
     if not cleaned:
         return True
     if PLACEHOLDER_EXACT_RE.match(cleaned.rstrip(".")):
         return True
-    if PLACEHOLDER_TOKEN_CI_RE.search(cleaned):
+    # Strip inline backticked code spans before placeholder scans so documented
+    # path templates (`campaigns/<slug>/brief.md`) or code tokens (`NA`) do not
+    # false-positive.
+    prose_only = re.sub(r"`+[^`\n]+`+", " ", cleaned)
+    if PLACEHOLDER_TOKEN_CI_RE.search(prose_only):
         return True
-    # Strip inline backticked code spans so documented path templates like
-    # `campaigns/<slug>/intent.md` or `NA` identifiers in code don't false-positive.
-    prose_only = re.sub(r"`[^`\n]+`", " ", cleaned)
     if PLACEHOLDER_NA_UPPER_RE.search(prose_only):
         return True
     if PLACEHOLDER_ELLIPSIS_RE.search(prose_only):
@@ -121,14 +121,14 @@ def _norm_heading(name: str) -> str:
 
 
 def _parse_document(text: str) -> tuple[str | None, str, dict[str, tuple[str, str]]]:
-    """Parse title, header block before first H2, and H2 sections."""
+    """Parse H1 title, header block before first H2, and H2 sections."""
     lines = text.splitlines()
     title: str | None = None
     header_lines: list[str] = []
     sections: dict[str, tuple[str, str]] = {}
 
     current_key: str | None = None
-    current_raw_heading: str = ""
+    current_raw_heading = ""
     current_lines: list[str] = []
 
     in_fence = False
@@ -160,7 +160,7 @@ def _parse_document(text: str) -> tuple[str | None, str, dict[str, tuple[str, st
             continue
 
         if current_key is None and title is None:
-            tm = re.match(r"^#\s+Intent:\s*(.+?)\s*$", line)
+            tm = re.match(r"^#\s+Brief:\s*(.+?)\s*$", line)
             if tm:
                 title = tm.group(1).strip()
                 continue
@@ -188,24 +188,18 @@ def _parse_document(text: str) -> tuple[str | None, str, dict[str, tuple[str, st
 def _extract_status(header_text: str) -> str | None:
     for line in header_text.splitlines():
         m = re.match(
-            r"^\s*(?:[-*]\s+)?(?:\*\*|__)?status(?:\*\*|__)?\s*:\s*(.+?)\s*$",
+            r"^\s*(?:[-*]\s+)?(?:\*\*|__)?status(?:\*\*|__)?\s*:\s*(?:\*\*|__)?\s*(.+?)\s*$",
             line,
             re.IGNORECASE,
         )
         if m:
-            val = _strip_md_wrapper(m.group(1)).lower()
-            # Drop optional trailing inline note like "(approved)"? No, keep strict token
-            return val
+            return _strip_md_wrapper(m.group(1)).lower()
     return None
 
 
 def _extract_field_block(section_text: str, field_name: str) -> str | None:
     """Extract inline or sub-bullet/H3 block for a named field in a section."""
     escaped = re.escape(field_name)
-    # Match either:
-    # - **Field name:** value (optional indented continuation lines)
-    # - Field name: value
-    # ### Field name (followed by lines until next ###)
     lines = section_text.splitlines()
     inline_re = re.compile(
         rf"^(\s*)(?:[-*]\s+)?(?:\*\*|__)?{escaped}(?:\*\*|__)?\s*:\s*(?:\*\*|__)?\s*(.*)$",
@@ -222,12 +216,8 @@ def _extract_field_block(section_text: str, field_name: str) -> str | None:
             if first_val:
                 collected.append(first_val)
             is_bullet = line.lstrip().startswith(("-", "*"))
-            # Gather indented continuation / sub-bullet lines
             for next_line in lines[idx + 1 :]:
                 if not next_line.strip():
-                    if collected:
-                        # Stop at blank line only if next non-empty line is not indented deeper
-                        continue
                     continue
                 if next_line.lstrip().startswith("###"):
                     break
@@ -235,7 +225,6 @@ def _extract_field_block(section_text: str, field_name: str) -> str | None:
                 if next_indent > base_indent:
                     collected.append(next_line.strip())
                 elif not is_bullet and next_line.lstrip().startswith(("-", "*")):
-                    # Unindented bullets directly under `Field:` header when first_val was empty
                     if not first_val:
                         collected.append(next_line.strip())
                     else:
@@ -259,8 +248,7 @@ def _extract_field_block(section_text: str, field_name: str) -> str | None:
 def _parse_int_field(raw: str | None, allowed_units: tuple[str, ...]) -> int | None:
     if raw is None or is_placeholder(raw):
         return None
-    cleaned = _strip_md_wrapper(raw).strip()
-    # Reject decimals such as 12.5
+    cleaned = _strip_md_wrapper(raw.splitlines()[0]).strip()
     if re.match(r"^-?\d+\.\d+", cleaned):
         return None
     units_pat = "|".join(re.escape(u) for u in allowed_units)
@@ -274,16 +262,26 @@ def _parse_int_field(raw: str | None, allowed_units: tuple[str, ...]) -> int | N
     return int(m.group(1))
 
 
-def resolve_intent_path(target: str | Path) -> Path:
-    """Resolve a campaign directory or direct path to intent.md."""
+def _parse_bool_field(raw: str | None) -> bool | None:
+    if raw is None or is_placeholder(raw):
+        return None
+    cleaned = _strip_md_wrapper(raw.splitlines()[0]).strip()
+    m = re.match(r"^(true|false)(?:\s*[\(\[—–-].*)?$", cleaned, re.IGNORECASE)
+    if not m:
+        return None
+    return m.group(1).lower() == "true"
+
+
+def resolve_brief_path(target: str | Path) -> Path:
+    """Resolve a campaign directory or direct path to brief.md."""
     p = Path(target)
     if p.is_dir():
-        return p / "intent.md"
+        return p / "brief.md"
     return p
 
 
 def find_repo_root(start: Path) -> Path:
-    """Locate repository root by walking up for AGENTS.md, Makefile, or .git."""
+    """Locate repository root by walking up for AGENTS.md or .git."""
     cur = start.resolve()
     if cur.is_file():
         cur = cur.parent
@@ -293,24 +291,24 @@ def find_repo_root(start: Path) -> Path:
     return cur
 
 
-def parse_budget_envelope(intent_path: str | Path) -> dict[str, Any]:
-    """Parse status and Authority & budget envelope fields from intent.md.
+def parse_budget_envelope(brief_path: str | Path) -> dict[str, Any]:
+    """Parse status and Budget & round policy fields from brief.md.
 
-    Reusable by check-ledger.py and hf_guard.py.
+    Reusable by check-campaign.py and hf_guard.py.
     """
-    path = resolve_intent_path(intent_path)
+    path = resolve_brief_path(brief_path)
     errors: list[str] = []
     result: dict[str, Any] = {
         "status": None,
-        "autonomy_mode": None,
-        "draft_cap": None,
-        "final_cap": None,
-        "max_auto_retries": None,
+        "campaign_cap": None,
+        "lookbook_variants": None,
+        "max_retries": None,
+        "auto_open_dailies": None,
         "errors": errors,
     }
 
     if not path.is_file():
-        errors.append(f"intent file not found: {path}")
+        errors.append(f"brief file not found: {path}")
         return result
 
     text = path.read_text(encoding="utf-8")
@@ -323,71 +321,64 @@ def parse_budget_envelope(intent_path: str | Path) -> dict[str, Any]:
         return result
 
     constraints_body = constraints_entry[1]
-    envelope_block = _extract_field_block(
-        constraints_body, "Authority & budget envelope"
-    )
-    if envelope_block is None or not envelope_block.strip():
+    policy_block = _extract_field_block(constraints_body, "Budget & round policy")
+    if policy_block is None or not policy_block.strip():
         errors.append(
-            "Constraints & boundaries: missing 'Authority & budget envelope:' block"
+            "Constraints & boundaries: missing 'Budget & round policy:' block"
         )
         return result
 
-    # Parse individual envelope fields from the envelope block
-    raw_mode = _extract_field_block(envelope_block, "Autonomy mode")
-    if raw_mode is None or is_placeholder(raw_mode):
-        errors.append("Authority & budget envelope: missing or placeholder 'Autonomy mode:'")
-    else:
-        # Take first token before optional explanatory parenthetical
-        mode_val = _strip_md_wrapper(raw_mode.splitlines()[0]).split("(")[0].strip()
-        mode_val = _strip_md_wrapper(mode_val)
-        if mode_val not in VALID_AUTONOMY_MODES:
-            errors.append(
-                f"Authority & budget envelope: invalid Autonomy mode '{mode_val}' "
-                f"(expected one of {sorted(VALID_AUTONOMY_MODES)})"
-            )
-        else:
-            result["autonomy_mode"] = mode_val
-
-    raw_draft = _extract_field_block(envelope_block, "Draft cap")
-    draft_cap = _parse_int_field(raw_draft, ("credits", "credit", "cr", "cr."))
-    if draft_cap is None:
+    raw_cap = _extract_field_block(policy_block, "Campaign cap")
+    campaign_cap = _parse_int_field(raw_cap, ("credits", "credit", "cr", "cr."))
+    if campaign_cap is None:
         errors.append(
-            "Authority & budget envelope: missing or unparseable integer 'Draft cap:'"
+            "Budget & round policy: missing or unparseable integer 'Campaign cap:'"
         )
-    elif draft_cap <= 0:
+    elif campaign_cap <= 0:
         errors.append(
-            f"Authority & budget envelope: 'Draft cap' must be a positive integer (> 0), got {draft_cap}"
+            f"Budget & round policy: 'Campaign cap' must be a positive integer (> 0), got {campaign_cap}"
         )
     else:
-        result["draft_cap"] = draft_cap
+        result["campaign_cap"] = campaign_cap
 
-    raw_final = _extract_field_block(envelope_block, "Final cap")
-    final_cap = _parse_int_field(raw_final, ("credits", "credit", "cr", "cr."))
-    if final_cap is None:
+    raw_variants = _extract_field_block(policy_block, "Lookbook variants")
+    variants = _parse_int_field(
+        raw_variants, ("variants", "variant", "options", "option", "images", "image")
+    )
+    if variants is None:
         errors.append(
-            "Authority & budget envelope: missing or unparseable integer 'Final cap:'"
+            "Budget & round policy: missing or unparseable integer 'Lookbook variants:'"
         )
-    elif final_cap < 0:
+    elif not (1 <= variants <= 4):
         errors.append(
-            f"Authority & budget envelope: 'Final cap' must be non-negative (>= 0), got {final_cap}"
+            f"Budget & round policy: 'Lookbook variants' must be between 1 and 4, got {variants}"
         )
     else:
-        result["final_cap"] = final_cap
+        result["lookbook_variants"] = variants
 
-    raw_retries = _extract_field_block(envelope_block, "Max auto-retries/shot")
+    raw_retries = _extract_field_block(policy_block, "Max auto-retries/asset")
     max_retries = _parse_int_field(
-        raw_retries, ("retries/shot", "retries", "retry", "attempts", "attempt")
+        raw_retries, ("retries/asset", "retries", "retry", "attempts", "attempt")
     )
     if max_retries is None:
         errors.append(
-            "Authority & budget envelope: missing or unparseable integer 'Max auto-retries/shot:'"
+            "Budget & round policy: missing or unparseable integer 'Max auto-retries/asset:'"
         )
     elif max_retries < 0:
         errors.append(
-            f"Authority & budget envelope: 'Max auto-retries/shot' must be >= 0, got {max_retries}"
+            f"Budget & round policy: 'Max auto-retries/asset' must be >= 0, got {max_retries}"
         )
     else:
-        result["max_auto_retries"] = max_retries
+        result["max_retries"] = max_retries
+
+    raw_auto_open = _extract_field_block(policy_block, "Auto-open dailies")
+    auto_open = _parse_bool_field(raw_auto_open)
+    if auto_open is None:
+        errors.append(
+            "Budget & round policy: missing or invalid boolean 'Auto-open dailies:' (expected true or false)"
+        )
+    else:
+        result["auto_open_dailies"] = auto_open
 
     return result
 
@@ -398,7 +389,7 @@ def _is_explicit_none(section_body: str) -> bool:
         return True
     if len(lines) == 1:
         cleaned = re.sub(r"^[-*]\s+", "", lines[0]).strip().rstrip(".").lower()
-        return cleaned in {"none", "no open questions", "no settled decisions", "no assumptions"}
+        return cleaned in {"none", "no open questions", "no assumptions", "no settled meaning"}
     return False
 
 
@@ -414,88 +405,10 @@ def _split_top_bullets(section_body: str) -> list[str]:
         elif current and (not line.strip() or line.startswith((" ", "\t"))):
             current.append(line)
         elif line.strip() and not current:
-            # Non-bullet text; capture so caller can flag malformed lines
             current = [line]
     if current:
         items.append("\n".join(current))
     return items
-
-
-def _validate_settled_decisions(body: str, errors: list[str]) -> None:
-    if _is_explicit_none(body):
-        return
-
-    lines = body.splitlines()
-    entries: list[tuple[str, list[str]]] = []
-    current_heading: str | None = None
-    current_lines: list[str] = []
-
-    for line in lines:
-        if re.match(r"^###\s+", line):
-            if current_heading is not None:
-                entries.append((current_heading, current_lines))
-            current_heading = line.strip()
-            current_lines = []
-        elif current_heading is not None:
-            current_lines.append(line)
-        elif line.strip():
-            errors.append(
-                f"Settled decisions: unexpected content outside '### I<n> — <title>' heading: {line.strip()[:60]}"
-            )
-
-    if current_heading is not None:
-        entries.append((current_heading, current_lines))
-
-    if not entries:
-        errors.append("Settled decisions: section is present but contains no '### I<n> — <title>' entries")
-        return
-
-    seen_ids: set[str] = set()
-    heading_re = re.compile(r"^###\s+(I\d+)\s*(?:—|--|–|-|:)\s*(.+?)\s*$")
-    superseded_re = re.compile(
-        r"(?:\*\*|__)?Superseded\s+by(?:\*\*|__)?\s*:?\s*(?:\*\*|__|`)*\s*(I\d+)\b",
-        re.IGNORECASE,
-    )
-
-    for heading, entry_lines in entries:
-        m = heading_re.match(heading)
-        if not m:
-            errors.append(
-                f"Settled decisions: heading '{heading}' does not match '### I<n> — <title>'"
-            )
-            continue
-        did, dtitle = m.group(1), m.group(2)
-        if is_placeholder(dtitle):
-            errors.append(f"Settled decisions ({did}): title is empty or placeholder")
-        if did in seen_ids:
-            errors.append(f"Settled decisions: duplicate decision ID '{did}'")
-        seen_ids.add(did)
-
-        entry_text = "\n".join(entry_lines)
-
-        binding_raw = _extract_field_block(entry_text, "Binding")
-        if binding_raw is None or is_placeholder(binding_raw):
-            errors.append(f"Settled decisions ({did}): missing or placeholder 'Binding: hard|default'")
-        else:
-            bval = _strip_md_wrapper(binding_raw.splitlines()[0]).split()[0].rstrip(".,;").lower()
-            if bval not in VALID_BINDINGS:
-                errors.append(
-                    f"Settled decisions ({did}): invalid Binding '{bval}' (expected 'hard' or 'default')"
-                )
-
-        sup_m = superseded_re.search(entry_text)
-        if sup_m:
-            if sup_m.group(1) == did:
-                errors.append(f"Settled decisions ({did}): cannot supersede itself")
-            continue
-
-        for req_field in ("Decision", "Rejected", "Why"):
-            val = _extract_field_block(entry_text, req_field)
-            if val is None or is_placeholder(val):
-                errors.append(
-                    f"Settled decisions ({did}): missing or placeholder '{req_field}:' "
-                    f"(required unless 'Superseded by I<m>' is present)"
-                )
 
 
 def _validate_assumptions(body: str, errors: list[str]) -> None:
@@ -505,36 +418,37 @@ def _validate_assumptions(body: str, errors: list[str]) -> None:
     items = _split_top_bullets(body)
     seen_ids: set[str] = set()
     item_re = re.compile(r"^[-*]\s+(?:\*\*|__)?(A\d+)\b", re.IGNORECASE)
-    reopen_re = re.compile(r"(?:\*\*|__)?Reopen\s+if(?:\*\*|__)?\s*:\s*(.+)", re.IGNORECASE | re.DOTALL)
+    reopen_re = re.compile(
+        r"(?:\*\*|__)?Reopen\s+if(?:\*\*|__)?\s*:\s*(?:\*\*|__)?\s*(.+)",
+        re.IGNORECASE | re.DOTALL,
+    )
 
     for item in items:
         first_line = item.splitlines()[0].strip()
         m = item_re.match(first_line)
         if not m:
             errors.append(
-                f"Assumptions & reopen triggers: item must start with '- **A<n> ...**': {first_line[:60]}"
+                f"Assumptions: item must start with '- **A<n> ...**': {first_line[:60]}"
             )
             continue
         aid = m.group(1).upper()
         if aid in seen_ids:
-            errors.append(f"Assumptions & reopen triggers: duplicate assumption ID '{aid}'")
+            errors.append(f"Assumptions: duplicate assumption ID '{aid}'")
         seen_ids.add(aid)
 
         rm = reopen_re.search(item)
         if not rm:
-            errors.append(
-                f"Assumptions & reopen triggers ({aid}): missing 'Reopen if:' trigger"
-            )
+            errors.append(f"Assumptions ({aid}): missing 'Reopen if:' trigger")
         else:
             cond = rm.group(1).strip()
             if is_placeholder(cond):
                 errors.append(
-                    f"Assumptions & reopen triggers ({aid}): 'Reopen if:' condition is empty or placeholder"
+                    f"Assumptions ({aid}): 'Reopen if:' condition is empty or placeholder"
                 )
 
 
 def _extract_inline_subkey(item_text: str, key: str) -> str | None:
-    """Extract subkey value from either inline '; Key: val' or sub-bullet '- Key: val'."""
+    """Extract subkey value from either sub-bullet '- Key: val' or inline 'Key: val'."""
     val = _extract_field_block(item_text, key)
     if val is not None:
         return val
@@ -542,7 +456,7 @@ def _extract_inline_subkey(item_text: str, key: str) -> str | None:
     escaped = re.escape(key)
     pattern = re.compile(
         rf"(?:\*\*|__)?{escaped}(?:\*\*|__)?\s*:\s*(?:\*\*|__)?\s*(.+?)"
-        rf"(?=(?:\s*[;|.]?\s+|\n\s*(?:[-*]\s+)?)(?:\*\*|__)?(?:Owner|Fallback|Reopen\s+if)(?:\*\*|__)?\s*:|$)",
+        rf"(?=(?:\s*[;|]\s*|\s*[.]?\s+|\n\s*(?:[-*]\s+)?)(?:\*\*|__)?(?:Owner|Fallback|Reopen\s+if)(?:\*\*|__)?\s*:|$)",
         re.IGNORECASE | re.DOTALL,
     )
     m = pattern.search(item_text)
@@ -559,7 +473,8 @@ def _validate_open_questions(body: str, status: str | None, errors: list[str]) -
     for idx, item in enumerate(items, start=1):
         if not re.match(r"^[-*]\s+", item):
             errors.append(
-                f"Open questions (item {idx}): expected bulleted item starting with '- ': {item.splitlines()[0][:60]}"
+                f"Open questions (item {idx}): expected bulleted item starting with '- ': "
+                f"{item.splitlines()[0][:60]}"
             )
             continue
 
@@ -569,10 +484,10 @@ def _validate_open_questions(body: str, status: str | None, errors: list[str]) -
 
         if owner is None or is_placeholder(owner):
             errors.append(f"Open questions (item {idx}): missing or placeholder 'Owner:'")
-        elif status == "ready" and REQUESTER_OWNER_RE.search(_strip_md_wrapper(owner)):
+        elif status in ACTIVE_STATUSES and REQUESTER_OWNER_RE.search(_strip_md_wrapper(owner)):
             errors.append(
-                f"Open questions (item {idx}): requester-owned question not allowed at status: ready "
-                f"(Owner: '{_strip_md_wrapper(owner)}')"
+                f"Open questions (item {idx}): requester-owned question not allowed at "
+                f"status: {status} (Owner: '{_strip_md_wrapper(owner)}')"
             )
 
         if fallback is None or is_placeholder(fallback):
@@ -584,21 +499,20 @@ def _validate_open_questions(body: str, status: str | None, errors: list[str]) -
 
 def _check_backticked_paths(
     text: str,
-    intent_path: Path,
+    brief_path: Path,
     require_media: bool,
     errors: list[str],
     warnings: list[str],
 ) -> None:
     clean_text = _strip_fenced_blocks(text)
-    repo_root = find_repo_root(intent_path)
-    campaign_dir = intent_path.resolve().parent
+    repo_root = find_repo_root(brief_path)
+    campaign_dir = brief_path.resolve().parent
 
     seen_checked: set[str] = set()
     for match in re.finditer(r"`([^`\n]+)`", clean_text):
         raw_span = match.group(1).strip()
         if not raw_span or raw_span in seen_checked:
             continue
-        # Strip optional #anchor
         path_str = raw_span.split("#", 1)[0].strip()
         if not path_str or "<" in path_str or ">" in path_str:
             continue
@@ -606,27 +520,28 @@ def _check_backticked_paths(
         if path_str.startswith(("brands/", "docs/")):
             seen_checked.add(raw_span)
             if any(ch in path_str for ch in ("*", "?")):
-                matches = list(repo_root.glob(path_str))
-                if not matches:
+                if not list(repo_root.glob(path_str)):
                     errors.append(f"referenced repo path pattern not found: `{path_str}`")
-            else:
-                if not (repo_root / path_str).exists():
-                    errors.append(f"referenced repo path does not exist: `{path_str}`")
+            elif not (repo_root / path_str).exists():
+                errors.append(f"referenced repo path does not exist: `{path_str}`")
 
         elif path_str.startswith("media/references/") or "/media/references/" in path_str:
             seen_checked.add(raw_span)
             is_glob = any(ch in path_str for ch in ("*", "?"))
-            found = False
             if path_str.startswith("media/references/"):
-                if is_glob:
-                    found = bool(list(campaign_dir.glob(path_str)))
-                else:
-                    found = (campaign_dir / path_str).exists()
+                found = (
+                    bool(list(campaign_dir.glob(path_str)))
+                    if is_glob
+                    else (campaign_dir / path_str).exists()
+                )
             else:
-                if is_glob:
-                    found = bool(list(repo_root.glob(path_str))) or bool(list(campaign_dir.glob(path_str)))
-                else:
-                    found = (repo_root / path_str).exists() or (campaign_dir / path_str).exists()
+                found = (
+                    bool(list(repo_root.glob(path_str)))
+                    or bool(list(campaign_dir.glob(path_str)))
+                    if is_glob
+                    else (repo_root / path_str).exists()
+                    or (campaign_dir / path_str).exists()
+                )
 
             if not found:
                 msg = f"referenced media path not found on disk: `{path_str}`"
@@ -636,91 +551,89 @@ def _check_backticked_paths(
                     warnings.append(msg)
 
 
-def validate_intent(
+def validate_brief(
     target: str | Path, *, require_media: bool = False
 ) -> dict[str, Any]:
-    """Validate Video Intent V1 document and return structured report."""
-    intent_path = resolve_intent_path(target)
+    """Validate Direction Brief V1 document and return structured report."""
+    brief_path = resolve_brief_path(target)
     errors: list[str] = []
     warnings: list[str] = []
 
-    if not intent_path.is_file():
+    if not brief_path.is_file():
         return {
             "ok": False,
             "file_found": False,
-            "path": str(intent_path),
+            "path": str(brief_path),
             "status": None,
             "title": None,
             "budget_envelope": None,
-            "errors": [f"intent file not found: {intent_path}"],
+            "errors": [f"brief file not found: {brief_path}"],
             "warnings": [],
         }
 
-    text = intent_path.read_text(encoding="utf-8")
+    text = brief_path.read_text(encoding="utf-8")
     title, header_text, sections = _parse_document(text)
-
-    if title is None or is_placeholder(title):
-        errors.append("missing or placeholder H1 title matching '^# Intent: <title>'")
 
     status = _extract_status(header_text)
     if status is None:
-        errors.append("missing 'status:' header line (expected 'draft' or 'ready')")
+        errors.append("missing 'status:' header line (expected 'draft', 'active', or 'done')")
     elif status not in VALID_STATUSES:
         errors.append(
             f"invalid status '{status}' (expected one of {sorted(VALID_STATUSES)})"
         )
 
-    # Required H2 sections
+    is_draft = status == "draft"
+    placeholder_sink = warnings if is_draft else errors
+
+    if title is None or not title.strip():
+        errors.append("missing H1 title matching '^# Brief: <title>'")
+    elif is_placeholder(title):
+        placeholder_sink.append("placeholder H1 title matching '^# Brief: <title>'")
+
     for sec_name in REQUIRED_SECTIONS:
         sec_key = _norm_heading(sec_name)
         if sec_key not in sections:
             errors.append(f"missing required section '## {sec_name}'")
             continue
         sec_body = sections[sec_key][1].strip()
-        if not sec_body or is_placeholder(sec_body):
-            errors.append(f"section '## {sec_name}' is empty or contains placeholder text")
+        if not sec_body:
+            errors.append(f"section '## {sec_name}' is empty")
+        elif is_placeholder(sec_body):
+            placeholder_sink.append(
+                f"section '## {sec_name}' contains unresolved placeholder text"
+            )
 
-    # Remaining frontier allowed ONLY while status: draft
-    if _norm_heading("Remaining frontier") in sections and status == "ready":
-        errors.append(
-            "section '## Remaining frontier' is only allowed while status: draft (remove before status: ready)"
-        )
-
-    # Constraints & boundaries specifics
-    envelope = parse_budget_envelope(intent_path)
+    envelope = parse_budget_envelope(brief_path)
     constraints_entry = sections.get(_norm_heading("Constraints & boundaries"))
     if constraints_entry is not None:
         cbody = constraints_entry[1]
         for req_sub in ("Must not", "Scope & non-goals"):
             val = _extract_field_block(cbody, req_sub)
-            if val is None or is_placeholder(val):
-                errors.append(
-                    f"Constraints & boundaries: missing or placeholder '{req_sub}:'"
+            if val is None or not val.strip():
+                errors.append(f"Constraints & boundaries: missing '{req_sub}:'")
+            elif is_placeholder(val):
+                placeholder_sink.append(
+                    f"Constraints & boundaries: '{req_sub}:' contains unresolved placeholder text"
                 )
         errors.extend(envelope["errors"])
 
-    # Settled decisions (optional)
-    sd_entry = sections.get(_norm_heading("Settled decisions"))
-    if sd_entry is not None:
-        _validate_settled_decisions(sd_entry[1], errors)
-
-    # Assumptions & reopen triggers (optional)
-    assump_entry = sections.get(_norm_heading("Assumptions & reopen triggers"))
+    assump_entry = sections.get(_norm_heading("Assumptions")) or sections.get(
+        _norm_heading("Assumptions & reopen triggers")
+    )
     if assump_entry is not None:
         _validate_assumptions(assump_entry[1], errors)
 
-    # Open questions (optional)
     oq_entry = sections.get(_norm_heading("Open questions"))
     if oq_entry is not None:
         _validate_open_questions(oq_entry[1], status, errors)
 
-    # Backticked repo & media paths
-    _check_backticked_paths(text, intent_path, require_media, errors, warnings)
+    _check_backticked_paths(text, brief_path, require_media, errors, warnings)
 
-    # Vague unbound qualifiers check
+    scenarios_entry = sections.get(_norm_heading("Concrete viewer scenarios"))
     has_scenarios = (
-        _norm_heading("Concrete viewer scenarios") in sections
-        and bool(sections[_norm_heading("Concrete viewer scenarios")][1].strip())
+        scenarios_entry is not None
+        and bool(scenarios_entry[1].strip())
+        and not is_placeholder(scenarios_entry[1])
     )
     if not has_scenarios:
         found_vague: list[str] = []
@@ -741,14 +654,14 @@ def validate_intent(
     return {
         "ok": len(errors) == 0,
         "file_found": True,
-        "path": str(intent_path),
+        "path": str(brief_path),
         "status": status,
         "title": title,
         "budget_envelope": {
-            "autonomy_mode": envelope["autonomy_mode"],
-            "draft_cap": envelope["draft_cap"],
-            "final_cap": envelope["final_cap"],
-            "max_auto_retries": envelope["max_auto_retries"],
+            "campaign_cap": envelope["campaign_cap"],
+            "lookbook_variants": envelope["lookbook_variants"],
+            "max_retries": envelope["max_retries"],
+            "auto_open_dailies": envelope["auto_open_dailies"],
         },
         "errors": errors,
         "warnings": warnings,
@@ -757,11 +670,11 @@ def validate_intent(
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Validate a Video Intent V1 document (campaigns/<slug>/intent.md)."
+        description="Validate a Direction Brief V1 document (campaigns/<slug>/brief.md)."
     )
     parser.add_argument(
         "target",
-        help="Path to campaign directory or intent.md file.",
+        help="Path to campaign directory or brief.md file.",
     )
     parser.add_argument(
         "--require-media",
@@ -781,7 +694,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    report = validate_intent(args.target, require_media=args.require_media)
+    report = validate_brief(args.target, require_media=args.require_media)
 
     if args.as_json:
         print(json.dumps(report, indent=2, ensure_ascii=False))
@@ -794,9 +707,10 @@ def main(argv: list[str] | None = None) -> int:
         env = report["budget_envelope"] or {}
         print(
             f"[{state}] {report['path']} "
-            f"(status={report['status']}, mode={env.get('autonomy_mode')}, "
-            f"draft_cap={env.get('draft_cap')}, final_cap={env.get('final_cap')}, "
-            f"max_retries={env.get('max_auto_retries')})"
+            f"(status={report['status']}, campaign_cap={env.get('campaign_cap')}, "
+            f"lookbook_variants={env.get('lookbook_variants')}, "
+            f"max_retries={env.get('max_retries')}, "
+            f"auto_open_dailies={env.get('auto_open_dailies')})"
         )
         for w in report["warnings"]:
             print(f"  WARN: {w}")

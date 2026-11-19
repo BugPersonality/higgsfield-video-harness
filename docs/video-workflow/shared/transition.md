@@ -1,131 +1,125 @@
 # Transition
 
-Governs macro-phase movement, `Blocked Exit` handoffs, `Parent-Owned Recovery`
-(including Higgsfield timeout and double-spend protection), and surgical
-mid-pipeline reopens.
+Governs round-to-round handoffs (`R0` → `R5`), surgical single-asset
+re-iteration without disturbing `LOCKED` work, mid-campaign direction pivots,
+and **Parent-Owned Recovery** (timeouts, HTTP 429 rate limits, `ip_detected`
+moderation blocks, and duplicate-spend prevention).
 
-## Cross-Phase Continuation
+## Round Handoffs (`R0` → `R5`)
 
-After [Intake](../phases/intake.md) confirms `campaigns/<slug>/intent.md` at
-`status: ready` (passing `make intent-check CAMPAIGN=<slug>`), the Root
-Orchestrator dispatches preparation phases serially, each in a fresh subagent
-(`fork_turns: "none"`):
+Every round ends with a [Dailies Packet V1](../interfaces/dailies-packet-v1.md)
+and **waits for the Director** before spending credits in the next round. There
+is never a silent automatic jump across paid rounds.
 
-1. Dispatch [Creative Definition](../phases/creative-definition.md) with
-   `intent.md` and `brands/` / `media/references/` locators. Wait for its
-   reviewed [Transition Result V1](#transition-result-v1) confirming
-   `treatment.md` and `style-bible.md` at `status: ready`.
-2. Dispatch [Production Design](../phases/production-design.md) with
-   `intent.md`, `treatment.md`, and `style-bible.md`. Wait for its reviewed
-   receipt confirming `shotlist.json`, prompts, and verified `generate cost`
-   budget fit.
-3. Dispatch [Planning](../phases/planning.md) with `intent.md`, `treatment.md`,
-   `style-bible.md`, and `shotlist.json`. Wait for its reviewed receipt
-   confirming `tasks.md` + `tasks/TNN-*.md` passing `make ledger-check`.
-4. Once `tasks.md` is `status: ready`, the Root Orchestrator drives
-   [Production](../phases/production.md) wave-by-wave (respecting
-   `Autonomy mode` gates and `Budget Authority`).
+| Completed round | Gate before advancing | Next round |
+| --- | --- | --- |
+| `R0` — Direction Seed | Dailies 0 confirmed; `brief.md` at `status: active` (`make brief-check`); `taste-log.md` seeded | [R1 — Story & Cost Ticket](../rounds/r1-story-and-cost.md) |
+| `R1A` — Concept Pick | Director picks/blends pitch; logged in `taste-log.md` | `R1B` inside [R1](../rounds/r1-story-and-cost.md) |
+| `R1B` — Story & Cost Ticket | `shotlist.json` passes `make campaign-check`; Director approves next single round's `--round-cap` | [R2 — Lookbook](../rounds/r2-lookbook.md) *(or skip to [R3](../rounds/r3-stills-and-animatic.md) when `lookbook: []`)* |
+| `R2` — Lookbook | All `lookbook[]` entities uploaded & `LOCKED`; `taste-log.md` updated; Director approves `R3` `--round-cap` | [R3 — Keyframe Stills & Animatic](../rounds/r3-stills-and-animatic.md) |
+| `R3` — Stills & Animatic | All stills (& rough audio) `LOCKED`; `taste-log.md` updated; Director approves `R4A` (or `R4`) `--round-cap` | [R4 — Motion Dailies](../rounds/r4-motion-dailies.md) |
+| `R4A` — Risk-First Pilot | Pilot clip(s) approved; `taste-log.md` updated; Director approves `R4B` `--round-cap` | `R4B` inside [R4](../rounds/r4-motion-dailies.md) |
+| `R4B` — Draft Cut | `draft_cut.mp4` approved; Director approves `R5` `1080p` upgrade list & `--round-cap` | [R5 — Final Master](../rounds/r5-mastering.md) |
+| `R5` — Final Master | Final Dailies 5 approved; all assets `LOCKED`; `brief.md` → `status: done`; confirmed rules graduated to `brands/<brand>/taste.md` | Complete |
 
-A preparation phase owner owns its artifact, bounded research (`evidence-agent`),
-creative lanes (`specialist-agent`), fresh review (`reviewer-agent`), and
-repairs. If a phase returns `status: blocked`, the Root Orchestrator pauses
-dependent phases and routes directly to `reopen_owner` (typically Intake for
-requester meaning or taste forks).
+Before closing any round and presenting Dailies, the Root Producer joins or
+stops all active `worker-agent` and `reviewer-agent` descendants and reconciles
+all terminal receipts in `receipts.jsonl` and `shotlist.json`.
 
-## Blocked Exit
+## Surgical Single-Asset Re-Iteration
 
-Use `Blocked Exit` (`status: blocked`) ONLY when a required decision, missing
-asset, irreversible taste fork, or hard budget/policy boundary cannot be closed
-inside current phase authority. Never emit a blocked exit for ordinary craft
-choices or technical obstacles.
+Most Director feedback affects **one entity or shot** while everything else is
+already working. Never wipe or re-render a whole round when a surgical re-roll
+closes the feedback:
 
-When emitting a blocked exit, record structured `Blocked decisions` (`B1..Bn`)
-in the owning artifact (for example `treatment.md`) or inline in
-`Transition Result V1`:
+1. **Preserve every `LOCKED` asset:** keep all `LOCKED` Lookbook UUIDs, stills,
+   clips, and audio stems untouched (`hf_guard.py` enforces this mechanically
+   via `asset_locked`).
+2. **Capture the steer:** append `### TL-<NN>` in `campaigns/<slug>/taste-log.md`
+   via [Feedback Loop](feedback-loop.md).
+3. **Bump version & prompt:** flip ONLY the target asset in `shotlist.json` to
+   `status: "ITERATING"`, increment `version`, write the versioned prompt file
+   (`_v2.txt`, `_v3.txt`), and run `make campaign-check CAMPAIGN=<slug>`.
+4. **Confirm exact micro-cost:** quote live `higgsfield generate cost` for ONLY
+   that asset, read current spend for its round bucket (`R2`, `R3`, `R4A`,
+   `R4B`, `R4`, or `R5`) from `make budget-status CAMPAIGN=<slug>`, and obtain
+   Director approval for `<delta_cap>` (raising the round's cumulative ceiling
+   to `<round_spent + delta_cap>`).
+5. **Execute & re-filter:** dispatch one fresh `worker-agent` inside that
+   asset's disjoint paths via `hf_guard.py run --round <R2|R3|R4|R4A|R4B|R5>
+   --round-cap <round_spent + delta_cap> --version <N>` (plus
+   `--variant <A|B|C>` for `--kind lookbook`; keeping `R4A` pilot and `R4B`
+   batch in their distinct buckets), run `scripts/qa_media.py`, and run a fresh
+   `reviewer-agent` (`view_image`) checking both the updated asset and its
+   continuity against adjacent `LOCKED` shots.
+6. **Rebuild preview & re-present Dailies:** refresh the single consolidated
+   preview artifact (`lookbook.png`, `stills_strip.png` + `animatic.mp4`, or
+   `draft_cut.mp4`) and present a compact updated Dailies Packet.
 
-- State the exact **conflict or missing input** anchored to `intent.md` or live
-  CLI output (`generate cost`, `model get`, moderation error).
-- Present 2–3 concrete viewer-visible or budget options (`Option A` /
-  `Option B`) with clear trade-offs—never raw model flags.
-- Hold conditional sub-questions in `Follow-up if <option>` lines so Intake
-  asks them only if the requester chooses that branch.
-- Name the exact `reopen_owner` (`Intake`, `Production Design`, or requester
-  external asset action) and preserve all already-valid work on disk.
+## Mid-Campaign Direction Pivot
+
+If Director feedback changes a fundamental invariant in `brief.md` (meaning,
+aspect ratio, runtime, spoken pronunciation, `Must not`, or `Campaign cap`):
+
+1. Stop active dependent workers and reconcile all in-flight `receipts.jsonl`
+   entries first.
+2. Update `brief.md` in place (re-running `make brief-check CAMPAIGN=<slug>`)
+   and append a `Supersedes TL-<prev>` entry in `taste-log.md`.
+3. Invalidate **strictly** the affected downstream assets (explicitly unlocking
+   any `LOCKED` asset only with Director confirmation), preserve unaffected
+   `LOCKED` assets and `receipts.jsonl`, re-price via `evidence-agent`, verify
+   `make campaign-check`, and resume from the earliest invalidated round.
 
 ## Parent-Owned Recovery
 
 Obstacles—API timeouts, HTTP 429 rate limits, `ip_detected` moderation blocks,
-server parameter `adjustments`, or a bad first take—are **not** blockers. Every
-delegated blocker (`NEEDS_PARENT`), worker failure, or exhausted local retry
-belongs to the requesting parent (Root Orchestrator):
+server parameter adjustments, or a defective first take—are **not** blockers.
+Every `NEEDS_PARENT` return, worker crash, or exhausted local retry belongs to
+the Root Producer:
 
-1. **Mandatory timeout / double-spend reconciliation.** Before retrying ANY
-   timed-out, dropped, or interrupted paid Higgsfield call:
+1. **Mandatory timeout / double-spend reconciliation (`generate list` + `generate get`).**
+   Before retrying **any** timed-out, dropped, or interrupted paid call:
    - Run `higgsfield generate list --json` (via `evidence-agent` or read-only
-     CLI) and inspect `campaigns/<slug>/receipts.jsonl`.
-   - Match by prompt hash, model, timestamp, and parameters to check whether
+     CLI) and inspect `campaigns/<slug>/receipts.jsonl` for open
+     `status: "reserved"` records.
+   - Match by `params_hash`, model, prompt, and timestamp to verify whether
      Higgsfield already accepted, queued, or completed the job remotely.
-   - If the remote job exists, **never submit a second paid call**: wait on or
-     download the existing `job_id`, record/reconcile it in `receipts.jsonl`
-     and `shotlist.json`, and run `scripts/qa_media.py`.
-   - Only when `generate list --json` confirms no matching job was created may
-     the parent authorize a fresh `scripts/hf_guard.py` attempt.
-2. **Diagnose before spending another take.** A blind identical retry wastes
-   credits. Match the recovery action to the defect class:
-   - `MEDIA_TECH_DEFECT` (bad FPS, black tail, loudness miss) → fix locally in
-     `assemble.sh` / trim if valid, or adjust motion prompt pacing / model
-     params before regenerating; for over-window VO, tighten script word count
-     and regenerate (never use `atempo`).
-   - `VISUAL_DRIFT_DEFECT` → strengthen reference wiring (`image_references`,
-     `start_image_from`), tighten negative material cues, or raise worker
-     guidance via `specialist-agent` (`video-direction` / `video-consistency`).
-   - `POLICY_BLOCK` (`ip_detected` / likeness / trademark) → dispatch
-     `specialist-agent` to rewrite prompts using pure visual descriptors free
-     of brand/celebrity triggers or substitute the flagged reference image.
-   - `HTTP 429` / transient API failure → respect backoff and reduce concurrent
-     submissions without burning a retry slot in `Max auto-retries/shot`.
-   - `BUDGET_CAP` or exhausted `Max auto-retries/shot` → stop paid calls for
-     that shot immediately, preserve all passing shots, and escalate cleanly to
-     the requester (or `adjudicator-agent` if a trade-off inside remaining cap
-     is disputed).
-3. **No progress-free cycling.** Changing actor, worker, or reasoning effort
-   without new diagnostic evidence does not reset retry or repair allowances.
-   When no authorized probe or remaining budget can close a confirmed defect,
-   retain `Blocked` with exact receipts, spent credits, and the smallest
-   decision needed from the requester—never fabricate a `PASS`.
-
-## Mid-Pipeline Reopen
-
-When requester feedback (for example at Gate 2 Stills, Pilot `s01`, or Draft
-Cut review) or a surviving `INTENT_GAP` requires changing `intent.md` after
-production has already begun:
-
-1. Pause active dependent workers and reconcile any in-flight receipts into
-   `receipts.jsonl` and `shotlist.json`.
-2. Reopen [Intake](../phases/intake.md) (flipping `intent.md` `ready` → `draft`,
-   reconciling changes in place with stable `I<n>` / `A<n>` IDs, re-running
-   `make intent-check CAMPAIGN=<slug>`, confirming material deltas, and flipping
-   back to `ready`).
-3. **Surgical downstream invalidation (never wipe accepted work):**
-   - Identify strictly which shots, prompts, or audio stems are invalidated by
-     the intent delta.
-   - Keep every unaffected accepted still, video take, `upload_id`, and
-     `receipts.jsonl` record intact.
-   - Re-run only the invalidated downstream owners (for example, update `s02`
-     prompt + `shotlist.json`, add a new repair task in `tasks.md` passing
-     `make ledger-check`, regenerate `s02`, re-run Visual Critic on `s02` +
-     continuity check against `s01`/`s03`, and re-assemble).
-
-## Transition Result V1
-
-Every macro phase returns one concise durable receipt to the Root Orchestrator:
-
-```text
-status: ready | blocked | skipped
-owner: <Intake | Creative Definition | Production Design | Planning | Production>
-result: <primary artifact path(s) produced or verified>
-review: <Review Result V1 verdict + anchor, or none when skipped>
-movement_evidence: <mechanical check + review clearance proving next phase may act>
-reopen_owner: <owner or none>
-next_owner: <next phase or none>
-```
+   - If a remote `job_id` exists, inspect it with
+     `higgsfield generate get <job_id> --json` and **never submit a second paid
+     call**: wait on or download the existing job output, reconcile the
+     terminal receipt in `receipts.jsonl` and `shotlist.json`, and run
+     `scripts/qa_media.py`.
+   - Authorize a fresh `hf_guard.py run` attempt **only** after
+     `generate list --json` confirms no matching remote job was created.
+2. **Match recovery strictly to the defect class:**
+   - **`HTTP 429` / transient API error:** back off cleanly and reduce parallel
+     worker fan-out; transient transport errors before remote acceptance do not
+     consume a creative retry slot.
+   - **`POLICY_BLOCK` (`ip_detected` / likeness / trademark):** dispatch a fresh
+     `specialist-agent` (`video-direction`) to rewrite prompts using pure visual
+     descriptors free of brand/celebrity triggers, or swap the flagged reference
+     image before retrying inside `Max auto-retries/asset`.
+   - **`MEDIA_TECH_DEFECT`:** fix local FPS/loudness/cut issues in
+     `scripts/assemble.sh` when clip frames are healthy; for `frozen_tail`,
+     `fully_static_clip`, or black frames, tighten timestamped motion beats
+     before regenerating; for over-window VO, trim spoken words and regenerate
+     (**never** apply `atempo`).
+   - **`VISUAL_DRIFT_DEFECT` / `CONTINUITY_DEFECT` / `TASTE_REGRESSION`:**
+     strengthen `LOCKED` reference wiring (`image_references`,
+     `start_image_from`), tighten prompt cues against the broken `TL-NN` or
+     `continuity_lock` clause, and regenerate inside `Max auto-retries/asset`
+     and `--round-cap`.
+   - **`asset_locked` refusal:** halt that worker immediately—`hf_guard.py`
+     has no `--force-unlock` bypass and must never be circumvented. Verify
+     whether the worker targeted the wrong asset ID or whether the Director
+     needs to explicitly confirm unlocking the asset so the Root Producer can
+     move `shotlist.json` from `LOCKED` → `ITERATING` (and bump `version`).
+   - **`BUDGET_CAP` or exhausted `Max auto-retries/asset`:** stop paid calls
+     for that asset immediately, preserve all passing/locked assets, consult
+     `adjudicator-agent` if a borderline take might be surfaced with a
+     `CONCERN`, or surface the exact spend status and options to the Director
+     in Dailies.
+3. **No progress-free cycling:** swapping workers or raising reasoning effort
+   without new diagnostic evidence never resets `Max auto-retries/asset` or
+   `--round-cap`. Never fabricate a `PASS` or hide an unclosed defect from the
+   Director.

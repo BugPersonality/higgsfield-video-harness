@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Scaffold a new campaign directory with a Video Intent V1 draft template."""
+"""Scaffold a new campaign directory with Direction Brief V1 (brief.md) and taste-log.md."""
 
 from __future__ import annotations
 
@@ -17,9 +17,9 @@ SLUG_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$")
 
 SUBDIRS = (
     "prompts",
-    "tasks",
     "qc",
     "media/references",
+    "media/lookbook",
     "media/stills",
     "media/shots",
     "media/audio",
@@ -27,15 +27,18 @@ SUBDIRS = (
 )
 
 
-def _render_intent_template(slug: str, brand: str | None) -> str:
+def _render_brief_template(slug: str, brand: str | None, has_brand_taste: bool) -> str:
     title = slug.replace("-", " ").replace("_", " ").strip().title()
-    brand_line = (
-        f"- **Brand reference:** `brands/{brand}/brand.md`\n"
-        if brand
-        else "- **Brand reference:** <optional path to brands/<name>/brand.md or describe brand truth here>\n"
-    )
+    if brand:
+        brand_lines = f"- **Brand reference:** `brands/{brand}/brand.md`\n"
+        if has_brand_taste:
+            brand_lines += f"- **Brand taste seed:** `brands/{brand}/taste.md`\n"
+    else:
+        brand_lines = (
+            "- **Brand reference:** <optional path to brands/<name>/brand.md or describe brand truth here>\n"
+        )
     return (
-        f"# Intent: {title}\n"
+        f"# Brief: {title}\n"
         "\n"
         "status: draft\n"
         "\n"
@@ -46,13 +49,13 @@ def _render_intent_template(slug: str, brand: str | None) -> str:
         "\n"
         "## Subject & visual truth\n"
         "\n"
-        f"{brand_line}"
+        f"{brand_lines}"
         "- **Hero subject & invariants:** <Product, character, logo/label, material, or color truths that must never drift.>\n"
         "- **Reference media:** Place source photos under `media/references/` and list exact filenames here.\n"
         "\n"
         "## Format, audio & delivery\n"
         "\n"
-        "- **Aspect ratio & duration:** <e.g. 9:16 vertical, 15s (3 shots x 5s)>\n"
+        "- **Aspect ratio & duration:** <e.g. 16:9 or 9:16, 15s (3 shots x 5s)>\n"
         "- **Audio & voiceover:** <Spoken language, pronunciation notes, voice tone, diegetic sound, music mood.>\n"
         "- **Deliverables:** `media/exports/master.mp4` + `media/exports/stems/`\n"
         "\n"
@@ -60,21 +63,33 @@ def _render_intent_template(slug: str, brand: str | None) -> str:
         "\n"
         "- **Must not:** <Visual taboos, forbidden tropes, competitor references, text/logo distortions.>\n"
         "- **Scope & non-goals:** <What is explicitly out of scope for this campaign?>\n"
-        "- **Authority & budget envelope:**\n"
-        "  - **Autonomy mode:** autonomous-draft\n"
-        "  - **Draft cap:** 120 credits\n"
-        "  - **Final cap:** 300 credits\n"
-        "  - **Max auto-retries/shot:** 2\n"
+        "- **Budget & round policy:**\n"
+        "  - Campaign cap: 400 credits\n"
+        "  - Lookbook variants: 3\n"
+        "  - Max auto-retries/asset: 2\n"
+        "  - Auto-open dailies: true\n"
         "\n"
         "## Success signal\n"
         "\n"
         "- <Concrete observable criteria proving the finished spot achieves the intended viewer effect.>\n"
+    )
+
+
+def _render_taste_log_template(slug: str, brand: str | None, has_brand_taste: bool) -> str:
+    title = slug.replace("-", " ").replace("_", " ").strip().title()
+    seed_line = (
+        f"Brand taste seed: `brands/{brand}/taste.md`\n"
+        if brand and has_brand_taste
+        else "Brand taste seed: none\n"
+    )
+    return (
+        f"# Taste Log: {title}\n"
         "\n"
-        "## Remaining frontier\n"
+        f"{seed_line}"
         "\n"
-        "- Confirm hero subject visual invariants and reference photos in `media/references/`.\n"
-        "- Confirm exact duration, aspect ratio, spoken pronunciation, and credit ceilings.\n"
-        "- Remove this section and switch `status: ready` once all requester decisions are settled.\n"
+        "Cumulative Director taste memory for this campaign. Append a new `### TL-<NN>` entry\n"
+        "after each round's Dailies review using `Approved / LOCKED`, `More of`, `Change / Steer`,\n"
+        "and `Never` bullets. Never revert to a ruled-out aesthetic.\n"
     )
 
 
@@ -110,12 +125,23 @@ def scaffold_campaign(
     if campaign_dir.exists():
         raise FileExistsError(f"campaign directory already exists: {campaign_dir}")
 
+    has_brand_taste = bool(
+        brand and (repo_root / "brands" / brand / "taste.md").is_file()
+    )
+
     campaign_dir.mkdir(parents=True, exist_ok=False)
     for rel in SUBDIRS:
         (campaign_dir / rel).mkdir(parents=True, exist_ok=True)
 
-    intent_path = campaign_dir / "intent.md"
-    intent_path.write_text(_render_intent_template(slug, brand), encoding="utf-8")
+    brief_path = campaign_dir / "brief.md"
+    brief_path.write_text(
+        _render_brief_template(slug, brand, has_brand_taste), encoding="utf-8"
+    )
+
+    taste_log_path = campaign_dir / "taste-log.md"
+    taste_log_path.write_text(
+        _render_taste_log_template(slug, brand, has_brand_taste), encoding="utf-8"
+    )
     return campaign_dir
 
 
@@ -147,7 +173,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--json",
         action="store_true",
         dest="as_json",
-        help="Emit created campaign path as JSON.",
+        help="Emit created campaign paths as JSON.",
     )
     return parser
 
@@ -182,14 +208,16 @@ def main(argv: list[str] | None = None) -> int:
                 {
                     "ok": True,
                     "campaign_dir": str(created),
-                    "intent_path": str(created / "intent.md"),
+                    "brief_path": str(created / "brief.md"),
+                    "taste_log_path": str(created / "taste-log.md"),
                 },
                 indent=2,
             )
         )
     else:
         print(f"Created campaign scaffold: {created}")
-        print(f"  Intent template: {created / 'intent.md'}")
+        print(f"  Brief template:  {created / 'brief.md'}")
+        print(f"  Taste log:       {created / 'taste-log.md'}")
         print(f"  References dir:  {created / 'media' / 'references'}")
     return 0
 

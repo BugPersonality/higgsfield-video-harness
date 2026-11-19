@@ -532,6 +532,284 @@ class TestQaAndAssemble(unittest.TestCase):
                 "VO-only manifest must NOT misassign VO into stems/music.wav",
             )
 
+    def test_lookbook_grid_stitches_mixed_size_images_with_labels(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            img_a = tmp / "variant_a.png"
+            img_b = tmp / "variant_b.png"
+            img_c = tmp / "variant_c.png"
+            lookbook_png = tmp / "lookbook.png"
+
+            _ffmpeg(
+                "-f", "lavfi", "-i", "color=c=0x8B5A2B:s=320x180:d=1",
+                "-frames:v", "1", str(img_a),
+            )
+            _ffmpeg(
+                "-f", "lavfi", "-i", "color=c=0x5C6773:s=400x300:d=1",
+                "-frames:v", "1", str(img_b),
+            )
+            _ffmpeg(
+                "-f", "lavfi", "-i", "color=c=0x2B2E31:s=256x256:d=1",
+                "-frames:v", "1", str(img_c),
+            )
+
+            rc, data, err = self._run_qa(
+                "lookbook",
+                str(img_a),
+                str(img_b),
+                str(img_c),
+                "--out",
+                str(lookbook_png),
+                "--labels",
+                "A,B,C",
+                "--cols",
+                "3",
+            )
+            self.assertEqual(rc, 0, msg=f"lookbook failed: err={err}\ndata={data}")
+            self.assertTrue(data["ok"], msg=data)
+            self.assertTrue(lookbook_png.is_file(), "lookbook.png was not created")
+            raw = lookbook_png.read_bytes()
+            self.assertGreater(len(raw), 100)
+            self.assertTrue(raw.startswith(PNG_MAGIC), "lookbook output is not a valid PNG")
+
+            slots = data.get("slots")
+            self.assertIsInstance(slots, list, msg=data)
+            self.assertEqual(len(slots), 3, msg=data)
+            labels = [s["label"] if isinstance(s, dict) else s for s in slots]
+            self.assertEqual(labels, ["A", "B", "C"], msg=data)
+
+    def test_lookbook_draws_distinct_visual_labels_and_rejects_bad_labels(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            img_a = tmp / "solid_a.png"
+            img_b = tmp / "solid_b.png"
+            img_c = tmp / "solid_c.png"
+            lookbook_png = tmp / "lookbook_ab.png"
+
+            # Identical solid-color inputs prove pixel differences come strictly from rendered labels
+            for p in (img_a, img_b, img_c):
+                _ffmpeg(
+                    "-f", "lavfi", "-i", "color=c=0x8B5A2B:s=320x180:d=1",
+                    "-frames:v", "1", str(p),
+                )
+
+            rc, data, err = self._run_qa(
+                "lookbook",
+                str(img_a),
+                str(img_b),
+                "--out",
+                str(lookbook_png),
+                "--labels",
+                "A,B",
+                "--cols",
+                "2",
+            )
+            self.assertEqual(rc, 0, msg=f"lookbook A/B failed: err={err}\ndata={data}")
+            self.assertTrue(data["ok"], msg=data)
+            self.assertTrue(lookbook_png.is_file())
+            self.assertTrue(lookbook_png.read_bytes().startswith(PNG_MAGIC))
+
+            tile_w = int(data["tile_width"])
+            tile_h = int(data["tile_height"])
+            out_w = int(data["output_width"])
+            out_h = int(data["output_height"])
+            margin = (out_h - tile_h) // 2
+            x0 = margin
+            x1 = out_w - margin - tile_w
+            crop_w = min(tile_w, 120)
+            crop_h = min(tile_h, 80)
+
+            def _crop_rgb(x: int, y: int) -> bytes:
+                proc = subprocess.run(
+                    [
+                        "ffmpeg",
+                        "-v",
+                        "error",
+                        "-i",
+                        str(lookbook_png),
+                        "-vf",
+                        f"crop={crop_w}:{crop_h}:{x}:{y}",
+                        "-f",
+                        "rawvideo",
+                        "-pix_fmt",
+                        "rgb24",
+                        "-",
+                    ],
+                    capture_output=True,
+                    check=True,
+                )
+                return proc.stdout
+
+            corner_a = _crop_rgb(x0, margin)
+            corner_b = _crop_rgb(x1, margin)
+            self.assertEqual(len(corner_a), crop_w * crop_h * 3)
+            self.assertEqual(len(corner_b), crop_w * crop_h * 3)
+            self.assertNotEqual(
+                corner_a,
+                corner_b,
+                "Top-left corners of identical tiles labeled A vs B must render distinct pixels",
+            )
+            diff_pixels = sum(
+                1
+                for i in range(0, len(corner_a), 3)
+                if corner_a[i : i + 3] != corner_b[i : i + 3]
+            )
+            self.assertGreater(
+                diff_pixels,
+                20,
+                msg=f"Expected distinct visible glyph pixels between A and B, got {diff_pixels} diff px",
+            )
+
+            # Reject empty label entry ("A,,C")
+            rc_empty, data_empty, _ = self._run_qa(
+                "lookbook",
+                str(img_a),
+                str(img_b),
+                str(img_c),
+                "--out",
+                str(tmp / "bad_empty.png"),
+                "--labels",
+                "A,,C",
+                "--cols",
+                "3",
+            )
+            self.assertNotEqual(rc_empty, 0, msg=f"Expected empty label rejection: {data_empty}")
+            self.assertFalse(data_empty.get("ok", True))
+
+            # Reject mismatched label count ("A,B" for 3 images)
+            rc_len, data_len, _ = self._run_qa(
+                "lookbook",
+                str(img_a),
+                str(img_b),
+                str(img_c),
+                "--out",
+                str(tmp / "bad_len.png"),
+                "--labels",
+                "A,B",
+                "--cols",
+                "3",
+            )
+            self.assertNotEqual(rc_len, 0, msg=f"Expected mismatched label length rejection: {data_len}")
+            self.assertFalse(data_len.get("ok", True))
+
+            # Reject duplicate labels ("A,A" for 2 images)
+            rc_dup, data_dup, _ = self._run_qa(
+                "lookbook",
+                str(img_a),
+                str(img_b),
+                "--out",
+                str(tmp / "bad_dup.png"),
+                "--labels",
+                "A,A",
+                "--cols",
+                "2",
+            )
+            self.assertNotEqual(rc_dup, 0, msg=f"Expected duplicate label rejection: {data_dup}")
+            self.assertFalse(data_dup.get("ok", True))
+
+    def test_assemble_manifest_respects_fps_target_vo_window_s_and_no_loudnorm(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_str:
+            camp = Path(tmp_str)
+            shots_dir = camp / "media" / "shots"
+            audio_dir = camp / "media" / "audio"
+            stems_dir = camp / "media" / "exports" / "stems"
+            shots_dir.mkdir(parents=True)
+            audio_dir.mkdir(parents=True)
+
+            # Input clip is 24fps while manifest requests fps_target: 30
+            clip1 = shots_dir / "s01-24fps.mp4"
+            vo_late = audio_dir / "vo_late.wav"
+            master = camp / "media" / "exports" / "master_30fps.mp4"
+
+            _ffmpeg(
+                "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24:duration=4",
+                "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "ultrafast",
+                str(clip1),
+            )
+            # Quiet -28dB 1.5s VO track placed at window_s "2.0-4.0" proves both window_s delay and --no-loudnorm
+            _ffmpeg(
+                "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=1.5",
+                "-af", "volume=-28dB",
+                str(vo_late),
+            )
+
+            manifest = {
+                "schema_version": 1,
+                "campaign": "fps-window-noloudnorm-test",
+                "aspect_ratio": "16:9",
+                "target_duration_s": 4,
+                "fps_target": 30,
+                "shots": [
+                    {
+                        "id": "s01",
+                        "duration_s": 4,
+                        "video": {"selected_take": "media/shots/s01-24fps.mp4"},
+                    }
+                ],
+                "audio": {
+                    "music": {"enabled": False, "selected_file": None},
+                    "voiceover": {
+                        "enabled": True,
+                        "tracks": [
+                            {
+                                "id": "vo01",
+                                "selected_file": "media/audio/vo_late.wav",
+                                "window_s": "2.0-4.0",
+                            }
+                        ],
+                    },
+                },
+            }
+            manifest_path = camp / "shotlist.json"
+            manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+
+            proc = subprocess.run(
+                [
+                    "bash",
+                    str(ASSEMBLE_SCRIPT),
+                    "--campaign",
+                    str(camp),
+                    "--manifest",
+                    str(manifest_path),
+                    "--out",
+                    str(master),
+                    "--stems-dir",
+                    str(stems_dir),
+                    "--no-loudnorm",
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(
+                proc.returncode,
+                0,
+                msg=f"assemble.sh --no-loudnorm with fps_target=30 & window_s failed:\nstdout={proc.stdout}\nstderr={proc.stderr}",
+            )
+            self.assertTrue(master.is_file())
+            self.assertTrue((stems_dir / "vo.wav").is_file())
+
+            # Verify output video stream respected manifest fps_target=30
+            probe = _ffprobe_json(master)
+            vstream = next(
+                (s for s in (probe.get("streams") or []) if s.get("codec_type") == "video"),
+                None,
+            )
+            self.assertIsNotNone(vstream, msg=probe)
+            rate_str = vstream.get("avg_frame_rate") or vstream.get("r_frame_rate") or "0/1"
+            num_s, _, den_s = rate_str.partition("/")
+            fps_val = float(num_s) / float(den_s or "1")
+            self.assertAlmostEqual(fps_val, 30.0, delta=0.2, msg=f"Expected 30fps, got {rate_str}")
+
+            # Verify vo.wav absorbed window_s start offset (2.0s delay + 1.5s clip => ~3.5s)
+            vo_probe = _ffprobe_json(stems_dir / "vo.wav")
+            vo_dur = float(vo_probe["format"]["duration"])
+            self.assertGreaterEqual(
+                vo_dur,
+                3.3,
+                msg=f"Expected window_s '2.0-4.0' delay on 1.5s VO (>=3.3s), got {vo_dur}s",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

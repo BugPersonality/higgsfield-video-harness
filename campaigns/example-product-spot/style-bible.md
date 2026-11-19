@@ -1,8 +1,10 @@
 # Style Bible: Nord Atelier — Morning Departure 15s Spot
 
-status: ready
-Intent: [intent.md](intent.md)
-Treatment: [treatment.md](treatment.md)
+status: active
+Brief: [brief.md](brief.md)
+Taste Log: [taste-log.md](taste-log.md)
+Storyboard: [storyboard.md](storyboard.md)
+Shotlist: [shotlist.json](shotlist.json)
 Brand: [Nord Atelier Brand Profile](../../brands/example-brand/brand.md)
 
 ## Lighting & Color Temperature
@@ -50,10 +52,10 @@ Brand: [Nord Atelier Brand Profile](../../brands/example-brand/brand.md)
 
 ## Cross-Shot Continuity Checklist
 
-Every candidate still and 3x2 video contact sheet is inspected by an independent, fresh read-only Visual Critic (`reviewer-agent` via `view_image`, never self-approved by the generating worker) against all five invariants:
+Every candidate lookbook variant, still, and 3x2 video contact sheet is inspected by an independent, fresh read-only Visual Critic (`reviewer-agent` via `view_image`, never self-approved by the generating worker) against [taste-log.md](taste-log.md) and all five invariants:
 
 1. Saddle-tan matte leather hue matches across `s01` -> `s02` -> `s03` with diffuse natural grain.
 2. Hardware stays square satin-brushed antique brass across every angle and motion frame.
 3. Blind-debossed `NORD ATELIER` mark is sharp and properly spelled when visible (`s01`), and cleanly absent on non-front angles (`s02`, `s03`).
-4. Traveler wears the same matte charcoal wool coat and heather-grey knit cuff in every shot, with five anatomically natural fingers and realistic joint motion in `s01` and `s02`.
-5. Directional 4600K warm morning sun originates consistently from screen-left across all three shots with zero 180-degree axis flip.
+4. Traveler wears the locked `lb_traveler_hand` matte charcoal wool coat and heather-grey knit cuff in every shot, with an unadorned wrist, five anatomically natural fingers, and realistic joint motion in `s01` and `s02`.
+5. Directional 4600K morning sun originates consistently from screen-left across all three shots with zero 180-degree axis flip and zero warm sepia/amber cast.

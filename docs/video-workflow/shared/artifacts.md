@@ -1,74 +1,82 @@
 # Artifacts
 
-Defines what campaign state persists under `campaigns/<slug>/`, how Git and
-gitignored `media/` separate text contracts from binary renders, and how
-artifacts transition cleanly across phases and mid-pipeline reopens.
+Defines the campaign folder map under `campaigns/<slug>/` (and reusable brand
+state under `brands/<brand>/`), the strict boundary between Git-tracked text
+contracts and gitignored media binaries, and how assets evolve cleanly across
+rounds (`R0`–`R5`).
 
-## Campaign Artifact Map
+## Campaign Folder Map
 
-Every structured or orchestrated campaign lives under `campaigns/<slug>/`:
+Scaffolded via `make campaign-init SLUG=<slug> [BRAND=<brand>]`
+(`scripts/campaign_init.py`):
 
-| Path | Tracked in Git? | Owner | Purpose |
-| --- | --- | --- | --- |
-| `intent.md` | Yes | Root Orchestrator ([Intake](../phases/intake.md)) | Requester meaning, visual truth, `Must not`, Budget Envelope, `I<n>`, `A<n>` ([Video Intent V1](../interfaces/intent-v1.md)) |
-| `treatment.md`, `style-bible.md` | Yes | Phase 1 ([Creative Definition](../phases/creative-definition.md)) | Competing creative lanes, `D<n>` decisions, beat map, lighting/palette/audio/continuity grammar ([Treatment V1](../interfaces/treatment-v1.md)) |
-| `script.md`, `storyboard.md` *(optional commercial track)* | Yes | Phase 1 (`ad-script`, `ad-storyboard`) | Timed three-column script (`read-aloud budget`, `mute test`) and continuity-locked `S01..SN` storyboard (`Continuity Lock`, `Test-take check`) |
-| `shotlist.json` | Yes | Phase 2 authoring / Root Orchestrator runtime updates | Live model schemas, `continuity_lock`, `test_take_check`, reference UUID graph, draft/final params, credit quotes, selected takes ([Shotlist V1](../interfaces/shotlist-v1.md)) |
-| `tasks.md`, `tasks/TNN-*.md` | Yes | Phase 3 authoring / Root Orchestrator runtime updates | Topological DAG, `[effect:...]` gates, disjoint `Mutable owners`, locks, validation oracles ([Production Ledger V1](../interfaces/task-ledger-v1.md)) |
-| `prompts/*.txt` | Yes | Phase 2 authoring / shot worker bounded revisions | Versioned still prompts (`sNN_still_v1.txt`), motion prompts (`sNN_video_v1.txt`), VO scripts, and music prompts |
-| `qc/*.json` | Yes | Workers / Reviewers | Deterministic `scripts/qa_media.py` probe reports and structured Visual Critic JSON/text logs |
-| `receipts.jsonl` | Yes | `scripts/hf_guard.py` (exclusive lock) | Append-only reservation-before-submit (`status: "reserved"`, `reservation_id`) and terminal (`completed`, `download_failed`, `rejected`, `in_progress`) audit log recording `ts`, `shot`, `kind`, `phase`, `model`, `is_workflow`, `params_hash`, `job_id`/`upload_id`, `estimated_credits`, `actual_credits`, `credits`, `url`, `out`, and `attempt` |
-| `qc/*.png` | **No (gitignored)** | `scripts/qa_media.py` | Generated `3×2` contact sheets inspected by `reviewer-agent` via `view_image` |
-| `media/references/*` | **No (gitignored)** | Requester | Source product, character, or environment photos uploaded in Wave 1 |
-| `media/stills/*`, `media/shots/*`, `media/audio/*` | **No (gitignored)** | Disjoint `worker-agent` lanes | Raw generated stills, draft/final video takes, VO tracks, and music/SFX stems |
-| `media/exports/animatic.mp4`, `draft_cut.mp4`, `master.mp4`, `stems/` | **No (gitignored)** | Assembly worker (`scripts/assemble.sh`) | Optional 0-video-credit still animatic, assembled preview cut, final `1080p` master, and separated stems for optional grading |
+```text
+campaigns/<slug>/
+├── brief.md                 # Git-tracked — Direction Brief V1 (R0; status: draft | active | done)
+├── taste-log.md             # Git-tracked — Cumulative Taste Memory (append-only TL-01, TL-02, ...)
+├── script.md                # Git-tracked — 3-column commercial script (R1B, commercial track)
+├── storyboard.md            # Git-tracked — Continuity-locked S01..SN storyboard (R1B, commercial track)
+├── style-bible.md           # Git-tracked — Palette, lighting, lens & audio craft rules (R1B)
+├── shotlist.json            # Git-tracked — Live Production Board (lookbook[], shots[], audio, LOCKED status)
+├── prompts/                 # Git-tracked — Versioned prompts (lb_*_v1.txt, sNN_still_v1.txt, sNN_video_v1.txt)
+├── receipts.jsonl           # Git-tracked — Exclusive-locked hf_guard.py spend & upload ledger
+├── qc/
+│   ├── *.json               # Git-tracked — qa_media.py probe JSONs and Visual Critic records
+│   └── *.png                # Gitignored — lookbook.png, stills_strip.png, 3x2 contact sheets
+└── media/                   # Gitignored — all binary inputs, renders, audio & exports
+    ├── references/          # Real product/character/location photos supplied by Director
+    ├── lookbook/            # R2 contrasting A/B/C Lookbook variant PNGs
+    ├── stills/              # R3 keyframe start-frame still PNGs (sNN-vK.png)
+    ├── shots/               # R4 draft & R5 1080p video clips (sNN-draft-vK.mp4, sNN-final-vK.mp4)
+    ├── audio/               # VO tracks, rough/final music beds, SFX
+    └── exports/             # animatic.mp4 (R3), draft_cut.mp4 (R4B), master.mp4 + stems/ (R5)
+```
 
-## Artifact Lifecycle V1
+### Reusable Brand State (`brands/<brand>/`)
 
-Use one explicit status on every decision or ledger artifact (`intent.md`,
-`treatment.md`, `style-bible.md`, `tasks.md`):
-
-| Status | Meaning | Permitted consumers |
+| Path | Tracked in Git? | Purpose |
 | --- | --- | --- |
-| `draft` | Currently being authored, grilled, or repaired. | Authoring owner and pre-gate reviewers only; never consumed by downstream phases or `hf_guard.py`. |
-| `ready` | All owned decisions are closed, mechanical checks pass, and independent review cleared. | Authorized for downstream phases (`intent.md` at `ready` unlocks Phase 1 and `hf_guard.py` budget authority). |
-| `blocked` | A required upstream decision, taste fork (`B1..Bn`), brand asset, or budget/capability limit prevents safe progress. | Returns to Root Orchestrator / named `reopen_owner`; downstream phases pause on blocked branches. |
-| `done` | Execution, final `qa_media.py render`, Final Delivery Review (`PASS`), and budget audit are complete (`tasks.md` only). | Read-only historical delivery record; status alone never substitutes for QA receipts. |
+| `brands/<brand>/brand.md` | Yes | Durable brand identity: voice, phonetic pronunciations, physical product invariants, non-negotiable rules |
+| `brands/<brand>/taste.md` | Yes | Graduated cross-campaign **Brand Taste Memory** seeded into new campaigns at `R0` and updated only with explicit Director confirmation at `R5` |
 
-Only the owning phase or Root Orchestrator flips an artifact's `status`. Any
-material upstream change moves affected `ready` artifacts back to `draft` or
-`blocked` before edits begin so an interrupted session cannot read stale truth.
+## Ownership & Lifecycle Table
+
+| Artifact | Writer | Lifecycle / Validation |
+| --- | --- | --- |
+| `brief.md` | Root Producer only | `draft` → `active` (after Dailies 0) → `done` (after Final Dailies 5); checked by `make brief-check CAMPAIGN=<slug>` |
+| `taste-log.md` | Root Producer only | Append-only `### TL-<NN> (R<k> — <stage>)` entries; never silently erase history |
+| `script.md`, `storyboard.md`, `style-bible.md` | `specialist-agent` proposals integrated by Root Producer | Authored in `R1B`; updated in place if story/continuity shifts |
+| `shotlist.json` | Root Producer only | Per-asset `status`: `DRAFT` → `IN_REVIEW` → `ITERATING` → `LOCKED` (`version` counter); checked by `make campaign-check CAMPAIGN=<slug>` |
+| `prompts/*.txt` | `specialist-agent` / `worker-agent` (disjoint paths) | Strictly versioned (`_v1.txt`, `_v2.txt`); never overwrite prior versions that produced paid receipts |
+| `receipts.jsonl` | `scripts/hf_guard.py` (exclusive file lock) | Append-only two-stage (`reserved` → `completed \| download_failed \| rejected \| in_progress`) |
+| `media/*`, `qc/*.png` | Disjoint `worker-agent` lanes (`media/references/` by Director) | Gitignored binaries; `LOCKED` media files are immutable unless explicitly unlocked |
 
 ## Git vs Media Boundary
 
-- **Git tracks text, never media binaries.** Keeping `intent.md`,
-  `treatment.md`, `style-bible.md`, `shotlist.json`, `tasks.md`, `prompts/`,
-  `qc/*.json`, and `receipts.jsonl` in Git makes every creative iteration,
-  prompt refinement, QA failure, and credit spend diffable and auditable.
-- **Binary artifacts stay gitignored.** Keep `.png`, `.jpg`, `.mp4`, `.mov`,
-  `.wav`, and `.mp3` outputs under `campaigns/<slug>/media/` and contact-sheet
-  `.png`s under `campaigns/<slug>/qc/` (gitignored). Never embed base64 images,
-  private personal face photos, API keys, or OAuth tokens into Git-tracked
-  files.
-- **No silent copy-paste of live schemas.** Reference `brands/<brand>/brand.md`,
-  `docs/cinema-presets.json`, and `prompts/sNN_*.txt` by relative path rather
-  than duplicating mutable text across multiple artifacts.
+- **Git tracks text, never media binaries.** Tracking `brief.md`,
+  `taste-log.md`, `script.md`, `storyboard.md`, `style-bible.md`,
+  `shotlist.json`, `prompts/`, `qc/*.json`, and `receipts.jsonl` makes every
+  creative steer, prompt iteration, internal QC rejection, and credit spent
+  diffable and auditable.
+- **Keep binaries and secrets out of Git.** `.png`, `.jpg`, `.mp4`, `.mov`,
+  `.wav`, and `.mp3` files under `campaigns/<slug>/media/` and preview PNGs
+  under `campaigns/<slug>/qc/*.png` stay gitignored. Never commit API keys,
+  OAuth tokens, base64-encoded media, or private personal photos.
+- **Reference by path, never duplicate.** Link `brands/<brand>/brand.md`,
+  `brands/<brand>/taste.md`, `docs/cinema-presets.json`, and
+  `prompts/sNN_*.txt` by relative path instead of copy-pasting mutable blocks.
 
-## In-Place Reopen Discipline
+## Surgical Iteration & Version Hygiene
 
-When requester feedback, a Visual Critic `INTENT_GAP`, or a `Blocked Exit`
-changes scope, brand truth, audio, or shot specs mid-campaign:
+When Director feedback steers a single Lookbook entity, still, or shot:
 
-1. **Reconcile in place.** Update the authoritative active section of the
-   owning artifact (`intent.md`, `treatment.md`, `style-bible.md`,
-   `shotlist.json`, or `tasks.md`) rather than appending contradicting addenda
-   at the bottom.
-2. **Preserve ID stability.** Never renumber surviving `I<n>`, `A<n>`, `D<n>`,
-   `s01..sN`, or `TNN` identifiers. Add new sequential IDs and mark overturned
-   decisions explicitly (`Superseded by I<m>` or `Superseded by D<m>`).
-3. **Preserve valid shots and receipts.** Never delete `receipts.jsonl` entries
-   or discard accepted unaffected stills/shots in `media/`. Version updated
-   prompt files (`prompts/s02_video_v2.txt`), update `shotlist.json` only for
-   invalidated shots, and re-run mechanical checks (`make intent-check`,
-   `make ledger-check`) before resuming under [Review](review.md) and
-   [Transition](transition.md#mid-pipeline-reopen).
+1. Append the new `TL-<NN>` entry to `taste-log.md` first.
+2. Keep every `LOCKED` asset, its `upload_id`, its media file, and all
+   `receipts.jsonl` history completely intact.
+3. Increment `version` on ONLY the target asset in `shotlist.json` (`status:
+   "ITERATING"`), create the next versioned prompt file (`_v2.txt`), and write
+   the new render to a matching versioned path (`media/stills/s02-v2.png` or
+   `media/shots/s02-draft-v2.mp4`) so old and new takes remain comparable if
+   needed.
+4. Re-run `make campaign-check CAMPAIGN=<slug>` before dispatching the
+   micro-cost re-roll.

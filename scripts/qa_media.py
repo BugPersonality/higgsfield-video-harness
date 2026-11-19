@@ -12,8 +12,10 @@ import json
 import math
 import re
 import shutil
+import struct
 import subprocess
 import tempfile
+import zlib
 from pathlib import Path
 from typing import Any
 
@@ -615,6 +617,7 @@ def inspect_render(
     max_frozen_tail: float | None = None,
     black_min: float = 0.5,
     allow_silent: bool = False,
+    skip_loudness_check: bool = False,
     strict: bool = False,
 ) -> dict[str, Any]:
     report = inspect_clip(
@@ -632,7 +635,12 @@ def inspect_render(
     loudness = report["loudness"]
     errors: list[dict[str, Any]] = report["errors"]
 
-    if not allow_silent and duration >= 3.0 and report["metadata"].get("has_audio"):
+    if (
+        not allow_silent
+        and not skip_loudness_check
+        and duration >= 3.0
+        and report["metadata"].get("has_audio")
+    ):
         lufs = loudness.get("integrated_lufs")
         tp = loudness.get("true_peak_dbtp")
         low = target_lufs - lufs_tolerance
@@ -805,11 +813,314 @@ def inspect_voice(
     }
 
 
+# Compact 5x7 uppercase pixel bitmap font (each int is a 5-bit row, MSB = left pixel).
+_FONT_5X7: dict[str, tuple[int, ...]] = {
+    "A": (0b01110, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001),
+    "B": (0b11110, 0b10001, 0b10001, 0b11110, 0b10001, 0b10001, 0b11110),
+    "C": (0b01110, 0b10001, 0b10000, 0b10000, 0b10000, 0b10001, 0b01110),
+    "D": (0b11100, 0b10010, 0b10001, 0b10001, 0b10001, 0b10010, 0b11100),
+    "E": (0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b11111),
+    "F": (0b11111, 0b10000, 0b10000, 0b11110, 0b10000, 0b10000, 0b10000),
+    "G": (0b01110, 0b10001, 0b10000, 0b10111, 0b10001, 0b10001, 0b01110),
+    "H": (0b10001, 0b10001, 0b10001, 0b11111, 0b10001, 0b10001, 0b10001),
+    "I": (0b01110, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110),
+    "J": (0b00111, 0b00010, 0b00010, 0b00010, 0b10010, 0b10010, 0b01100),
+    "K": (0b10001, 0b10010, 0b10100, 0b11000, 0b10100, 0b10010, 0b10001),
+    "L": (0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b10000, 0b11111),
+    "M": (0b10001, 0b11011, 0b10101, 0b10101, 0b10001, 0b10001, 0b10001),
+    "N": (0b10001, 0b11001, 0b10101, 0b10011, 0b10001, 0b10001, 0b10001),
+    "O": (0b01110, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110),
+    "P": (0b11110, 0b10001, 0b10001, 0b11110, 0b10000, 0b10000, 0b10000),
+    "Q": (0b01110, 0b10001, 0b10001, 0b10001, 0b10101, 0b10010, 0b01101),
+    "R": (0b11110, 0b10001, 0b10001, 0b11110, 0b10100, 0b10010, 0b10001),
+    "S": (0b01111, 0b10000, 0b10000, 0b01110, 0b00001, 0b00001, 0b11110),
+    "T": (0b11111, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100, 0b00100),
+    "U": (0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01110),
+    "V": (0b10001, 0b10001, 0b10001, 0b10001, 0b10001, 0b01010, 0b00100),
+    "W": (0b10001, 0b10001, 0b10001, 0b10101, 0b10101, 0b11011, 0b10001),
+    "X": (0b10001, 0b10001, 0b01010, 0b00100, 0b01010, 0b10001, 0b10001),
+    "Y": (0b10001, 0b10001, 0b01010, 0b00100, 0b00100, 0b00100, 0b00100),
+    "Z": (0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b10000, 0b11111),
+    "0": (0b01110, 0b10001, 0b10011, 0b10101, 0b11001, 0b10001, 0b01110),
+    "1": (0b00100, 0b01100, 0b00100, 0b00100, 0b00100, 0b00100, 0b01110),
+    "2": (0b01110, 0b10001, 0b00001, 0b00110, 0b01000, 0b10000, 0b11111),
+    "3": (0b11110, 0b00001, 0b00001, 0b01110, 0b00001, 0b00001, 0b11110),
+    "4": (0b00010, 0b00110, 0b01010, 0b10010, 0b11111, 0b00010, 0b00010),
+    "5": (0b11111, 0b10000, 0b11110, 0b00001, 0b00001, 0b10001, 0b01110),
+    "6": (0b01110, 0b10000, 0b11110, 0b10001, 0b10001, 0b10001, 0b01110),
+    "7": (0b11111, 0b00001, 0b00010, 0b00100, 0b01000, 0b01000, 0b01000),
+    "8": (0b01110, 0b10001, 0b10001, 0b01110, 0b10001, 0b10001, 0b01110),
+    "9": (0b01110, 0b10001, 0b10001, 0b01111, 0b00001, 0b00001, 0b01110),
+    "-": (0b00000, 0b00000, 0b00000, 0b11111, 0b00000, 0b00000, 0b00000),
+    "_": (0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b11111),
+    ".": (0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b01100, 0b01100),
+    "/": (0b00001, 0b00010, 0b00010, 0b00100, 0b01000, 0b01000, 0b10000),
+    ":": (0b00000, 0b01100, 0b01100, 0b00000, 0b01100, 0b01100, 0b00000),
+    "+": (0b00000, 0b00100, 0b00100, 0b11111, 0b00100, 0b00100, 0b00000),
+    " ": (0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000),
+    "?": (0b01110, 0b10001, 0b00010, 0b00100, 0b00100, 0b00000, 0b00100),
+}
+
+
+def _png_chunk(tag: bytes, data: bytes) -> bytes:
+    crc = zlib.crc32(tag + data) & 0xFFFFFFFF
+    return struct.pack("!I", len(data)) + tag + data + struct.pack("!I", crc)
+
+
+def _write_rgba_png(path: Path, width: int, height: int, rgba: bytearray) -> None:
+    """Encode an 8-bit RGBA pixel buffer to a PNG file using stdlib zlib + struct only."""
+    row_stride = width * 4
+    raw = bytearray()
+    for y in range(height):
+        raw.append(0)  # Filter type 0 (None)
+        start = y * row_stride
+        raw.extend(rgba[start : start + row_stride])
+    ihdr = struct.pack("!IIBBBBB", width, height, 8, 6, 0, 0, 0)
+    png_bytes = (
+        b"\x89PNG\r\n\x1a\n"
+        + _png_chunk(b"IHDR", ihdr)
+        + _png_chunk(b"IDAT", zlib.compress(bytes(raw), level=6))
+        + _png_chunk(b"IEND", b"")
+    )
+    path.write_bytes(png_bytes)
+
+
+def _render_badge_png(label: str, path: Path, *, max_width: int) -> None:
+    """Render a high-contrast dark translucent pill badge with crisp white bitmap text."""
+    text = label.upper()
+    scale = 4
+    pad_x = 12
+    pad_y = 8
+    while scale > 1:
+        text_w = len(text) * (5 * scale) + max(0, len(text) - 1) * scale
+        if text_w + 2 * pad_x <= max_width:
+            break
+        scale -= 1
+    if scale < 4:
+        pad_x = max(6, pad_x // 2)
+        pad_y = max(4, pad_y // 2)
+
+    glyph_w = 5 * scale
+    glyph_h = 7 * scale
+    gap = scale
+    text_w = len(text) * glyph_w + max(0, len(text) - 1) * gap
+    width = max(16, text_w + 2 * pad_x)
+    height = max(16, glyph_h + 2 * pad_y)
+
+    rgba = bytearray(width * height * 4)
+    bg = (11, 11, 14, 215)
+    border = (232, 236, 244, 235)
+    fg = (255, 255, 255, 255)
+    border_px = 2
+
+    def _set_px(px: int, py: int, color: tuple[int, int, int, int]) -> None:
+        if 0 <= px < width and 0 <= py < height:
+            off = (py * width + px) * 4
+            rgba[off : off + 4] = bytes(color)
+
+    # Fill dark translucent pill with 2px light border and softly clipped 2px corners
+    for y in range(height):
+        for x in range(width):
+            in_corner = (
+                (x < 2 and y < 2)
+                or (x >= width - 2 and y < 2)
+                or (x < 2 and y >= height - 2)
+                or (x >= width - 2 and y >= height - 2)
+            )
+            if in_corner:
+                continue
+            is_edge = (
+                x < border_px
+                or x >= width - border_px
+                or y < border_px
+                or y >= height - border_px
+            )
+            _set_px(x, y, border if is_edge else bg)
+
+    # Render each 5x7 glyph scaled cleanly
+    cursor_x = pad_x
+    for ch in text:
+        glyph = _FONT_5X7.get(ch, _FONT_5X7["?"])
+        for row_idx, bits in enumerate(glyph):
+            for col_idx in range(5):
+                if bits & (1 << (4 - col_idx)):
+                    base_x = cursor_x + col_idx * scale
+                    base_y = pad_y + row_idx * scale
+                    for dy in range(scale):
+                        for dx in range(scale):
+                            _set_px(base_x + dx, base_y + dy, fg)
+        cursor_x += glyph_w + gap
+
+    _write_rgba_png(path, width, height, rgba)
+
+
+def _default_lookbook_label(index: int) -> str:
+    return chr(ord("A") + index) if index < 26 else f"V{index + 1}"
+
+
+def build_lookbook(
+    image_paths: list[Path],
+    *,
+    out_path: Path,
+    labels: list[str] | None = None,
+    cols: int | None = None,
+    tile_width: int = 480,
+) -> dict[str, Any]:
+    """Stitch 1+ images into a labeled dark-slate A/B/C Lookbook or Stills Strip PNG."""
+    if not image_paths:
+        raise ValueError("at least one image path is required")
+    if tile_width <= 0:
+        raise ValueError("--tile-width must be a positive integer")
+    if cols is not None and cols <= 0:
+        raise ValueError("--cols must be a positive integer")
+
+    if labels is None:
+        resolved_labels = [_default_lookbook_label(idx) for idx in range(len(image_paths))]
+    else:
+        cleaned = [lbl.strip() for lbl in labels]
+        if len(cleaned) != len(image_paths):
+            raise ValueError(
+                f"--labels count ({len(cleaned)}) must match image count ({len(image_paths)})"
+            )
+        if any(not lbl for lbl in cleaned):
+            raise ValueError("--labels must not contain empty labels")
+        if len(set(cleaned)) != len(cleaned):
+            raise ValueError(f"--labels must not contain duplicate labels: {cleaned}")
+        resolved_labels = cleaned
+
+    ffmpeg, ffprobe = _ensure_ffmpeg_tools()
+
+    first_dims: tuple[int, int] | None = None
+    for img in image_paths:
+        if not img.is_file():
+            raise FileNotFoundError(f"image file not found: {img}")
+        probe = _ffprobe_json(ffprobe, img)
+        streams = probe.get("streams") or []
+        vstream = next((s for s in streams if s.get("codec_type") == "video"), None)
+        w = int(vstream["width"]) if vstream and vstream.get("width") else 0
+        h = int(vstream["height"]) if vstream and vstream.get("height") else 0
+        if vstream is None or w <= 0 or h <= 0:
+            raise RuntimeError(f"unreadable image '{img}': no valid image stream found")
+        if first_dims is None:
+            first_dims = (w, h)
+
+    assert first_dims is not None
+    w0, h0 = first_dims
+    tile_w = max(64, int(tile_width))
+    tile_w += tile_w % 2
+    raw_h = round(tile_w * (h0 / w0))
+    tile_h = max(64, min(raw_h, tile_w * 2))
+    tile_h += tile_h % 2
+
+    effective_cols = min(len(image_paths), 3) if cols is None else cols
+    rows = math.ceil(len(image_paths) / effective_cols)
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    n_imgs = len(image_paths)
+
+    with tempfile.TemporaryDirectory(prefix="qa_lookbook_") as tmp_dir:
+        tmp = Path(tmp_dir)
+        badge_paths: list[Path] = []
+        max_badge_w = max(48, tile_w - 28)
+        for idx, lbl in enumerate(resolved_labels):
+            bpath = tmp / f"badge_{idx}.png"
+            _render_badge_png(lbl, bpath, max_width=max_badge_w)
+            badge_paths.append(bpath)
+
+        input_args: list[str] = []
+        for img in image_paths:
+            input_args.extend(["-i", str(img)])
+        for bpath in badge_paths:
+            input_args.extend(["-i", str(bpath)])
+
+        filter_parts: list[str] = []
+        for idx in range(n_imgs):
+            badge_in = n_imgs + idx
+            filter_parts.append(
+                f"[{idx}:v]scale={tile_w}:{tile_h}:force_original_aspect_ratio=decrease,"
+                f"pad={tile_w}:{tile_h}:(ow-iw)/2:(oh-ih)/2:color=#141418,"
+                f"setsar=1,format=rgba[base{idx}]"
+            )
+            filter_parts.append(
+                f"[base{idx}][{badge_in}:v]overlay=14:14:format=auto,format=rgb24[v{idx}]"
+            )
+
+        tile_spec = f"tile={effective_cols}x{rows}:padding=12:margin=12:color=#0B0B0E"
+        if n_imgs == 1:
+            filter_complex = f"{';'.join(filter_parts)};[v0]{tile_spec}[out]"
+        else:
+            concat_inputs = "".join(f"[v{idx}]" for idx in range(n_imgs))
+            filter_complex = (
+                f"{';'.join(filter_parts)};"
+                f"{concat_inputs}concat=n={n_imgs}:v=1:a=0[cat];"
+                f"[cat]{tile_spec}[out]"
+            )
+
+        proc = subprocess.run(
+            [
+                ffmpeg,
+                "-v",
+                "error",
+                "-y",
+                *input_args,
+                "-filter_complex",
+                filter_complex,
+                "-map",
+                "[out]",
+                "-frames:v",
+                "1",
+                str(out_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0 or not out_path.is_file():
+            raise RuntimeError(
+                f"failed to stitch lookbook PNG '{out_path}': {proc.stderr.strip()}"
+            )
+
+    out_probe = _ffprobe_json(ffprobe, out_path)
+    out_v = next(
+        (s for s in (out_probe.get("streams") or []) if s.get("codec_type") == "video"),
+        None,
+    )
+    out_w = int(out_v["width"]) if out_v and out_v.get("width") else None
+    out_h = int(out_v["height"]) if out_v and out_v.get("height") else None
+
+    slots = [
+        {"label": lbl, "index": idx, "file": str(img)}
+        for idx, (lbl, img) in enumerate(zip(resolved_labels, image_paths))
+    ]
+    return {
+        "ok": True,
+        "command": "lookbook",
+        "out": str(out_path),
+        "cols": effective_cols,
+        "rows": rows,
+        "tile_width": tile_w,
+        "tile_height": tile_h,
+        "output_width": out_w,
+        "output_height": out_h,
+        "slots": slots,
+        "warnings": [],
+        "errors": [],
+    }
+
+
 def _print_human(report: dict[str, Any]) -> None:
     state = "OK" if report["ok"] else "FAIL"
     cmd = report["command"]
     meta = report.get("metadata") or {}
-    if cmd in ("clip", "render"):
+    if cmd == "lookbook":
+        print(
+            f"[{state}] lookbook: {report['out']} "
+            f"({report['cols']}x{report['rows']}, tile={report['tile_width']}x{report['tile_height']}, "
+            f"output={report['output_width']}x{report['output_height']})"
+        )
+        for slot in report.get("slots") or []:
+            print(f"  [{slot['label']}] {slot['file']}")
+    elif cmd in ("clip", "render"):
         loud = report.get("loudness") or {}
         print(
             f"[{state}] {cmd}: {report['path']} "
@@ -835,9 +1146,35 @@ def _print_human(report: dict[str, Any]) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Deterministic FFmpeg/ffprobe media QA and 3x2 contact-sheet builder."
+        description="Deterministic FFmpeg/ffprobe media QA, 3x2 contact-sheet, and Lookbook grid builder."
     )
     sub = parser.add_subparsers(dest="command", required=True)
+
+    # lookbook
+    lb = sub.add_parser(
+        "lookbook",
+        help="Stitch 1+ images into a clean A/B/C Lookbook or Stills Strip PNG for Dailies.",
+    )
+    lb.add_argument("images", nargs="+", help="Ordered image paths to stitch into the grid.")
+    lb.add_argument("--out", required=True, help="Output PNG path.")
+    lb.add_argument(
+        "--labels",
+        default=None,
+        help="Optional comma-separated labels for slots (default: A,B,C,...).",
+    )
+    lb.add_argument(
+        "--cols",
+        type=int,
+        default=None,
+        help="Columns in grid (default: min(image_count, 3)).",
+    )
+    lb.add_argument(
+        "--tile-width",
+        type=int,
+        default=480,
+        help="Uniform width of each tile in pixels (default: 480).",
+    )
+    lb.add_argument("--json", action="store_true", dest="as_json", help="Emit JSON report.")
 
     # clip
     cl = sub.add_parser("clip", help="Validate a single generated video clip.")
@@ -897,6 +1234,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--black-min", type=float, default=0.5, help="Minimum black gap duration to flag in seconds (default: 0.5)."
     )
     rn.add_argument("--allow-silent", action="store_true", help="Allow missing or silent audio.")
+    rn.add_argument(
+        "--no-loudness-check",
+        action="store_true",
+        help="Skip integrated LUFS and true-peak range checks (e.g. for --no-loudnorm renders).",
+    )
     rn.add_argument("--strict", action="store_true", help="Treat still_stretch warnings as errors.")
     rn.add_argument("--json", action="store_true", dest="as_json", help="Emit JSON report.")
 
@@ -906,6 +1248,34 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.command == "lookbook":
+        img_paths = [Path(p) for p in args.images]
+        labels_list = (
+            [lbl.strip() for lbl in args.labels.split(",")]
+            if args.labels is not None
+            else None
+        )
+        try:
+            report = build_lookbook(
+                img_paths,
+                out_path=Path(args.out),
+                labels=labels_list,
+                cols=args.cols,
+                tile_width=args.tile_width,
+            )
+        except (FileNotFoundError, ValueError, RuntimeError) as exc:
+            if args.as_json:
+                print(json.dumps({"ok": False, "error": str(exc)}, indent=2))
+            else:
+                print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
+
+        if args.as_json:
+            print(json.dumps(report, indent=2, ensure_ascii=False))
+        else:
+            _print_human(report)
+        return 0 if report["ok"] else 1
 
     target_path = Path(args.video if args.command in ("clip", "render") else args.audio)
     if not target_path.is_file():
@@ -952,6 +1322,7 @@ def main(argv: list[str] | None = None) -> int:
                 max_frozen_tail=args.max_frozen_tail,
                 black_min=args.black_min,
                 allow_silent=args.allow_silent,
+                skip_loudness_check=args.no_loudness_check,
                 strict=args.strict,
             )
     except RuntimeError as exc:

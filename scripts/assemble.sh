@@ -153,7 +153,7 @@ if [[ -n "$MANIFEST" ]]; then
     AUDIO_BASE_DIR="$(dirname "$MANIFEST")"
   fi
   MANIFEST_AUDIO_OUT="$("$PYTHON_BIN" - "$MANIFEST" "$AUDIO_BASE_DIR" "$MUSIC" "$VO" "$WORKDIR" <<'PY'
-import json, pathlib, subprocess, sys
+import json, math, pathlib, re, subprocess, sys
 
 manifest_path = pathlib.Path(sys.argv[1])
 base_dir = pathlib.Path(sys.argv[2])
@@ -173,6 +173,41 @@ def resolve_rel(raw_path: str) -> pathlib.Path:
     if (base_dir / p).is_file():
         return base_dir / p
     return p
+
+def parse_ts(token: str):
+    t = token.strip().rstrip("sS").strip()
+    if not t:
+        return None
+    if ":" in t:
+        parts = t.split(":")
+        if len(parts) not in (2, 3):
+            return None
+        try:
+            nums = [float(x) for x in parts]
+        except ValueError:
+            return None
+        if any(not math.isfinite(x) or x < 0 for x in nums):
+            return None
+        if len(nums) == 2:
+            return nums[0] * 60.0 + nums[1]
+        return nums[0] * 3600.0 + nums[1] * 60.0 + nums[2]
+    try:
+        val = float(t)
+    except ValueError:
+        return None
+    return val if math.isfinite(val) and val >= 0 else None
+
+def parse_window_start(raw):
+    if not isinstance(raw, str):
+        return None
+    m = re.match(
+        r"^\s*([0-9:.]+(?:\s*s)?)\s*[-–—]\s*([0-9:.]+(?:\s*s)?)\s*$",
+        raw.strip(),
+        re.IGNORECASE,
+    )
+    if not m:
+        return None
+    return parse_ts(m.group(1))
 
 if isinstance(audio, dict):
     music_cfg = audio.get("music")
@@ -199,6 +234,8 @@ if isinstance(audio, dict):
                             start = tr.get("start_s")
                             if start is None:
                                 start = tr.get("offset_s")
+                            if start is None:
+                                start = parse_window_start(tr.get("window_s"))
                             parsed_tracks.append((resolve_rel(fpath.strip()), start))
                 if parsed_tracks:
                     for tp, _ in parsed_tracks:
@@ -519,10 +556,10 @@ PY
     [[ -f "$clip" ]] || die "clip file not found: $clip"
   done
 
-  # Probe clip 1 for even target resolution and locked frame rate (prefer avg_frame_rate)
+  # Probe clip 1 for even target resolution and locked frame rate (manifest fps_target takes precedence)
   FIRST_CLIP="${CLIPS[0]}"
-  PROBE_META="$("$PYTHON_BIN" - "$FIRST_CLIP" <<'PY'
-import json, subprocess, sys
+  PROBE_META="$("$PYTHON_BIN" - "$FIRST_CLIP" "$MANIFEST" <<'PY'
+import json, math, pathlib, subprocess, sys
 proc = subprocess.run(
     ["ffprobe", "-v", "error", "-select_streams", "v:0",
      "-show_entries", "stream=width,height,avg_frame_rate,r_frame_rate",
@@ -542,6 +579,21 @@ h = int(st["height"])
 w = w + (w % 2)
 h = h + (h % 2)
 
+manifest_fps = ""
+if len(sys.argv) > 2 and sys.argv[2]:
+    try:
+        mdata = json.loads(pathlib.Path(sys.argv[2]).read_text(encoding="utf-8"))
+        mfps = mdata.get("fps_target")
+        if (
+            isinstance(mfps, (int, float))
+            and not isinstance(mfps, bool)
+            and math.isfinite(float(mfps))
+            and float(mfps) > 0
+        ):
+            manifest_fps = str(int(mfps)) if float(mfps).is_integer() else str(mfps)
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        manifest_fps = ""
+
 def valid_rate(rate_str):
     if not rate_str or rate_str == "0/0":
         return False
@@ -559,7 +611,7 @@ def valid_rate(rate_str):
 
 avg_fps = st.get("avg_frame_rate") or ""
 r_fps = st.get("r_frame_rate") or ""
-fps = avg_fps if valid_rate(avg_fps) else (r_fps if valid_rate(r_fps) else "24/1")
+fps = manifest_fps if manifest_fps else (avg_fps if valid_rate(avg_fps) else (r_fps if valid_rate(r_fps) else "24/1"))
 print(f"{w} {h} {fps}")
 PY
 )"
@@ -766,6 +818,9 @@ fi
 QA_ARGS=(render "$OUT" --json)
 if [[ "$ANIMATIC" -eq 1 ]]; then
   QA_ARGS+=(--max-still 999)
+fi
+if [[ "$NO_LOUDNORM" -eq 1 ]]; then
+  QA_ARGS+=(--no-loudness-check)
 fi
 if [[ "$ALLOW_SILENT" -eq 1 ]]; then
   QA_ARGS+=(--allow-silent)

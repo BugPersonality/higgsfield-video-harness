@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -13,9 +14,23 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 EXAMPLE_CAMPAIGN = REPO_ROOT / "campaigns" / "example-product-spot"
 EXAMPLE_BRAND = REPO_ROOT / "brands" / "example-brand" / "brand.md"
+EXAMPLE_BRAND_TASTE = REPO_ROOT / "brands" / "example-brand" / "taste.md"
 
 FORBIDDEN_BINARY_EXTS = frozenset({".png", ".jpg", ".jpeg", ".mp4", ".mov", ".webm", ".wav", ".mp3"})
 REQUIRED_NO_MUSIC_LINE = "NO MUSIC. NO BACKGROUND SCORE. Native diegetic sound only."
+
+
+def _extract_campaign_cap(status_data: dict) -> int | float | None:
+    sub = status_data.get("campaign") if isinstance(status_data.get("campaign"), dict) else status_data
+    for key in ("cap", "campaign_cap"):
+        val = sub.get(key)
+        if isinstance(val, (int, float)) and not isinstance(val, bool):
+            return val
+    for key in ("campaign_cap", "cap"):
+        val = status_data.get(key)
+        if isinstance(val, (int, float)) and not isinstance(val, bool):
+            return val
+    return None
 
 
 class TestRepoChecks(unittest.TestCase):
@@ -91,9 +106,9 @@ class TestRepoChecks(unittest.TestCase):
 
             for rel in (
                 "prompts",
-                "tasks",
                 "qc",
                 "media/references",
+                "media/lookbook",
                 "media/stills",
                 "media/shots",
                 "media/audio",
@@ -101,11 +116,20 @@ class TestRepoChecks(unittest.TestCase):
             ):
                 self.assertTrue((camp_dir / rel).is_dir(), msg=f"Missing scaffold subdir: {rel}")
 
-            intent_path = camp_dir / "intent.md"
-            self.assertTrue(intent_path.is_file())
-            intent_text = intent_path.read_text(encoding="utf-8")
-            self.assertIn("status: draft", intent_text)
-            self.assertIn("brands/example-brand/brand.md", intent_text)
+            self.assertFalse((camp_dir / "tasks").exists(), "Feedback-Loop Studio must not scaffold tasks/")
+            self.assertFalse((camp_dir / "tasks.md").exists(), "Feedback-Loop Studio must not scaffold tasks.md")
+            self.assertFalse((camp_dir / "intent.md").exists(), "Feedback-Loop Studio scaffolds brief.md, not intent.md")
+
+            brief_path = camp_dir / "brief.md"
+            self.assertTrue(brief_path.is_file(), "Missing scaffolded brief.md")
+            brief_text = brief_path.read_text(encoding="utf-8")
+            self.assertIn("status: draft", brief_text)
+            self.assertIn("brands/example-brand/brand.md", brief_text)
+
+            taste_log_path = camp_dir / "taste-log.md"
+            self.assertTrue(taste_log_path.is_file(), "Missing scaffolded taste-log.md")
+            taste_text = taste_log_path.read_text(encoding="utf-8")
+            self.assertIn("# Taste Log:", taste_text)
 
             # Second invocation with identical slug/day must refuse overwrite
             dup_proc = self._run_py(
@@ -129,47 +153,57 @@ class TestRepoChecks(unittest.TestCase):
 
     def test_example_product_spot_end_to_end(self) -> None:
         self.assertTrue(EXAMPLE_BRAND.is_file(), "Missing brands/example-brand/brand.md")
+        self.assertTrue(EXAMPLE_BRAND_TASTE.is_file(), "Missing brands/example-brand/taste.md")
 
         for rel in (
-            "intent.md",
-            "treatment.md",
+            "brief.md",
+            "taste-log.md",
             "script.md",
             "storyboard.md",
             "style-bible.md",
             "shotlist.json",
-            "tasks.md",
+            "prompts/lb_traveler_v1.txt",
             "prompts/s01_still_v1.txt",
             "prompts/s01_video_v1.txt",
             "prompts/s02_still_v1.txt",
             "prompts/s02_video_v1.txt",
             "prompts/s03_still_v1.txt",
             "prompts/s03_video_v1.txt",
-            "tasks/T01-upload-references.md",
-            "tasks/T02-generate-stills.md",
-            "tasks/T03-pilot-s02-draft.md",
-            "tasks/T04a-draft-s01.md",
-            "tasks/T04b-draft-s03.md",
-            "tasks/T05-music-and-assemble-draft.md",
-            "tasks/T06-final-1080p-renders.md",
-            "tasks/T07-assemble-master-and-delivery.md",
         ):
             self.assertTrue(
                 (EXAMPLE_CAMPAIGN / rel).is_file(),
                 msg=f"Missing example campaign file: {rel}",
             )
 
-        # Verify workflow schema, style bible, and treatment contracts
+        # Ensure legacy ledger/intent files do not exist in Feedback-Loop Studio campaign
+        for legacy in ("tasks.md", "tasks", "intent.md", "treatment.md"):
+            self.assertFalse(
+                (EXAMPLE_CAMPAIGN / legacy).exists(),
+                msg=f"Unexpected legacy path in example campaign: {legacy}",
+            )
+
+        # Verify lookbook, workflow schema, and per-asset statuses in shotlist.json
         shotlist = json.loads((EXAMPLE_CAMPAIGN / "shotlist.json").read_text(encoding="utf-8"))
+        self.assertIsInstance(shotlist.get("lookbook"), list)
+        self.assertGreaterEqual(len(shotlist["lookbook"]), 1)
         for shot in shotlist["shots"]:
             self.assertTrue(shot["video"]["is_workflow"], msg=f"{shot['id']} must set is_workflow: true")
             self.assertEqual(shot["video"]["mode"], "omni_reference", msg=f"{shot['id']} must use omni_reference")
+            self.assertIn(shot["still"]["status"], ("DRAFT", "IN_REVIEW", "ITERATING", "LOCKED"))
+            self.assertIn(shot["video"]["status"], ("DRAFT", "IN_REVIEW", "ITERATING", "LOCKED"))
 
         style_text = (EXAMPLE_CAMPAIGN / "style-bible.md").read_text(encoding="utf-8")
-        self.assertIn("status: ready", style_text)
+        self.assertIn("status: active", style_text)
         self.assertIn("## Negative Constraints & Anti-IP Phrasing", style_text)
 
-        treatment_text = (EXAMPLE_CAMPAIGN / "treatment.md").read_text(encoding="utf-8")
-        self.assertIn("## Audio & Music Architecture", treatment_text)
+        taste_text = (EXAMPLE_CAMPAIGN / "taste-log.md").read_text(encoding="utf-8")
+        for token in (
+            "# Taste Log:",
+            "Brand taste seed: brands/example-brand/taste.md",
+            "### TL-01",
+            "### TL-02",
+        ):
+            self.assertIn(token, taste_text, msg=f"Missing '{token}' in taste-log.md")
 
         # Verify canonical three-column script and continuity-locked storyboard sections
         script_text = (EXAMPLE_CAMPAIGN / "script.md").read_text(encoding="utf-8")
@@ -216,14 +250,34 @@ class TestRepoChecks(unittest.TestCase):
         ]
         self.assertEqual(binaries, [], msg=f"Unexpected binary files in example campaign: {binaries}")
 
-        # Validators & budget status pass cleanly
-        intent_proc = self._run_py("check-intent.py", str(EXAMPLE_CAMPAIGN), "--json")
-        self.assertEqual(intent_proc.returncode, 0, msg=intent_proc.stdout + intent_proc.stderr)
-        self.assertTrue(json.loads(intent_proc.stdout)["ok"])
+        # Verify zero technical/CLI implementation jargon leaked into Director-facing brief.md
+        brief_text = (EXAMPLE_CAMPAIGN / "brief.md").read_text(encoding="utf-8")
+        for forbidden in (
+            "H.264/AAC",
+            "music_vol:",
+            "-22 dBFS",
+            "atempo",
+            "scripts/hf_guard.py",
+            "--round-cap",
+            "scripts/qa_media.py",
+            "85mm",
+            "50mm",
+            "35mm",
+        ):
+            self.assertNotIn(
+                forbidden,
+                brief_text,
+                msg=f"Director-facing brief.md must not expose technical jargon {forbidden!r}",
+            )
 
-        ledger_proc = self._run_py("check-ledger.py", str(EXAMPLE_CAMPAIGN), "--json")
-        self.assertEqual(ledger_proc.returncode, 0, msg=ledger_proc.stdout + ledger_proc.stderr)
-        self.assertTrue(json.loads(ledger_proc.stdout)["ok"])
+        # Validators & budget status pass cleanly
+        brief_proc = self._run_py("check-brief.py", str(EXAMPLE_CAMPAIGN), "--json")
+        self.assertEqual(brief_proc.returncode, 0, msg=brief_proc.stdout + brief_proc.stderr)
+        self.assertTrue(json.loads(brief_proc.stdout)["ok"])
+
+        campaign_proc = self._run_py("check-campaign.py", str(EXAMPLE_CAMPAIGN), "--json")
+        self.assertEqual(campaign_proc.returncode, 0, msg=campaign_proc.stdout + campaign_proc.stderr)
+        self.assertTrue(json.loads(campaign_proc.stdout)["ok"])
 
         status_proc = self._run_py(
             "hf_guard.py", "status", "--campaign", str(EXAMPLE_CAMPAIGN), "--json"
@@ -231,8 +285,46 @@ class TestRepoChecks(unittest.TestCase):
         self.assertEqual(status_proc.returncode, 0, msg=status_proc.stdout + status_proc.stderr)
         st = json.loads(status_proc.stdout)
         self.assertTrue(st["ok"])
-        self.assertEqual(st["phases"]["draft"]["cap"], 140)
-        self.assertEqual(st["phases"]["final"]["cap"], 260)
+        self.assertEqual(_extract_campaign_cap(st), 400, msg=st)
+
+    def test_check_instructions_catches_broken_role_output_schema_anchor(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_str:
+            tmp_root = Path(tmp_str)
+            shutil.copy2(REPO_ROOT / "AGENTS.md", tmp_root / "AGENTS.md")
+            for sub in (".agents", ".codex", "docs"):
+                shutil.copytree(REPO_ROOT / sub, tmp_root / sub)
+
+            ok_proc = self._run_py("check-instructions.py", str(tmp_root))
+            self.assertEqual(
+                ok_proc.returncode,
+                0,
+                msg=f"Clean repo copy should pass check-instructions.py:\n{ok_proc.stdout}\n{ok_proc.stderr}",
+            )
+
+            role_toml = tmp_root / ".agents" / "roles" / "reviewer-agent.toml"
+            original = role_toml.read_text(encoding="utf-8")
+            mutated = original.replace(
+                'output_schema = "docs/video-workflow/interfaces/review-result-v1.md"',
+                'output_schema = "docs/video-workflow/interfaces/review-result-v1.md#nonexistent-anchor-fragment"',
+                1,
+            )
+            self.assertNotEqual(original, mutated, "Expected to mutate reviewer-agent.toml output_schema")
+            role_toml.write_text(mutated, encoding="utf-8")
+
+            bad_proc = self._run_py("check-instructions.py", str(tmp_root))
+            combined = f"{bad_proc.stdout}\n{bad_proc.stderr}"
+            self.assertEqual(
+                bad_proc.returncode,
+                1,
+                msg=f"Expected check-instructions.py to reject broken output_schema #anchor:\n{combined}",
+            )
+            self.assertTrue(
+                any(
+                    tok in combined.lower()
+                    for tok in ("nonexistent-anchor-fragment", "anchor", "output_schema")
+                ),
+                msg=f"Expected anchor diagnostic, got:\n{combined}",
+            )
 
 
 if __name__ == "__main__":
