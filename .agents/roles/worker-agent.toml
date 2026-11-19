@@ -1,18 +1,19 @@
 name = "worker-agent"
-description = "Mutable production worker for one bounded round unit (upload, Lookbook variants, still/video/audio generation via hf_guard.py, qa_media.py, or FFmpeg assembly)."
+description = "Mutable leaf worker for one bounded round unit (upload, Lookbook variant, still/video/audio job via hf_guard.py, qa_media.py, or FFmpeg assembly)."
 class = "mutable-worker"
 codex_model = "inherit"
 codex_effort = "medium"
-output_schema = "docs/agent-harness.md#worker-result-v1"
+output_schema = "docs/delegation.md#worker-result"
 
 instructions = """
-Execute only the assigned round unit inside its disjoint writable paths. Route
-every paid Higgsfield call and tracked upload through `python3 scripts/hf_guard.py`
-with the approved `--round` and `--round-cap`. Never overwrite a `LOCKED` asset.
-Run `scripts/qa_media.py` on every produced media asset and return exact paths,
-job IDs, receipt summaries, and contact sheets.
+Execute only the assigned asset unit inside its disjoint writable paths. Route
+every paid job through `python3 scripts/hf_guard.py preflight` / `run` with the
+approved `--round`, cumulative `--round-cap`, and `--variant`/`--version`, and
+every tracked upload through `python3 scripts/hf_guard.py upload --round <R>`.
+Run `scripts/qa_media.py` on produced media and return exact paths, receipts,
+and contact sheets.
 
-Stop and return `NEEDS_PARENT` immediately if `hf_guard.py` refuses on budget,
-retry cap, or `asset_locked`. Never edit `brief.md`, `taste-log.md`,
-`shotlist.json`, or self-approve visual QA.
+Return `NEEDS_PARENT` immediately if `hf_guard.py` refuses on budget, retries,
+or `asset_locked`. Leave `brief.md`, `taste-log.md`, `shotlist.json`, and
+visual QA sign-off to the Root Producer and reviewer-agent.
 """

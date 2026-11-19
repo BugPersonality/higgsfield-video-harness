@@ -1,16 +1,16 @@
 name = "specialist-agent"
-description = "Read-only creative or technical specialist for contrasting ad concepts, 3-column scripts, continuity-locked storyboards, prompt architecture, anti-IP rewrites, and audio pacing."
+description = "Read-only creative or craft specialist for orthogonal ad concepts, 3-column scripts, continuity-locked storyboards, prompt architecture, and anti-IP rewrites."
 class = "read-only-specialist"
 codex_model = "inherit"
 codex_effort = "high"
-output_schema = "docs/agent-harness.md#specialist-result-v1"
+output_schema = "docs/delegation.md#specialist-result"
 
 instructions = """
 Read `campaigns/<slug>/brief.md`, `taste-log.md`, and cited `brands/` files
-before authoring any creative or prompt proposal. Respect every `LOCKED` anchor
-and ruled-out aesthetic in `taste-log.md`. For contrasting concept or visual
-variant briefs, propose genuinely orthogonal options so the Director has a real
-comparative choice rather than minor paraphrases.
+first. Honor every `LOCKED` anchor and `taste-log.md` rule. When proposing
+concepts or Lookbook variants, produce genuinely orthogonal options so the
+Director has a real comparative choice.
 
-Never spend credits, mutate campaign state, or skip human Dailies selection.
+Stay strictly read-only: leave file writes, spending, and Dailies selection to
+the Root Producer and Director.
 """

@@ -49,9 +49,10 @@ class TestRepoChecks(unittest.TestCase):
             0,
             msg=f"check-instructions.py failed:\nstdout={proc.stdout}\nstderr={proc.stderr}",
         )
+        self.assertIn("roles=4", proc.stdout)
         self.assertIn("skills=11", proc.stdout)
 
-    def test_all_eleven_skills_and_ad_craft_glossary_exist(self) -> None:
+    def test_minimalist_docs_layout_and_eleven_skills_exist(self) -> None:
         expected_skills = (
             "idea-refine",
             "grilling",
@@ -70,9 +71,25 @@ class TestRepoChecks(unittest.TestCase):
             skill_md = skills_root / name / "SKILL.md"
             self.assertTrue(skill_md.is_file(), msg=f"Missing skill: {skill_md}")
 
-        glossary = REPO_ROOT / "docs" / "ad-craft-glossary.md"
-        self.assertTrue(glossary.is_file(), "Missing docs/ad-craft-glossary.md")
-        self.assertGreater(len(glossary.read_text(encoding="utf-8").strip()), 100)
+        for doc in (
+            "workflow.md",
+            "delegation.md",
+            "grilling.md",
+            "writing-for-agents.md",
+            "ad-craft-glossary.md",
+        ):
+            doc_path = REPO_ROOT / "docs" / doc
+            self.assertTrue(doc_path.is_file(), msg=f"Missing minimalist doc: {doc_path}")
+            self.assertGreater(len(doc_path.read_text(encoding="utf-8").strip()), 100)
+
+        self.assertFalse(
+            (REPO_ROOT / "docs" / "video-workflow").exists(),
+            "Superseded multi-file docs/video-workflow/ tree must remain removed",
+        )
+        self.assertFalse(
+            (REPO_ROOT / ".agents" / "roles" / "adjudicator-agent.toml").exists(),
+            "Redundant adjudicator-agent.toml role must remain removed",
+        )
 
     def test_check_docs_passes(self) -> None:
         proc = self._run_py("check-docs.py", str(REPO_ROOT))
@@ -304,8 +321,8 @@ class TestRepoChecks(unittest.TestCase):
             role_toml = tmp_root / ".agents" / "roles" / "reviewer-agent.toml"
             original = role_toml.read_text(encoding="utf-8")
             mutated = original.replace(
-                'output_schema = "docs/video-workflow/interfaces/review-result-v1.md"',
-                'output_schema = "docs/video-workflow/interfaces/review-result-v1.md#nonexistent-anchor-fragment"',
+                'output_schema = "docs/delegation.md#review-result"',
+                'output_schema = "docs/delegation.md#nonexistent-anchor-fragment"',
                 1,
             )
             self.assertNotEqual(original, mutated, "Expected to mutate reviewer-agent.toml output_schema")
