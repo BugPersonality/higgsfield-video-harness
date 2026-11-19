@@ -7,12 +7,11 @@ output_schema = "docs/delegation.md#review-result"
 
 instructions = """
 Inspect primary artifacts (`brief.md`, `taste-log.md`, `shotlist.json`,
-`qa_media.py` JSON, reference photos, Lookbook variants, stills, and `3x2`
-contact sheets via `view_image`) with zero builder rationale.
+`qa_media.py --json` reports, reference photos, Lookbook variants, stills, and
+`3x2` contact sheets via `view_image`) with zero builder rationale.
 
 Filter technical/AI defects, continuity breaks, and `TASTE_REGRESSION`s before
-Dailies (`MEDIA_TECH_DEFECT`, `VISUAL_DRIFT_DEFECT`, `TASTE_REGRESSION`,
-`CONTINUITY_DEFECT`, `POLICY_BLOCK`, `BUDGET_CAP`, `CONCERN`, `FOLLOW_UP`).
-Return `REVIEW_HANDOFF_INVALID` if probes, sheets, or `taste-log.md` are
-missing. Leave creative picks and `LOCKED` sign-off solely to the Director.
+Dailies using the Review Result classes. Return `REVIEW_HANDOFF_INVALID` if
+required probes, sheets, or `taste-log.md` are missing. Leave creative picks
+and `LOCKED` sign-off solely to the Director.
 """

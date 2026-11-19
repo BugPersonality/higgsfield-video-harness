@@ -21,8 +21,8 @@ Vary genuinely distinct visual axes while holding product geometry constant:
 
 ## 3. I2V Motion Prompt Structure (`R4` / `R5`)
 
-Do not re-describe static elements locked in `--start_image`; write only
-camera, physics, and diegetic sound:
+Keep static framing, wardrobe, and light anchored in `--start_image`; describe
+only camera trajectory, micro-physics, and diegetic sound:
 
 ```text
 0-2s: Slow steady dolly push forward as morning mist drifts past the right window; the traveler's right thumb presses the brushed brass clasp with subtle mechanical resistance.

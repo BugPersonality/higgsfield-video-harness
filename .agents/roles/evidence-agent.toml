@@ -7,10 +7,10 @@ output_schema = "docs/delegation.md#evidence-result"
 
 instructions = """
 Answer one bounded read-only question: inspect live Higgsfield CLI schemas
-(`model get`, `workflow get`, `voices list`, `account status`, `generate list`,
-`generate cost`), locate `brands/` profiles and local photos, or reduce
-`ffprobe` / `receipts.jsonl` outputs.
+(`model get`, `workflow get`, `voices list`, `preset list`, `account status`,
+`generate list`, `generate cost`), locate `brands/` profiles and local photos,
+or reduce `ffprobe` / `receipts.jsonl` outputs. Pass only cost params or UUIDs
+to `generate cost` (local paths auto-upload).
 
-Return exact commands, locators, JSON excerpts, and gaps. Stay strictly
-read-only: spend zero credits and leave taste picks to the Director.
+Return exact commands, locators, JSON excerpts, and gaps; spend zero credits.
 """

@@ -4,14 +4,14 @@ Keep every actor in the **Smart Zone**: one coherent outcome, bounded files,
 primary artifacts (`brief.md`, `taste-log.md`, `style-bible.md`, `shotlist.json`),
 and fresh history (`fork_turns: "none"` where supported). Keep the **Root
 Producer** in one continuous session across `R0`–`R5` so the Director's verbatim
-*why* stays a primary source, delegating AFK parallel craft and unbiased QC to
+*why* stays a primary source; delegate AFK parallel craft and unbiased QC to
 fresh subagents.
 
 ## Roles & Ownership
 
 Four native Codex roles live in [`.agents/roles/`](../.agents/roles) (Multi-Agent
 V2 configured in [`.codex/config.toml`](../.codex/config.toml), 20-thread
-session ceiling; always reserve slots for Visual Critic QC and recovery):
+session ceiling; reserve slots for Visual Critic QC and recovery):
 
 | Role | Effort | Owns |
 | --- | --- | --- |
@@ -29,23 +29,23 @@ session ceiling; always reserve slots for Visual Critic QC and recovery):
   parent chat turns or builder rationales). Reuse a `worker-agent` only for
   bounded repair inside its unchanged asset, writable paths, and `--round-cap`;
   spawn a fresh actor when `version` bumps, scope changes, or independent QC runs.
-- **Codex tools:** use `view_image` on `lookbook.png`, stills, and `3x2` contact
-  sheets; run `open <artifact>` on macOS before posting Dailies when
-  `Auto-open dailies: true`. Keep paid campaign jobs strictly on `higgsfield`
-  CLI via `hf_guard.py`—never mix paid MCP calls into a campaign.
+- **Codex tools:** inspect `lookbook.png`, stills, and `3x2` contact sheets via
+  `view_image`; run `open <artifact>` on macOS before posting Dailies when
+  `Auto-open dailies: true`. Run all paid campaign jobs through `hf_guard.py`
+  on `higgsfield` CLI, keeping MCP read-only.
 
 ## Pre-Dailies Visual Critic
 
 Before assembling any Dailies Packet for generated media (`R2`–`R5`), spawn a
-fresh read-only `reviewer-agent` (`fork_turns: "none"`) with only primary inputs
-(`brief.md`, `taste-log.md`, `shotlist.json`, `qa_media.py` JSON, reference
-photos, and `lookbook.png`/stills/`3x2` contact sheets via `view_image`)—never
-builder self-review prose.
+fresh read-only `reviewer-agent` (`fork_turns: "none"`) with primary inputs only
+(`brief.md`, `taste-log.md`, `shotlist.json`, `qa_media.py --json` reports,
+reference photos, and `lookbook.png`/stills/`3x2` contact sheets via
+`view_image`)—zero builder rationale.
 
-- **Filter defects, never taste:** reject obvious AI/technical defects
-  (`MEDIA_TECH_DEFECT`, `VISUAL_DRIFT_DEFECT`, `TASTE_REGRESSION`,
-  `CONTINUITY_DEFECT`, `POLICY_BLOCK`, `BUDGET_CAP`). Never pick among clean
-  creative options or mark an asset `LOCKED`.
+- **Filter defects, leave taste to the Director:** reject obvious AI/technical
+  defects, continuity breaks, taste regressions, or policy/budget blocks using
+  the `#review-result` classes below. Leave creative picks and `LOCKED` sign-off
+  solely to the Director.
 - **Fail closed on missing proof:** return `REVIEW_HANDOFF_INVALID` whenever
   required `qa_media.py` JSON, `taste-log.md`, or contact sheets are missing.
 - **Honest escalation:** fix root causes inside `Max auto-retries/asset` and
@@ -56,13 +56,17 @@ builder self-review prose.
 ## Parent-Owned Recovery
 
 Technical obstacles belong to the Root Producer, never the Director:
-- **Zero double-spend on timeouts/interruptions:** `hf_guard.py` keeps timed-out
-  or ambiguous jobs reserved (`in_progress`) and reconciles via `generate get`/
-  `wait`/`list` (or `soul-id get`/`wait`) on retry. Reconcile `receipts.jsonl`
-  and `higgsfield generate list --json` before replacing a stalled worker.
-- **Bound no-progress loops:** diagnose the root cause before each retry rather
-  than repeating identical prompts/inputs. On `BUDGET_CAP`, `asset_locked`,
-  `retry_limit_exceeded`, or repeated `POLICY_BLOCK`, workers return
+- **Zero double-spend on timeouts & downloads:** `hf_guard.py` keeps timed-out
+  or ambiguous jobs `in_progress` (resuming via `generate get`/`wait`/`list` or
+  `soul-id get`/`wait`) and retries local `download_failed` saves without
+  re-submitting. Reconcile `receipts.jsonl` with `higgsfield generate list --json`
+  (or `soul-id list --json`) before replacing a stalled worker or clearing
+  `reservation_in_flight`.
+- **Fix root causes, stop at hard walls:** diagnose the cause before each retry
+  (rewrite prompts positively on `ip_detected`, tighten anchors on drift, adjust
+  beats) rather than repeating identical inputs. On `BUDGET_CAP`,
+  `asset_locked`, `retry_limit_exceeded`, `variant_limit_exceeded`,
+  `reservation_in_flight`, or repeated `POLICY_BLOCK`, workers return
   `NEEDS_PARENT` immediately.
 
 ## Output Envelopes
@@ -93,7 +97,7 @@ status: DONE | NEEDS_PARENT
 outputs: <media, prompt, and QC paths written inside disjoint scope>
 receipts: <reservation_id, job_id or upload_id, credits, attempt>
 qa_summary: <qa_media.py JSON summary and contact-sheet/lookbook path>
-blocker: <none | BUDGET_CAP | asset_locked | POLICY_BLOCK | retry_limit_exceeded | error>
+blocker: <none | BUDGET_CAP | asset_locked | POLICY_BLOCK | retry_limit_exceeded | variant_limit_exceeded | reservation_in_flight | error>
 ```
 
 ### Review Result

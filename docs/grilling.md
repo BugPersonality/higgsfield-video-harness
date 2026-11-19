@@ -8,7 +8,7 @@ Classify every branch before asking:
 
 - **Facts** (brand profiles in `brands/`, local reference photos, account
   balance, live Higgsfield schemas): resolve them yourself via `evidence-agent`
-  before Round 1.
+  before asking.
 - **Technical craft** (models, workflows, CLI flags, prompt syntax, UUID wiring,
   lenses, codecs, FFmpeg filters): own them inside the Production Crew—keep them
   strictly off the Director's frontier.
@@ -48,6 +48,6 @@ Wait for answers before advancing dependent branches:
 - **Contradiction with `taste-log.md` or earlier answer:** stop and resolve the
   conflict directly rather than silently overwriting.
 
-Grilling ends when the **frontier is empty**: every Director-owned branch is
-settled or explicitly converted to a labeled assumption (`Reopen if`), and the
-Director confirms the one-screen summary before any paid round starts.
+*Done when:* the **frontier is empty**—every Director-owned branch is settled or
+converted to a labeled assumption (`Reopen if`), and the Director confirms the
+one-screen summary before any paid round starts.

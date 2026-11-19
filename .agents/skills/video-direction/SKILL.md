@@ -5,7 +5,7 @@ description: "Taste-aligned lookbook, still, and motion prompt craft. Use when a
 
 # Video Direction
 
-**Taste Memory first.** Read `campaigns/<slug>/taste-log.md` (and `brands/<brand>/taste.md`) before writing any prompt. Honor every `Approved / LOCKED` anchor and turn active `More of`, `Change / Steer`, and `Never` lines into positive photographic, lighting, or kinetic cues.
+**Taste Memory first.** Read `campaigns/<slug>/taste-log.md` (and `brands/<brand>/taste.md`) before writing any prompt. Honor every `LOCKED` anchor and turn active taste-log directives into positive photographic, lighting, or kinetic cues.
 
 **True `R2` Lookbook contrast (`A / B / C`).** Hold brand/product invariants constant while varying genuinely meaningful visual axes (lighting mood/temperature, material finish, camera distance, architectural backdrop) so the Director gets a real choice rather than synonym paraphrases; see [prompt patterns](references/prompt-patterns.md).
 

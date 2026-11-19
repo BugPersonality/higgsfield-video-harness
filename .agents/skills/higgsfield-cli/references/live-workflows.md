@@ -6,21 +6,36 @@ for live flags and schemas.
 
 ## Non-Obvious CLI Gotchas
 
-1. **`cinematic_studio_video_4_0` is a workflow (`--workflow`), not a model:**
-   valid `--mode` values are `t2v`, `omni_reference`, `video_edit`,
-   `video_extension` (no `i2v` mode). `--start_image` and `--end_image` are
-   valid only with `--mode omni_reference`.
-2. **All workflow/model media flags use `snake_case`:** pass `--start_image`,
+1. **`omni_reference` is mandatory for frame/image refs (no `i2v` mode):** both
+   `cinematic_studio_video_4_0` (`--workflow`) and `seedance_2_5` (model) default
+   `--mode` to `t2v` (valid modes: `t2v`, `omni_reference`, `video_edit`,
+   `video_extension`). Pass `--mode omni_reference` whenever supplying
+   `--start_image`, `--end_image`, or `--image_references` (and on `seedance_2_5`,
+   never combine `--draft true` with `--draft_job_id`). `marketing_studio_video`
+   is also a `--workflow`, not a model.
+2. **`generate cost` traps (auto-upload, workflow `cost_params` & unquotable
+   endpoints):** before Director approves uploading private media (`R1`), pass
+   only cost-affecting flags or already-uploaded / placeholder UUIDs—never local
+   paths under `media/references/`, which `generate cost` auto-uploads.
+   `generate cost workflow <name>` accepts only `cost_params` from
+   `workflow get <name> --json` (`hf_guard.py` filters these automatically).
+   Verify live quoting before committing to `soul-id` (no `soul-id cost`
+   command) or `marketing_studio_video --specific_mode from_storyboard` (whose
+   live `cost_params` omit `storyboard_id` while validation requires it).
+3. **All workflow/model parameter flags use `snake_case`:** pass `--start_image`,
    `--end_image`, `--image_references`, `--video_references`, `--audio_references`,
-   `--aspect_ratio`, `--extension_mode`, `--draft_job_id`, `--custom_reference_id`.
-3. **`product-photoshoot` needs `--count 1` per `--variant A|B|C`:**
-   `hf_guard.py --out` writes one output file per call; separate per-variant
-   calls preserve every variant and allow genuinely contrasting art direction.
+   `--aspect_ratio`, `--extension_mode`, `--draft_job_id`, `--custom_reference_id`,
+   `--voice_id`, `--voice_type`, `--specific_mode`.
+4. **Guard boundary & per-variant `product-photoshoot`:** pass `hf_guard.py`
+   flags before `--` and only model/workflow params after `--` (never duplicate
+   `generate create`, `--wait`, or `--json`). For `product-photoshoot`, run
+   separate `--count 1` calls per `--variant A|B|C` with distinct `--out` paths
+   so every variant is saved.
 
 ## Minimal Guarded Recipes
 
 ```bash
-# Free read-only schema & cost quote (0 cr.)
+# Free read-only schema & cost quote (0 cr.; never pass private local file paths)
 higgsfield workflow get cinematic_studio_video_4_0 --json
 higgsfield generate cost workflow cinematic_studio_video_4_0 --mode omni_reference --resolution 480p --duration 5 --json
 
@@ -59,14 +74,21 @@ python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --mode omni_reference --resolution 480p --duration 5 --aspect_ratio 16:9 \
   --start_image <s02_still_uuid> --image_references <ref_uuid>
 
-# R4B -> R5 Seedance native draft-to-final escalation
+# R4B -> R5 Seedance draft (in R5, swap --draft true for --draft_job_id <job_id> --resolution 1080p)
 python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --shot s01 --kind video --round R4B --round-cap 45 --model seedance_2_5 \
   --prompt-file campaigns/<slug>/prompts/s01_video_v1.txt \
   --out campaigns/<slug>/media/shots/s01-draft-v1.mp4 -- \
-  --draft true --duration 5 --aspect_ratio 16:9 --start_image <s01_still_uuid>
+  --mode omni_reference --draft true --duration 5 --aspect_ratio 16:9 \
+  --start_image <s01_still_uuid>
 
-# R3 Audio (VO / music / SFX — pick voice_id from `higgsfield voices list`)
+# R3 Audio: VO (`higgsfield voices list`) and score
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot vo01 --kind audio --round R3 --round-cap 50 \
+  --model text2speech_v2 --out campaigns/<slug>/media/audio/vo01-v1.wav -- \
+  --variant elevenlabs --voice_id <voice_id> --voice_type preset \
+  --prompt "Nord Ah-tel-yay. Built to carry real weight."
+
 python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --shot music01 --kind audio --round R3 --round-cap 50 \
   --model elevenlabs_music_v2_5 --out campaigns/<slug>/media/audio/music-v1.mp3 -- \

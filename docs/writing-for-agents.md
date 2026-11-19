@@ -20,6 +20,10 @@ Rules for editing `AGENTS.md`, `docs/*.md`, `.agents/roles/*.toml`, and
   pointers; push round mechanics to `docs/workflow.md`, subagent rules to
   `docs/delegation.md`, and craft decisions to `.agents/skills/<name>/SKILL.md`
   (plus focused `references/*.md` only for non-obvious gotchas).
+- **Co-location & primary sources:** keep related rules in one owning doc rather
+  than scattering cross-referenced micro-files, and pass live primary sources
+  (human reactions, `brief.md`, `taste-log.md`, probed media) instead of lossy
+  handoff summaries.
 - **Environment as truth:** `Makefile`, `scripts/* --help`, live `higgsfield`
   CLI schemas, and `campaigns/example-product-spot/` own commands, flags, and
   JSON shapes. Graduate mechanical prohibitions into scripts and tests, then

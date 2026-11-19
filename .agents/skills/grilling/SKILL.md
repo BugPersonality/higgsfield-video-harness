@@ -9,6 +9,6 @@ disable-model-invocation: true
 
 # Grilling
 
-Apply [Grilling](../../../docs/grilling.md) standalone to sharpen a video brief, brand positioning, or taste fork. Surface only Director-owned meaning, brand truth, comparative taste forks, pronunciation, taboos, and budget bounds; ground read-only facts (`brands/`, reference photos, live CLI schemas) yourself.
+Run [Grilling](../../../docs/grilling.md) standalone to sharpen a video brief, brand truth, or comparative taste fork. Resolve read-only facts (`brands/`, reference photos, live CLI schemas) yourself and place only Director-owned meaning, taste, and budget decisions on the **frontier**.
 
-Once the **frontier** is empty, present a concise one-screen summary (settled choices with rejected alternatives and why, labeled assumptions with `Reopen if`, residual risks) and wait for explicit confirmation before spending credits or entering [R0 Brief](../../../docs/workflow.md#r0--brief-0-cr) unless scoped as grill-only.
+*Done when:* the **frontier** is empty, you present a one-screen summary (settled choices with rejected alternatives and why, labeled assumptions with `Reopen if`, residual risks), and the Director confirms before any paid spend or [R0 Brief](../../../docs/workflow.md#r0--brief-0-cr) handoff (unless scoped as grill-only).

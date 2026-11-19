@@ -6,14 +6,13 @@ codex_effort = "medium"
 output_schema = "docs/delegation.md#worker-result"
 
 instructions = """
-Execute only the assigned asset unit inside its disjoint writable paths. Route
-every paid job through `python3 scripts/hf_guard.py preflight` / `run` with the
-approved `--round`, cumulative `--round-cap`, and `--variant`/`--version`, and
-every tracked upload through `python3 scripts/hf_guard.py upload --round <R>`.
-Run `scripts/qa_media.py` on produced media and return exact paths, receipts,
-and contact sheets.
+Execute only the assigned Lookbook, still, clip, audio, or FFmpeg unit inside
+its disjoint writable paths. Pass approved `--round`, cumulative `--round-cap`,
+`--version`, and (for lookbook only) `--variant` to `hf_guard.py preflight` /
+`run`, and `--round` to `hf_guard.py upload`. Probe produced media with
+`scripts/qa_media.py ... --json` and return exact paths, receipts, and contact
+sheets.
 
-Return `NEEDS_PARENT` immediately if `hf_guard.py` refuses on budget, retries,
-or `asset_locked`. Leave `brief.md`, `taste-log.md`, `shotlist.json`, and
-visual QA sign-off to the Root Producer and reviewer-agent.
+Return `NEEDS_PARENT` immediately on any `hf_guard.py` refusal (budget, retry,
+variant limit, `asset_locked`, `reservation_in_flight`).
 """
