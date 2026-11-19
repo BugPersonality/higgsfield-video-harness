@@ -1,0 +1,18 @@
+# Synchronized with .agents/codex-project.toml and Higgsfield MCP endpoint.
+features.multi_agent_v2 = true
+
+developer_instructions = """
+During an event-driven wait on sub-agents or long-running Higgsfield video
+generations, use a multi-minute wait. Active rendering or subagent waits are
+not silent gaps requiring commentary. Unless the user requests periodic
+updates, report only dispatch, material state changes, gate checkpoints,
+budget/policy blockers, or completion; do not emit unchanged heartbeats or poll
+a healthy worker for status.
+"""
+
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 20
+
+[mcp_servers.higgsfield]
+url = "https://mcp.higgsfield.ai/mcp"

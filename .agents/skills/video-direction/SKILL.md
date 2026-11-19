@@ -1,0 +1,16 @@
+---
+name: video-direction
+description: "Still and motion prompt craft. Use when drafting keyframe still prompts, image-to-video motion prompts, pacing beats, anti-IP rewrites, or phonetic voiceover copy."
+---
+
+# Video Direction
+
+**Separate visual stills from motion prompts.** Author still keyframe prompts and image-to-video motion prompts as two distinct layers: the still defines composition, focal length, lighting direction, wardrobe, architecture, and exact product truth, while the I2V motion prompt describes only subject action, micro-physics, and camera trajectory without redescribing static elements locked in the start frame. When `storyboard.md` (from `ad-storyboard`) exists, map `Start frame` into the still prompt, `Action` into the I2V motion prompt, and `End frame` into `--end-image` or the outgoing shot handoff; consult [prompt patterns and rewrites](references/prompt-patterns.md) for templates.
+
+**Single-take versus multi-beat pacing.** Match shot choreography to one coherent cadence inside the clip's duration: reserve single continuous takes for slow product reveals, macro orbits, or unbroken human performance, and introduce timestamped micro-beats (`0-2s`, `2-4s`, `4-5s`) only when distinct staged actions must land on exact intervals. Never stack conflicting pacing directives—such as pairing a rapid `pacing_id` preset or montage verbs with a slow dolly instruction—and avoid cramming more than two physical beats into a 5-second shot.
+
+**Audio isolation law.** Unless intentionally producing a single-pass self-contained UGC spot with integrated music, end every generative video prompt with the literal line `"NO MUSIC. NO BACKGROUND SCORE. Native diegetic sound only."` Keeping native video tracks restricted to clean foley, room tone, and natural ambience prevents unremovable background music from bleeding under voiceover stems and mastered instrumental scores during FFmpeg assembly.
+
+**IP-filter survival and positive phrasing.** Strip franchise names, celebrity likenesses, movie titles, trademarked slogans, and recognizable third-party brand props before submission, describing underlying visual forms, materials, and lighting instead. Write visual traits in positive photographic language because generative video and image models lack reliable negative-prompt channels and often amplify negated nouns. If a motion job trips `ip_detected` because the start frame fingerprints protected imagery, sanitize the prompt first and fall back from strict `--start-image` anchoring to softer `--image` / `--image-references` binding—or regenerate a cleaner keyframe still.
+
+**Read-aloud budget, phonetic speech, and text discipline.** Enforce `ad-script`'s **read-aloud budget** from the [Ad Craft Glossary](../../../docs/ad-craft-glossary.md) before finalizing any spoken track (`<= 2.0 wps` in Russian or longer-word languages, `<= 2.3 wps` in English after subtracting explicit `[PAUSE Ns]` and visual-only seconds). Once spoken lines fit the window, spell brand names, acronyms, and non-English terms phonetically inside voiceover prompts (per `brand.md`) while keeping canonical spelling in scripts, review notes, and captions. Never ask generative video models to render legible UI screens, dense typography, or fine legal copy in-frame; composite crisp vector text in post-production instead.

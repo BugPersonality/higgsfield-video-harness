@@ -1,0 +1,3 @@
+interface:
+  display_name: "Ad Script"
+  short_description: "Timed three-column ad script with read-aloud and mute tests"

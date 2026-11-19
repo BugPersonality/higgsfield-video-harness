@@ -1,0 +1,5 @@
+interface:
+  display_name: "Idea Refine"
+  short_description: "Converge a raw video idea into one viewer bet and MVP boundary"
+policy:
+  allow_implicit_invocation: false

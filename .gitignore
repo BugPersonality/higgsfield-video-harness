@@ -1,0 +1,35 @@
+# OS and editor artifacts
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+
+# Secrets and local environment overrides
+.env
+.env.*
+!.env.example
+credentials.json
+
+# Heavy binary campaign media (text specs, prompts, shotlist, ledger, and JSON QC stay in Git)
+campaigns/*/media/
+campaigns/*/qc/*.png
+campaigns/*/qc/*.jpg
+campaigns/*/qc/*.mp4
+campaigns/*/qc/*.wav
+*.mp4
+*.mov
+*.webm
+*.wav
+*.mp3
+*.m4a
+*.ogg
+
+# Keep optional reference templates if explicitly tracked via `git add -f`
+!brands/*/assets/*.svg
