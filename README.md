@@ -1,44 +1,287 @@
 # higgsfield-video-harness
 
-**Feedback-loop-first** agentic video production studio for **Codex** + **Higgsfield CLI** + **FFmpeg**.
+**An AI video and commercial production studio for OpenAI Codex, Higgsfield CLI, and FFmpeg.**
 
-Great cinema and commercials depend on **emergent visual taste**, not upfront specs. You direct meaning, pick among real visual options (`A / B / C`), react in plain language (*"cooler light, less glossy leather, hold shot 2 longer"*), and approve each round's exact credit cost. Codex handles 100% of the technical craft inside each round and filters AI defects internally before showing you **Dailies**.
+[![CI](https://github.com/Dankosik/higgsfield-video-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/Dankosik/higgsfield-video-harness/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](#prerequisites)
+[![Zero PyPI Dependencies](https://img.shields.io/badge/Dependencies-Python%20stdlib%20%2B%20FFmpeg-2ea44f)](#prerequisites)
+[![Codex Multi-Agent V2](https://img.shields.io/badge/Codex-4%20Roles%20%7C%2011%20Skills-111827)](#multi-agent-architecture)
 
-## The 6 Interactive Rounds (`R0` → `R5`)
+Turn a plain-English idea (and optional product photos) into a multi-shot, broadcast-ready **1080p AI commercial or short film**—without wasting credits on random video rolls.
 
-| Round | Crew craft inside the round | Dailies shown to Director | Typical credits |
+You act as the **Creative Director**: pick among real visual options (`A / B / C`), react in everyday language (*"cooler morning light, matte leather instead of glossy, hold shot 2 longer"*), and approve each round's exact credit quote. A coordinated **multi-agent crew** handles ad concepts, scripts, storyboards, lookbooks, zero-video-credit animatics, model routing, visual QC, and FFmpeg mastering.
+
+[Why This Exists](#why-this-exists) · [Key Features](#key-features) · [How It Works](#how-it-works) · [Quick Start](#quick-start) · [Example Walkthrough](#example-walkthrough) · [Supported Models](#supported-models--cost-routing) · [Architecture](#multi-agent-architecture) · [Commands](#commands--scripts) · [FAQ](#faq)
+
+---
+
+## Why This Exists
+
+Generating a single AI clip is easy. Directing a coherent **multi-shot commercial** with AI video models usually breaks in four predictable ways:
+
+| Common AI video problem | How `higgsfield-video-harness` solves it |
+| --- | --- |
+| **Slot-machine credit burn** from guessing prompts at 1080p | **Cheap proofs before expensive pixels:** `0 cr.` Web Unlimited first, then economy drafts, a `0`-video-credit Still Animatic, and `1080p` mastering **only** on approved shots. |
+| **Runaway agent spending** or accidentally overwriting good takes | **Mechanical spend guard (`hf_guard.py`):** live `generate cost` quotes, dual caps (`Campaign cap` + per-round `--round-cap`), zero double-spend on timeouts, and immutable **`LOCKED`** assets. |
+| **Characters, products, and lighting drifting across cuts** | **Two-step UUID anchoring + Continuity Lock:** real photos and locked Lookbook winners anchor every keyframe still, which then anchors `omni_reference` video motion across all shots. |
+| **Broken timing, AI glitches, and amateur audio mixes** | **Pre-Dailies QC + FFmpeg mastering:** automated `ffprobe` defect detection, an unbiased Visual Critic (`reviewer-agent`), and two-pass `-14 LUFS` assembly with separate stems for DaVinci Resolve / Premiere Pro. |
+
+---
+
+## Key Features
+
+- **6-Round Director ↔ Crew Loop (`R0` → `R5`):** Move smoothly from brief (`0 cr.`) to story & live quote (`0 cr.`), Lookbook (`A / B / C`), Keyframe Stills + playable Animatic (`0` video cr.), Draft Motion, and `1080p` Final Master.
+- **Hard Credit Safety & Immutable Locks (`scripts/hf_guard.py`):** Every paid CLI call checks live `higgsfield generate cost`, enforces both a campaign-wide cap and a per-round `--round-cap`, serializes receipts with `flock`, resumes timed-out/failed downloads without double-charging, and refuses to touch `LOCKED` assets.
+- **Web Unlimited-First (`0 cr.`) & Benchmark Model Routing:** Prioritizes `0 cr.` Unlimited runs on `higgsfield.ai` via browser handoff (pausing cleanly for manual login/CAPTCHA), falls back to low-cost CLI draft models (`gpt_image_2_6`, `seedream_5_0_flash`, `seedance_2_0_mini`, `wan3_0`), and saves flagship models (`cinematic_studio_video_4_0`, `seedance_2_5`, `veo3_1`, `seedream_5_5`, `flux_3_image`) for approved hero frames and finals.
+- **Real Ad-Agency Pre-Production Built In:** Ships 4 commercial craft skills—[`ad-references`](.agents/skills/ad-references/SKILL.md), [`ad-concepts`](.agents/skills/ad-concepts/SKILL.md), [`ad-script`](.agents/skills/ad-script/SKILL.md), and [`ad-storyboard`](.agents/skills/ad-storyboard/SKILL.md)—for swap-tested pitches, timed 3-column scripts (`Time | Video | Audio`), read-aloud pacing checks, sound-off mute tests, and risky-shot `test_take_check` pilots.
+- **Zero-Video-Credit Still Animatic (`make animatic`):** Watch and listen to your full spot (locked keyframes + voiceover + rough score) before spending a single credit on video generation.
+- **Cumulative Taste Memory (`taste-log.md` → `brands/<brand>/taste.md`):** Every plain-English reaction you give is distilled into structured rules (`Approved / LOCKED`, `More of`, `Change / Steer`, `Never`) that follow every prompt and reviewer—and graduate into reusable brand profiles for future campaigns.
+- **Automated Technical QA & Visual Critic (`scripts/qa_media.py` + `reviewer-agent`):** Automatically catches black gaps, frozen tails, static clips, and overflowing voiceover windows (`100ms` RMS), builds `3x2` contact sheets and labeled `A / B / C` lookbook grids, and runs an isolated read-only Vision reviewer to strip defects before Dailies reach you.
+- **Broadcast-Ready FFmpeg Mastering & Stems (`scripts/assemble.sh`):** FPS-locked re-encoded cuts (no concat freezes or A/V desync), two-pass `-14 LUFS` (`<= -1.0 dBTP`) loudness normalization, and unbaked `media/exports/stems/` (`video_only.mp4`, `diegetic.wav`, `vo.wav`, `music.wav`) ready for NLE finishing or optional Remotion graphics.
+- **Zero Third-Party Python Packages:** Runs on pure **Python 3.11+ stdlib**, **FFmpeg/ffprobe**, and **ShellCheck**, backed by 66 offline unit and integration tests (`make check`).
+
+---
+
+## How It Works
+
+Great commercials come from **emergent visual taste**, not giant upfront prompt walls. You never have to write camera jargon, CLI flags, or UUID wiring—you react to real pictures, rough cuts, and transparent credit tickets at six checkpoints:
+
+```mermaid
+flowchart LR
+    Idea["Plain-English Idea + Optional Photos"] --> R0["R0: Brief (0 cr.)"]
+    R0 --> R1["R1: Story & Live Quote (0 cr.)"]
+    R1 --> R2["R2: Lookbook A/B/C"]
+    R2 --> R3["R3: Stills & Animatic (0 video cr.)"]
+    R3 --> R4["R4: Draft Motion & Cut"]
+    R4 --> R5["R5: 1080p Final Master"]
+    R5 --> Out["master.mp4 + stems/ + Brand Taste"]
+
+    R2 -. "Dailies -> Taste Log & LOCK" .-> R3
+    R3 -. "Dailies -> Taste Log & LOCK" .-> R4
+    R4 -. "Dailies -> Upgrade Selected Shots" .-> R5
+```
+
+### The 6 Interactive Rounds (`R0` → `R5`)
+
+| Round | What the Crew builds internally | What you review (**Dailies**) | Typical CLI credits\* |
 | --- | --- | --- | --- |
-| **R0 — Brief** | Ground in brand/taste/photos/balance; 3–5 meaning questions | Short `brief.md` card + `Campaign cap` | 0 cr. |
-| **R1 — Story & Quote** | `ad-references` → `ad-concepts` (4–5 pitches) → `ad-script` → `ad-storyboard` + live `generate cost` | **1A:** Pick/blend pitch · **1B:** Readable story + exact round price list | 0 cr. |
-| **R2 — Lookbook** *(skip if all real photos)* | 2–3 contrasting `A / B / C` variants per entity, internal QC filter, `make lookbook` | Labeled `lookbook.png` (`A / B / C`) + `R3` quote | ~20–45 cr. |
-| **R3 — Stills & Animatic** | Keyframe stills locked to `LOCKED` UUIDs + `taste-log.md`, VO (`qa_media.py voice`), rough music, `make animatic` | `stills_strip.png` + playable 0-video-credit `animatic.mp4` + `R4A` quote | ~30–50 cr. |
-| **R4 — Motion Dailies** | **4A:** Pilot `test_take_check` shot(s) at draft quality · **4B:** Parallel remaining shots + `draft_cut.mp4` | **4A:** Pilot clip · **4B:** Full `draft_cut.mp4` + per-shot `1080p` prices | ~45–90 cr. |
-| **R5 — Final Master** | Upgrade only approved shots to `1080p`, re-run QA + Visual Critic, `make assemble` (`-14 LUFS`, `stems/`) | `master.mp4` + `stems/` + spend receipt + brand taste graduation | approved quote |
+| **R0 — Brief** | Checks account balance, brand taste, and your local photos; asks 3–5 meaning-only questions (viewer feeling, brand truth, taboos, budget cap) | Plain-language `brief.md` card + `Campaign cap` confirmation | `0 cr.` |
+| **R1 — Story & Quote** | **1A:** Commercial references + 4–5 distinct swap-tested pitches. **1B:** Timed 3-column script, continuity-locked storyboard, style bible, and live `generate cost` pricing | **1A:** Pick or blend a concept · **1B:** Beat-by-beat story + exact round-by-round price list | `0 cr.` |
+| **R2 — Lookbook** *(auto-skipped if your real photos cover cast/objects)* | Generates 2–3 contrasting visual options (`A / B / C`) per hero character/prop, filters defects internally, stitches a labeled grid | Labeled `lookbook.png` (`A / B / C`) + `R3` quote | `~20–45 cr.` |
+| **R3 — Stills & Animatic** | Generates keyframe stills locked to your photos & `LOCKED` Lookbook UUIDs, checks VO timing (`qa_media.py voice`), generates rough music, cuts a playable still animatic | `stills_strip.png` + playable `animatic.mp4` (`0` video cr.) + `R4A` quote | `~30–50 cr.` |
+| **R4 — Motion Dailies** | **4A (Risk-First Pilot):** Shoots the hardest shot first (hands, physics, reflections) at draft quality. **4B:** Shoots remaining draft shots in parallel and cuts `draft_cut.mp4` | **4A:** Pilot clip · **4B:** Full `draft_cut.mp4` + per-shot `1080p` upgrade prices | `~45–90 cr.` |
+| **R5 — Final Master** | Upgrades **only** approved unlocked shots to `1080p`, re-runs FFmpeg QA + Visual Critic, masters to `-14 LUFS`, and exports clean stems | `master.mp4` + `stems/` + spend receipt + optional brand taste graduation | Approved quote |
 
-## Prerequisites & Quick Start
+*\*Typical ranges reflect paid CLI runs for a 3-shot 15-second commercial. Using `higgsfield.ai` **Web Unlimited (`0 cr.`)** when available reduces image and draft video spend to `0 cr.`.*
 
-Requires **Codex** (`.codex/config.toml`), authenticated **Higgsfield CLI** (`higgsfield account status`), **FFmpeg/ffprobe**, and **Python 3.11+** (stdlib only).
+### What Every Dailies Checkpoint Includes
+
+At the end of each round, the crew stops and sends you one compact **Dailies Packet** (auto-opened on macOS when `Auto-open dailies: true`):
+
+1. **What to inspect** — one visual board or playable video (`lookbook.png`, `stills_strip.png` + `animatic.mp4`, pilot clip, `draft_cut.mp4`, or `master.mp4`).
+2. **Filtered internally** — a single plain sentence noting defects caught before you saw the cut (or any borderline trade-off worth your call).
+3. **2–3 plain-language taste questions** — comparative `A / B / C` choices or blends, never technical CLI jargon.
+4. **Next-round Cost Ticket** — credits spent so far, remaining `Campaign cap`, exact live quote for the **next single round only**, and the proposed round cap.
+
+Need to tweak just one shot? Approved shots stay **`LOCKED`** (`0 cr.`), only the steered shot bumps to `v2` (`ITERATING`), and you approve a surgical micro-quote before re-rolling.
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- **[OpenAI Codex](https://openai.com/codex/)** — native multi-agent setup via [`.codex/config.toml`](.codex/config.toml) and [`.agents/roles/`](.agents/roles) *(see [FAQ](#faq) for using the harness with other coding agents)*
+- **[Higgsfield CLI](https://higgsfield.ai/)** — installed and authenticated (`higgsfield account status`)
+- **FFmpeg & ffprobe** — e.g. `brew install ffmpeg` (macOS) or `sudo apt install ffmpeg` (Linux)
+- **Python 3.11+** — standard library only (no `pip install` required)
+- **ShellCheck** *(optional, required for `make check`)* — `brew install shellcheck` or `sudo apt install shellcheck`
+
+### 1. Clone and verify offline (`0 credits`)
 
 ```bash
-# Verify harness, validators, mock spend guard, and synthetic FFmpeg QA offline (0 credits)
-make check
+git clone https://github.com/Dankosik/higgsfield-video-harness.git
+cd higgsfield-video-harness
 
-# Scaffold a new campaign
+# Runs instruction sync, doc link checks, ShellCheck, mock spend guard,
+# synthetic FFmpeg QA/assembly, and 66 unit/integration tests offline (0 credits)
+make check
+```
+
+### 2. Scaffold a new campaign
+
+```bash
+# Create campaigns/<YYYY-MM-DD>-my-product-spot/ with brief.md, taste-log.md, and media folders
 make campaign-init SLUG=my-product-spot BRAND=example-brand
 ```
 
-Drop any real product/reference photos into `campaigns/<date>-<slug>/media/references/`, open Codex, and describe the meaning and viewer feeling you want. Run `make help` for all commands.
+If you have real product, brand, or location photos, drop them into:
 
-## Repository Map
+```text
+campaigns/<YYYY-MM-DD>-my-product-spot/media/references/
+```
 
-| Path | Role |
+*(Binary media under `campaigns/*/media/` and `campaigns/*/qc/*.png` is gitignored automatically—only human-readable specs, prompts, shotlists, and receipts stay in Git.)*
+
+### 3. Open Codex and start directing
+
+Launch Codex in the repository root and describe the **viewer feeling and goal**—no prompt engineering required:
+
+```text
+Let's create a 15-second homepage hero commercial for our new ceramic pour-over kettle.
+Product photos are in campaigns/2026-11-20-my-product-spot/media/references/.
+No voiceover—quiet morning ritual feel, tactile steam and ceramic sound design, 300 credit cap.
+Start R0.
+```
+
+Codex automatically reads [`AGENTS.md`](AGENTS.md), inspects your local photos and Higgsfield account balance, asks 3–5 focused meaning questions, and walks you through `R0` → `R5`.
+
+---
+
+## Example Walkthrough
+
+Want to see a complete campaign before spending a single credit? Browse the included **Nord Atelier — Soren Weekender 15s Spot** fixture:
+
+- **Brand identity & reusable taste:** [`brands/example-brand/brand.md`](brands/example-brand/brand.md) and [`brands/example-brand/taste.md`](brands/example-brand/taste.md)
+- **Plain-language Director brief:** [`campaigns/example-product-spot/brief.md`](campaigns/example-product-spot/brief.md) (`400 cr.` cap, zero technical jargon)
+- **Timed 3-column script (`Time | Video | Audio`) with Mute Test:** [`campaigns/example-product-spot/script.md`](campaigns/example-product-spot/script.md)
+- **Continuity-locked storyboard with `Test-take check` on Shot 2:** [`campaigns/example-product-spot/storyboard.md`](campaigns/example-product-spot/storyboard.md)
+- **Machine-checked shot manifest & prompt files:** [`campaigns/example-product-spot/shotlist.json`](campaigns/example-product-spot/shotlist.json) & [`prompts/`](campaigns/example-product-spot/prompts)
+- **Cumulative Taste Memory after `R2` & `R3` Dailies:** [`campaigns/example-product-spot/taste-log.md`](campaigns/example-product-spot/taste-log.md)
+
+Here is how a real Director reaction gets captured in `taste-log.md` so no later shot ever drifts back:
+
+```markdown
+### TL-01 (R2 — Lookbook)
+
+- **Approved / LOCKED:** `lb_traveler_hand` Variant `B` — natural five-fingered bare traveler hand
+  emerging from a heavy matte charcoal wool overcoat sleeve under crisp 4600K Nordic morning daylight.
+- **More of:** Honest bare skin texture, tactile coarse wool weave, cool limestone bounce fill.
+- **Change / Steer:** Keep wrist completely unadorned so the satin-brushed brass clasp stays the sole metallic accent.
+- **Never:** Warm sepia casts (rejected Variant `A`) or plastic-sheen skin rendering (rejected Variant `C`).
+```
+
+You can test the campaign validators and budget tracker against this fixture offline right now:
+
+```bash
+make brief-check CAMPAIGN=example-product-spot
+make campaign-check CAMPAIGN=example-product-spot
+make budget-status CAMPAIGN=example-product-spot
+```
+
+---
+
+## Supported Models & Cost Routing
+
+The harness does not hardcode one model for every job. It checks **live Higgsfield CLI schemas and pricing** (`higgsfield model get`, `workflow get`, `generate cost`) and routes each stage along a 3-tier cost ladder documented in [Model Selection & Benchmarks](.agents/skills/higgsfield-cli/references/model-selection.md):
+
+1. **Priority 1 — `higgsfield.ai` Web Unlimited (`0 cr.`):** Uses Unlimited-eligible models in the browser first (with clean manual handoff for login/CAPTCHA), then ingests outputs through `hf_guard.py upload` (`0 cr.`) so downstream shots remain UUID-locked.
+2. **Priority 2 — Economy CLI Drafts:** Fast, low-credit image (`0.12–0.50 cr.`) and `480p` video (`2.5–5.0 cr.`) runs to prove composition, rhythm, and edit timing.
+3. **Priority 3 — Flagship `1080p` Finals:** High-fidelity multi-reference renders reserved strictly for approved `R5` upgrades and risky `R4A` pilots.
+
+| Category | Economy Drafts / Fast Options (CLI) | Flagship / Hero Options (CLI) |
+| --- | --- | --- |
+| **Lookbook & Stills (`R2`–`R3`)** | `soul_cinematic`, `gpt_image_2_6` (std), `seedream_5_0_flash`, `flux_2`, `product-photoshoot` | `nano_banana_2_1`, `nano_banana_pro`, `flux_3_image`, `gpt_image_2_6` (high), `seedream_5_5`, Soul-2 IDs (`text2image_soul_v2`) |
+| **Video Motion (`R4`–`R5`)** | `seedance_2_0_mini` (`480p`), `wan3_0` (`480p`), `cinematic_studio_video_v2`, `kling_o3_image_reference` | `cinematic_studio_video_4_0` (`omni_reference`, up to 30 images / 50 refs), `seedance_2_5` (`--draft_job_id` escalation), `veo3_1`, `minimax_h3` |
+| **Audio: Voice, Music & SFX (`R3`–`R5`)** | VO: `text2speech_v2` (`elevenlabs`, `seed_speech`), `seed_audio` · Music: `sonilo_music` | Multi-speaker dialogue: `elevenlabs_v4` · Score & SFX: `elevenlabs_music_v2_5`, `mirelo_text_to_audio` |
+
+---
+
+## Multi-Agent Architecture
+
+Built for **Codex Multi-Agent V2** ([`.codex/config.toml`](.codex/config.toml), connected to Higgsfield MCP at `https://mcp.higgsfield.ai/mcp` for read-only discovery while routing all paid runs through `hf_guard.py`).
+
+### 4 Specialized Roles ([`.agents/roles/`](.agents/roles))
+
+| Role | Access | Responsibility |
+| --- | --- | --- |
+| **`evidence-agent`** | Read-only | Queries live Higgsfield schemas, `generate cost`, account balance, brand profiles, local photos, and `receipts.jsonl` |
+| **`specialist-agent`** | Read-only | Develops swap-tested concepts, 3-column scripts, continuity-locked storyboards, modern DiT prompts, and anti-IP rewrites |
+| **`worker-agent`** | Disjoint write scope | Executes one Lookbook entity, still, video shot, audio stem, or assembly unit via `hf_guard.py`, `qa_media.py`, and `assemble.sh` |
+| **`reviewer-agent`** | Fresh read-only | Unbiased pre-Dailies Visual Critic (`view_image`) that inspects stills & `3x2` contact sheets against `taste-log.md` and filters defects |
+
+### 11 Bundled Skills ([`.agents/skills/`](.agents/skills))
+
+| Category | Skills |
 | --- | --- |
-| [`AGENTS.md`](AGENTS.md) | Always-loaded studio constitution and context pointers |
-| [`docs/workflow.md`](docs/workflow.md) | `R0`–`R5` feedback loop, Dailies Packet, Taste Memory, spend & lock rules |
-| [`docs/delegation.md`](docs/delegation.md) | Subagent roles, Codex V2 setup, internal Visual Critic, recovery |
-| [`docs/grilling.md`](docs/grilling.md) | Relentless meaning-only alignment and taste-fork interview protocol |
-| [`docs/writing-for-agents.md`](docs/writing-for-agents.md) | Minimalist instruction & skill authoring rules |
-| [`docs/ad-craft-glossary.md`](docs/ad-craft-glossary.md) | Shared vocabulary for the 4 bundled commercial skills |
-| [`.agents/roles/`](.agents/roles) & [`.agents/skills/`](.agents/skills) | 4 Codex roles and 11 skills (incl. bundled `ad-references`, `ad-concepts`, `ad-script`, `ad-storyboard`) |
-| [`scripts/`](scripts) & [`tests/`](tests) | Mechanical guards (`hf_guard.py`, `qa_media.py`, `assemble.sh`, validators) and stdlib unittest suite |
-| [`brands/example-brand/`](brands/example-brand) & [`campaigns/example-product-spot/`](campaigns/example-product-spot) | Reusable brand taste profile and complete living campaign fixture |
+| **Alignment & Discovery** *(user-invoked)* | [`idea-refine`](.agents/skills/idea-refine/SKILL.md) (converge raw ideas into an MVP bet) · [`grilling`](.agents/skills/grilling/SKILL.md) (meaning-only alignment interview) |
+| **Commercial Craft** | [`ad-references`](.agents/skills/ad-references/SKILL.md) · [`ad-concepts`](.agents/skills/ad-concepts/SKILL.md) · [`ad-script`](.agents/skills/ad-script/SKILL.md) · [`ad-storyboard`](.agents/skills/ad-storyboard/SKILL.md) |
+| **Production, QA & Mastering** | [`higgsfield-cli`](.agents/skills/higgsfield-cli/SKILL.md) · [`video-direction`](.agents/skills/video-direction/SKILL.md) · [`video-consistency`](.agents/skills/video-consistency/SKILL.md) · [`video-qa`](.agents/skills/video-qa/SKILL.md) · [`video-assembly`](.agents/skills/video-assembly/SKILL.md) |
+
+---
+
+## Commands & Scripts
+
+Run `make help` at any time to list every target:
+
+| Command | Purpose |
+| --- | --- |
+| `make check` | Run all offline checks (`check-instructions`, `docs-check`, `shellcheck`, 66 unit/integration tests, example campaign validation) |
+| `make campaign-init SLUG=<name> [BRAND=<brand>]` | Scaffold a new dated campaign folder with `brief.md`, `taste-log.md`, and gitignored `media/` folders |
+| `make brief-check CAMPAIGN=<slug>` | Verify `brief.md` structure, budget policy, and zero technical jargon or unresolved requester questions |
+| `make campaign-check CAMPAIGN=<slug>` | Validate `brief.md` + `taste-log.md` + `shotlist.json` invariants and verify planned spend `<= Campaign cap` |
+| `make budget-status CAMPAIGN=<slug>` | Show spent vs. remaining `Campaign cap`, active reservations, and per-round spend from `receipts.jsonl` |
+| `make lookbook FILES="a.png b.png" OUT=<out.png>` | Stitch images into a labeled `A / B / C` Lookbook or `stills_strip.png` Dailies board |
+| `make animatic CAMPAIGN=<slug>` | Build a `0`-video-credit playable `animatic.mp4` from approved stills + VO + rough music |
+| `make qa-clip FILE=<mp4> [SHEET=<png>]` | Probe resolution, FPS, black gaps, frozen tails, static frames, and generate a `3x2` contact sheet |
+| `make qa-voice FILE=<wav> WINDOW=<sec>` | Check active speech bounds (`100ms` RMS) against the shot window so VO never overflows |
+| `make assemble CAMPAIGN=<slug>` | Assemble selected takes into `-14 LUFS` `master.mp4` (or `draft_cut.mp4`) plus unbaked `stems/` |
+| `make qa-render FILE=<mp4> [SHEET=<png>]` | Validate final render loudness (`-14 LUFS ± 1.0 LU`, `<= -1.0 dBTP`), black/frozen frames, and sheet |
+
+Core mechanical scripts under [`scripts/`](scripts):
+
+- [`scripts/hf_guard.py`](scripts/hf_guard.py) — dual-cap budget guard, lock enforcer, `flock`-serialized receipt ledger, and timeout/download recovery wrapper around `higgsfield` CLI.
+- [`scripts/qa_media.py`](scripts/qa_media.py) — deterministic FFmpeg/ffprobe clip, voice, render QA, `3x2` contact-sheet generator, and labeled `A / B / C` Lookbook builder (stdlib-only pixel font).
+- [`scripts/assemble.sh`](scripts/assemble.sh) — FPS-locked FFmpeg still-animatic and final-master assembler with two-pass `loudnorm` and clean stem exports.
+
+---
+
+## Repository Layout
+
+| Path | What lives here |
+| --- | --- |
+| [`AGENTS.md`](AGENTS.md) | Always-loaded studio rules, guardrails, and context pointers for coding agents |
+| [`docs/workflow.md`](docs/workflow.md) | Complete `R0`–`R5` feedback loop, Dailies Packet format, Taste Memory, and budget/lock invariants |
+| [`docs/delegation.md`](docs/delegation.md) | Subagent roles, Codex V2 setup, pre-Dailies Visual Critic protocol, and retry/timeout recovery |
+| [`docs/grilling.md`](docs/grilling.md) | Meaning-only alignment and comparative taste-fork interview protocol |
+| [`docs/ad-craft-glossary.md`](docs/ad-craft-glossary.md) | Shared vocabulary across the 4 commercial craft skills (`swap test`, `mute test`, `Continuity Lock`, `test-take check`) |
+| [`docs/writing-for-agents.md`](docs/writing-for-agents.md) | Authoring rules for keeping `AGENTS.md`, skills, and roles minimal and mechanically verified |
+| [`.agents/`](.agents) & [`.codex/config.toml`](.codex/config.toml) | 4 role definitions, 11 skills, model benchmarks, and Codex Multi-Agent V2 + Higgsfield MCP config |
+| [`scripts/`](scripts) & [`tests/`](tests) | Mechanical spend/QA/assembly scripts and stdlib `unittest` suite |
+| [`brands/example-brand/`](brands/example-brand) | Example reusable brand identity and graduated taste memory |
+| [`campaigns/example-product-spot/`](campaigns/example-product-spot) | Complete living 15-second commercial campaign fixture |
+
+---
+
+## FAQ
+
+### How does it stop an AI agent from burning through my Higgsfield credits?
+Every paid campaign command runs through [`scripts/hf_guard.py`](scripts/hf_guard.py), which refuses to execute unless `brief.md` is `active`, queries live `higgsfield generate cost`, enforces both `Campaign cap` and a mandatory per-round `--round-cap`, blocks regeneration of any `LOCKED` asset, caps retries per asset, and resumes timed-out or interrupted jobs without re-submitting them.
+
+### Can I use real product or casting photos instead of generating everything?
+Yes. Drop real photos into `campaigns/<slug>/media/references/`. When your photos already cover every hero product, character, and location, the harness automatically skips `R2` Lookbook (`0 cr.`), uploads your approved photos once via `hf_guard.py upload` (`0 cr.`), and anchors every downstream still and video shot to those exact reference UUIDs.
+
+### Does it support Higgsfield Unlimited (`0 cr.`) generations?
+Yes. Because Higgsfield's Unlimited (`0 cr.`) toggle applies only in the `higgsfield.ai` web app (CLI/API calls always bill credits), the harness follows an **Unlimited-first** priority ladder: run eligible generations at `0 cr.` in the browser (pausing for you to complete any login or CAPTCHA manually), then ingest and UUID-lock outputs into the campaign.
+
+### Can I finish the edit in DaVinci Resolve, Premiere Pro, or Remotion?
+Yes. Every `make assemble` export writes unbaked tracks to `media/exports/stems/` (`video_only.mp4`, `diegetic.wav`, `vo.wav`, `music.wav`) alongside normalized clips. Pure FFmpeg handles standard cuts and mastering by default; when a brief calls for animated kinetic typography, captions, or crisp UI overlays, the workflow hands off cleanly to Remotion.
+
+### Can I use this without OpenAI Codex (e.g., Claude Code or other coding agents)?
+Multi-agent orchestration (`.codex/config.toml` and `.agents/roles/*.toml`) is configured natively for **OpenAI Codex**. However, the studio constitution (`AGENTS.md`), all 11 skills (`.agents/skills/*/SKILL.md`), `Makefile`, and every Python/FFmpeg script (`hf_guard.py`, `qa_media.py`, `assemble.sh`, validators) are plain Markdown, Python, and Bash—so any CLI-capable coding agent can follow the workflow and run the exact same guards.
+
+### Why are generated images and videos not committed to Git?
+`.gitignore` automatically excludes `campaigns/*/media/` and heavy `.mp4`/`.wav`/`.png` outputs so your repository stays lightweight and reviewable while keeping every brief, script, storyboard, prompt, taste log, shotlist, and credit receipt (`receipts.jsonl`) version-controlled.
+
+---
+
+## Contributing & License
+
+Contributions are welcome—before opening a pull request, follow [`docs/writing-for-agents.md`](docs/writing-for-agents.md) when editing instructions or skills and verify everything passes offline:
+
+```bash
+make check
+```
+
+Released under the [MIT License](LICENSE).
