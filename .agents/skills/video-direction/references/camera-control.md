@@ -91,6 +91,15 @@ On multi-shot / photochemical engines (`seedance_2_5`), pairing camera height wi
 | **`Crash Zoom` / `Whip Pan` / `Dutch Angle`** | 0–2s hook, comedic punch, kinetic cut, or visual unease | Keep duration tight; plan cut point at peak blur for `Whip Pan` |
 | **`Push to Glass` / `Head Tracking`** | Barrier-crossing scene reveal / locked subject-centered action follow | Keep barrier surface simple (`Push to Glass`); use `Head Tracking` on uncluttered backgrounds to avoid edge smearing |
 
+#### Physical Handheld Operator & Continuous One-Take Protocol (Anti-Gimbal Realism)
+
+Plain `"handheld"` is routinely smoothed into floaty AI gimbal drift. For true documentary/cinema handheld (especially on `seedance_2_5` `20–30s` scenes):
+1. **Explicit Operator Physics Block:** Lead the prompt with physical forces (operator's hands, breathing, weight shifts, uneven footsteps, irregular jolts, sway, bounce, overshoot & snap-back) paired with a hard anti-stabilization guardrail: `NEVER smooth, NEVER gimbal, NEVER stabilised, NEVER a tripod, NEVER a static hold`.
+   - *Outdoor / high-emotion scenes:* allow `sudden rolls` and environmental buffeting (`a strong gust knocks the framing briefly sideways; the operator recovers without an edit`).
+   - *Calm interior / architectural scenes:* append `Keep the horizon level and architectural verticals upright. No camera roll or Dutch angles.`
+2. **Reactive Lag & Imperfect Focus:** Direct the camera as a human operator reacting a beat *after* the actor—never predicting the choreography (`the operator takes two uneven steps, overshoots the running child, and snaps back`; `pans left slightly lagging behind her gaze`; `focus slips briefly past the lashes and finds the iris again`).
+3. **Physical Relocation & 180° Axis Lock (One-Takes & Multi-Shot):** State `Changes in framing come from physical camera movement; the camera never passes through windows, walls, or bodies` (forbid unmotivated push-ins/zooms). Pin one side of the axis (`Keep all camera positions on her right side of the axis`) and forbid mirroring (`Achieve the opposite profile by camera placement, never by horizontally mirroring the image or architecture`).
+
 ### B. Live CLI `--camera_style` (`cinematic_studio_video_3_5`)
 
 Use only when `style_prompt` is omitted (CEL mutually exclusive):
@@ -135,6 +144,7 @@ Use only when `style_prompt` is omitted (CEL mutually exclusive):
 | Observed Camera Defect | Root Cause | Exact Fix (One Variable Per Re-roll) |
 | :--- | :--- | :--- |
 | **Unwanted floating drift on static shot** | Camera behavior omitted from prompt/preset | Add `Locked-off static tripod shot, horizon level` or select `Static` / `classic_static` |
+| **Floaty / over-stabilized "AI gimbal" when handheld was asked** | Vague `"handheld"` text ignored by model | Replace with Physical Handheld Operator Block (breathing, weight shifts, overshoot/snap-back, `NEVER smooth, NEVER gimbal, NEVER stabilised`) + reactive lag beats |
 | **Rubber-bending walls or floor warp** | `Pan`/`Zoom` used for 3D parallax OR `Start → End` jump exceeds 5s | Switch verb to `Lateral truck` / `Slow dolly-in`, shorten spatial delta, or route via `3D Jutsu` previz |
 | **Camera ignores text or jitters violently** | Active UI preset / `--camera_style` / `@Video1` conflicts with prose camera verbs | Enforce **Zero Double-Command**—remove camera verbs from prose and keep prompt within model word sweet spot |
 | **Stiff "living photo" (frozen camera)** | Reference overload (`> 5` images) or static scene restated in motion text | Prune to `2–4` visible refs and strip all static wardrobe/set description from video prompt |

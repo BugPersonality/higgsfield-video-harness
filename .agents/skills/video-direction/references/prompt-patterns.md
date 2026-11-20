@@ -38,7 +38,7 @@ Shot on 35mm daylight-balanced 250-speed negative film, fine grain, natural dept
   1. **Surface bounce:** name upward bounce off the floor/table opening chin, jaw, or brim shadows.
   2. **Shared lens-to-subject haze:** place the room's air/haze *between the lens and the actor* with slightly lifted blacks so the subject is never crisper than the background.
   3. **Ambient room tint:** state that skin and wardrobe absorb the room's cool/warm cast rather than glowing golden against a cool set.
-  4. **Natural wrap (documentary/grounded cinema):** omit artificial key, rim, edge light, god rays, and specular flashes when diffuse ambient light owns the scene.
+  4. **Natural wrap & anti-beauty-light (documentary/grounded cinema):** omit artificial key, rim, edge light, god rays, and specular flashes when diffuse or practical light owns the scene. On photochemical/realistic video prompts, explicitly state **`No automatic face brightening or unmotivated beauty lighting`**—let faces fall into true shadow between established practicals or passing streetlamps, paired with `shot on 35mm film, spherical lenses, Kodak Vision3 250D`, `HEAVY VISIBLE 35MM GRAIN`, `soft highlight roll-off, gentle diffusion, imperfect focus, 24fps, 180 degree shutter, natural motion blur, no digital smoothing`.
 - **`R3` Cinema Spec Still Skeleton (`Seedream 5.0 Pro`, `2k`, high-continuity narrative):**
   ```text
   Cinematic film still. <1-sentence scene summary>. Location @Image1.
@@ -155,6 +155,37 @@ POSITIVE CONSTRAINTS (closing lock — repeat only the 5-8 hardest invariants)
 - Shot A: hand & forearm only, handheld rising slightly late behind the lift, weighted grip with no rattle.
 - Shot B: foreground prop completely out of focus, eyes razor-sharp for full shot (no rack focus), held gaze + one nasal exhale, never looking into lens.
 - Identical 35mm 250-speed film grain and grade across both shots; no slow motion, speed ramps, or freeze frame.
+```
+
+### G. `Seedance 2.5` Photochemical Multi-Shot / One-Take (`20–30s`, `4–10` Hard Cuts or Unbroken Take)
+
+Use for grounded documentary/cinema narrative scenes (`seedance_2_5`, `omni_reference`) where one shared latent generation locks grain, exposure, weather, vocal timbre, and spatial geography across an entire beat:
+
+```text
+PHYSICAL HANDHELD THROUGHOUT. Operator's hands, breathing, and weight shifts drive irregular jolts, sway, bounce, overshoot, and snap-back—even on close-ups and pauses. Critical action stays readable. [Interior option: Keep the horizon level and architectural verticals upright; no camera roll or Dutch angles.] NEVER smooth, NEVER gimbal, NEVER stabilised, NEVER a tripod, NEVER a static hold.
+
+LOOK, do not deviate: shot on 35mm film, spherical lenses, Kodak Vision3 250D. Physically plausible light sources only (window light, practical lamps, passing streetlamps); consistent source direction and shadows as characters and camera move. No automatic face brightening or unmotivated beauty lighting; no artificial rim light. Soft highlight roll-off, gentle diffusion, shallow depth of field, imperfect focus, HEAVY VISIBLE 35MM GRAIN, 24fps, 180 degree shutter, natural motion blur, no digital smoothing.
+
+REFERENCE CONTROL
+Image 1 defines ONLY the location—choose camera angles for the action rather than reproducing the reference composition.
+Image 2 defines <Character A> (masked two-panel diptych): use the portrait for face and the full-body view for clothing. Render complete natural faces; white masks and reference-sheet layouts never appear.
+Audio 1 defines ONLY <Character A>'s vocal timbre (never repeat words from the audio sample).
+
+GEOGRAPHY & BEHAVIORAL LOCKS
+Keep all camera positions on <Character A>'s right side of the axis; achieve opposite angles by camera placement, never by horizontally mirroring the image or architecture. [State explicit negative acting/physics anchors: e.g., "No smiling, blinking, or exaggerated horror reactions; bodies are progressively occluded by the doorway wall and never dissolve in place."]
+
+SHOT SEQUENCE (20–30s, HARD CUTS ONLY — or "ONE CONTINUOUS TAKE, 47° fixed lens")
+0:00–0:04 — SHOT 1 (47° diagonal FOV, camera at eye height): <blocking + motivated operator step/overshoot>.
+HARD CUT.
+0:04–0:08 — SHOT 2 (29° diagonal FOV, tight detail): <tactile hand/prop action + brief focus slip and recovery>.
+HARD CUT.
+0:08–0:14 — SHOT 3 (18° diagonal FOV, frontal ECU, forehead/chin near frame edges): <restrained micro-expression; camera follows a fraction late>.
+
+DIALOGUE (timecoded, overlapping across cuts — omit if silent)
+00.0–03.5  SPEAKER A, quiet and tired: "<exact scripted line>"
+03.6–06.2  SPEAKER B, off-screen/filtered: "<exact scripted line>"
+
+SOUND: <concrete diegetic foley & room tone>. Exact scripted words; carry conversation naturally across cuts. NO MUSIC. NO BACKGROUND SCORE. No drones, stingers, ad-libs, or subtitles.
 ```
 
 ## Camera Grammar and Geometric Pairs

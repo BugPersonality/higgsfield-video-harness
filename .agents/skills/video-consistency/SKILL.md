@@ -17,7 +17,7 @@ scenes):
 | Need | Reference |
 | --- | --- |
 | Interiors, buildings, reverse walls, neutral `#808080` props, scale/state plates, `N/E/S/W` Spatial Map, `nano_banana_2_relight` 26-point cube & spatial diagnostics | [`references/locations-and-props.md`](references/locations-and-props.md) |
-| Character Bibles (Tier 1–3), *Identity ≠ Mimicry* law, Expression Calibration, `Soul ID` / Kling Elements, `Motion Control` driving-video specs, `Intone` lip-sync, real-actor routing & face diagnostics | [`references/characters-and-expressions.md`](references/characters-and-expressions.md) |
+| Character Bibles (Tier 1–3), Masked Two-Panel Diptychs (`Seedream` → `Seedance`), *Identity ≠ Mimicry* law, Expression Calibration, `Soul ID` / Kling Elements, `Motion Control` driving-video specs, `Intone` lip-sync, real-actor routing & face diagnostics | [`references/characters-and-expressions.md`](references/characters-and-expressions.md) |
 
 ## Cross-Cutting Continuity Laws
 

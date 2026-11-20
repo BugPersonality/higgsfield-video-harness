@@ -15,8 +15,8 @@ Load only the reference needed for the current task:
 
 | Need | Reference |
 | --- | --- |
-| Observable proxies, `taste-log.md` translation, `%` Palette Lock, Room-Light Integration, `R2`/`R3`/`R4`/`R5` blueprints (I2V, Start+End, Omni-Ref, T2V, Multi-Shot, `6s` 2-Shot), Camera Grammar, 4-part lighting, Anti-IP & Phonetic VO | [`references/prompt-patterns.md`](references/prompt-patterns.md) |
-| 8-branch Higgsfield camera tool routing, optics playbook (focal/aperture/bodies/glass), rigs/moves, CLI `camera_style`/`speedramp` enums, in-camera transitions & camera failure diagnostics | [`references/camera-control.md`](references/camera-control.md) |
+| Observable proxies, `taste-log.md` translation, `%` Palette Lock, Room-Light Integration & Photochemical Lookblock, `R2`/`R3`/`R4`/`R5` blueprints (I2V, Start+End, Omni-Ref, T2V, Multi-Shot, `6s` 2-Shot, `20–30s` Photochemical Multi-Shot/One-Take), Camera Grammar, 4-part lighting, Anti-IP & Phonetic VO | [`references/prompt-patterns.md`](references/prompt-patterns.md) |
+| 8-branch Higgsfield camera tool routing, optics & diagonal FOV playbook (`84°/47°/29°/18°`), physical handheld operator & one-take protocol, rigs/moves, CLI `camera_style`/`speedramp` enums, in-camera transitions & camera failure diagnostics | [`references/camera-control.md`](references/camera-control.md) |
 | Model-by-model word sweet spots & syntax, language/negation rules, `CRITICAL CORRECTION` retries & prompt/audio/IP failure diagnostics | [`references/model-prompting.md`](references/model-prompting.md) |
 | Optional ultra-lean stylized `720p High` `12–20s` multi-shot `Seedance 2.5` spec pipeline (`PARAMS {}`, HEX palette, `LOCK MANIFEST`, `中文强制锁定`) | [`references/seedance-spec-case-study.md`](references/seedance-spec-case-study.md) |
 
