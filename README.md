@@ -1,12 +1,12 @@
 # higgsfield-video-harness
 
-**An AI video and commercial production studio for OpenAI Codex, Higgsfield CLI, and FFmpeg.**
+**An agentic AI video and commercial production studio for AI coding agents (Claude Code, Codex, Cursor, Antigravity, and more) + Higgsfield CLI + FFmpeg.**
 
 [![CI](https://github.com/Dankosik/higgsfield-video-harness/actions/workflows/ci.yml/badge.svg)](https://github.com/Dankosik/higgsfield-video-harness/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](#prerequisites)
 [![Zero PyPI Dependencies](https://img.shields.io/badge/Dependencies-Python%20stdlib%20%2B%20FFmpeg-2ea44f)](#prerequisites)
-[![Codex Multi-Agent V2](https://img.shields.io/badge/Codex-4%20Roles%20%7C%2011%20Skills-111827)](#multi-agent-architecture)
+[![AGENTS.md + Skills](https://img.shields.io/badge/AGENTS.md-4%20Roles%20%7C%2011%20Skills-111827)](#multi-agent-architecture)
 
 Turn a plain-English idea (and optional product photos) into a multi-shot, broadcast-ready **1080p AI commercial or short film**—without wasting credits on random video rolls.
 
@@ -92,7 +92,7 @@ Need to tweak just one shot? Approved shots stay **`LOCKED`** (`0 cr.`), only th
 
 ### Prerequisites
 
-- **[OpenAI Codex](https://openai.com/codex/)** — native multi-agent setup via [`.codex/config.toml`](.codex/config.toml) and [`.agents/roles/`](.agents/roles) *(see [FAQ](#faq) for using the harness with other coding agents)*
+- **An AI coding agent** that reads `AGENTS.md` / `.agents/skills/` and runs shell commands — **Claude Code**, **OpenAI Codex**, **Cursor**, **Antigravity**, **OpenCode**, **Gemini CLI**, etc. *(ready-to-use Codex multi-agent presets are also bundled in [`.codex/config.toml`](.codex/config.toml) and [`.agents/roles/`](.agents/roles))*
 - **[Higgsfield CLI](https://higgsfield.ai/)** — installed and authenticated (`higgsfield account status`)
 - **FFmpeg & ffprobe** — e.g. `brew install ffmpeg` (macOS) or `sudo apt install ffmpeg` (Linux)
 - **Python 3.11+** — standard library only (no `pip install` required)
@@ -124,9 +124,9 @@ campaigns/<YYYY-MM-DD>-my-product-spot/media/references/
 
 *(Binary media under `campaigns/*/media/` and `campaigns/*/qc/*.png` is gitignored automatically—only human-readable specs, prompts, shotlists, and receipts stay in Git.)*
 
-### 3. Open Codex and start directing
+### 3. Open your coding agent and start directing
 
-Launch Codex in the repository root and describe the **viewer feeling and goal**—no prompt engineering required:
+Open the repository root in **Claude Code**, **Codex**, **Cursor**, **Antigravity**, or any CLI-capable coding agent, and describe the **viewer feeling and goal**—no prompt engineering required:
 
 ```text
 Let's create a 15-second homepage hero commercial for our new ceramic pour-over kettle.
@@ -135,7 +135,7 @@ No voiceover—quiet morning ritual feel, tactile steam and ceramic sound design
 Start R0.
 ```
 
-Codex automatically reads [`AGENTS.md`](AGENTS.md), inspects your local photos and Higgsfield account balance, asks 3–5 focused meaning questions, and walks you through `R0` → `R5`.
+Your agent reads [`AGENTS.md`](AGENTS.md) and [`.agents/skills/`](.agents/skills), inspects your local photos and Higgsfield account balance, asks 3–5 focused meaning questions, and walks you through `R0` → `R5`.
 
 ---
 
@@ -190,7 +190,7 @@ The harness does not hardcode one model for every job. It checks **live Higgsfie
 
 ## Multi-Agent Architecture
 
-Built for **Codex Multi-Agent V2** ([`.codex/config.toml`](.codex/config.toml), connected to Higgsfield MCP at `https://mcp.higgsfield.ai/mcp` for read-only discovery while routing all paid runs through `hf_guard.py`).
+Built on open, agent-agnostic primitives—[`AGENTS.md`](AGENTS.md), 11 portable skills in [`.agents/skills/`](.agents/skills), pure Python/FFmpeg scripts, and Higgsfield MCP (`https://mcp.higgsfield.ai/mcp`)—so you can run the studio in **Claude Code**, **OpenAI Codex**, **Cursor**, **Antigravity**, or any CLI coding agent. Ready-to-use multi-agent presets for Codex are also bundled in [`.codex/config.toml`](.codex/config.toml) and [`.agents/roles/`](.agents/roles).
 
 ### 4 Specialized Roles ([`.agents/roles/`](.agents/roles))
 
@@ -247,7 +247,7 @@ Core mechanical scripts under [`scripts/`](scripts):
 | [`docs/grilling.md`](docs/grilling.md) | Meaning-only alignment and comparative taste-fork interview protocol |
 | [`docs/ad-craft-glossary.md`](docs/ad-craft-glossary.md) | Shared vocabulary across the 4 commercial craft skills (`swap test`, `mute test`, `Continuity Lock`, `test-take check`) |
 | [`docs/writing-for-agents.md`](docs/writing-for-agents.md) | Authoring rules for keeping `AGENTS.md`, skills, and roles minimal and mechanically verified |
-| [`.agents/`](.agents) & [`.codex/config.toml`](.codex/config.toml) | 4 role definitions, 11 skills, model benchmarks, and Codex Multi-Agent V2 + Higgsfield MCP config |
+| [`.agents/`](.agents) & [`.codex/config.toml`](.codex/config.toml) | 4 agent role definitions, 11 portable Agent Skills, model benchmarks, and bundled Codex + Higgsfield MCP config |
 | [`scripts/`](scripts) & [`tests/`](tests) | Mechanical spend/QA/assembly scripts and stdlib `unittest` suite |
 | [`brands/example-brand/`](brands/example-brand) | Example reusable brand identity and graduated taste memory |
 | [`campaigns/example-product-spot/`](campaigns/example-product-spot) | Complete living 15-second commercial campaign fixture |
@@ -268,8 +268,8 @@ Yes. Because Higgsfield's Unlimited (`0 cr.`) toggle applies only in the `higgsf
 ### Can I finish the edit in DaVinci Resolve, Premiere Pro, or Remotion?
 Yes. Every `make assemble` export writes unbaked tracks to `media/exports/stems/` (`video_only.mp4`, `diegetic.wav`, `vo.wav`, `music.wav`) alongside normalized clips. Pure FFmpeg handles standard cuts and mastering by default; when a brief calls for animated kinetic typography, captions, or crisp UI overlays, the workflow hands off cleanly to Remotion.
 
-### Can I use this without OpenAI Codex (e.g., Claude Code or other coding agents)?
-Multi-agent orchestration (`.codex/config.toml` and `.agents/roles/*.toml`) is configured natively for **OpenAI Codex**. However, the studio constitution (`AGENTS.md`), all 11 skills (`.agents/skills/*/SKILL.md`), `Makefile`, and every Python/FFmpeg script (`hf_guard.py`, `qa_media.py`, `assemble.sh`, validators) are plain Markdown, Python, and Bash—so any CLI-capable coding agent can follow the workflow and run the exact same guards.
+### Which AI coding agents work with this harness?
+Any CLI-capable coding agent—including **Claude Code**, **OpenAI Codex**, **Cursor**, **Antigravity**, **OpenCode**, and **Gemini CLI**. The entire workflow lives in standard [`AGENTS.md`](AGENTS.md), portable Agent Skills (`.agents/skills/*/SKILL.md`), `Makefile`, and pure Python/FFmpeg scripts (`hf_guard.py`, `qa_media.py`, `assemble.sh`), plus the Higgsfield MCP endpoint (`https://mcp.higgsfield.ai/mcp`). Native Codex Multi-Agent V2 presets are included out of the box in `.codex/config.toml` and `.agents/roles/`, and any other agent with subagents can map the same 4 role prompts directly.
 
 ### Why are generated images and videos not committed to Git?
 `.gitignore` automatically excludes `campaigns/*/media/` and heavy `.mp4`/`.wav`/`.png` outputs so your repository stays lightweight and reviewable while keeping every brief, script, storyboard, prompt, taste log, shotlist, and credit receipt (`receipts.jsonl`) version-controlled.
