@@ -31,6 +31,28 @@ for live flags and schemas.
    `generate create`, `--wait`, or `--json`). For `product-photoshoot`, run
    separate `--count 1` calls per `--variant A|B|C` with distinct `--out` paths
    so every variant is saved.
+5. **Spatial, outpaint, relight, decomposition & prop-rescue CEL traps:**
+   - `nano_banana_2_shots`, `outpaint`, `flux_2_pro_outpaint`, `image_background_remover`,
+     and workflow `image_decompose` require **exactly 1** `--image_references`
+     entry and accept **no `--prompt`** (`flux_2_pro_outpaint` also requires at
+     least one non-zero `--expand_left|right|top|bottom`).
+   - Single-ref utilities (`outpaint`, `flux_2_pro_outpaint`, `nano_banana_2_shots`,
+     `nano_banana_2_relight`, `image_background_remover`, `hf_mult_replace_object*`)
+     validate ref counts even during `generate cost`—quote them using an already-uploaded
+     UUID, never an unapproved local file path.
+   - `nano_banana_2_relight` requires all five flags (`--image_references`,
+     `--light_source` using the 26-point 3D cube `[f|m|b][u|m|d][l|m|r]` except `mmm`,
+     `--light_quality`, `--color`, `--brightness`).
+   - `wan3_0` / `wan3_0_prime` forbid combining `--start_image`/`--end_image` with
+     `--image_references`; `flux_3_video` forbids mixing `--video_references` with
+     any image inputs and caps total images at `10`.
+   - `kling_o3_image_reference` requires `--multi_prompt` if and only if
+     `--multi_shots true` (`std` `6.25 cr.` / `pro` `10 cr.` for 5s).
+   - `hf_mult_replace_object` (`480p`–`1080p`) and `hf_mult_replace_object_flash`
+     (Genjutsu Lite, `720p`–`4k`) require **exactly 1** `--video_references`
+     and **`>= 1`** `--image_references`.
+   - Creating Cinema Studio Elements or `kling_element_ids` is Web-UI only; CLI
+     accepts pre-existing `kling_element_ids` or uploaded `--image_references` UUIDs.
 
 ## Minimal Guarded Recipes
 
@@ -57,6 +79,65 @@ python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --variant A --version 1 --model gpt_image_2_6 \
   --prompt-file campaigns/<slug>/prompts/lb_traveler_v1.txt \
   --out campaigns/<slug>/media/lookbook/lb_traveler-v1-A.png -- --aspect_ratio 16:9
+
+# R2 Location / Angle / Relight / Outpaint / Slice / Decompose recipes (Asset Bible expansion)
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot lb_room_master --kind lookbook --round R2 --round-cap 35 \
+  --variant A --version 1 --model soul_location \
+  --prompt-file campaigns/<slug>/prompts/lb_room_v1.txt \
+  --out campaigns/<slug>/media/lookbook/lb_room_master-v1-A.png -- --aspect_ratio 16:9
+
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot lb_room_reverse --kind lookbook --round R2 --round-cap 35 \
+  --variant A --version 1 --model 3d_jutsu_angles \
+  --prompt-file campaigns/<slug>/prompts/lb_room_reverse_v1.txt \
+  --out campaigns/<slug>/media/lookbook/lb_room_reverse-v1-A.png -- \
+  --aspect_ratio 16:9 --resolution 2k --image_references <room_master_uuid>
+
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot lb_room_night --kind lookbook --round R2 --round-cap 35 \
+  --variant A --version 1 --model nano_banana_2_relight \
+  --out campaigns/<slug>/media/lookbook/lb_room_night-v1-A.png -- \
+  --image_references <room_master_uuid> --light_source fml \
+  --light_quality soft --color "#f5b87a" --brightness 35
+
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot lb_room_wide --kind lookbook --round R2 --round-cap 35 \
+  --variant A --version 1 --model outpaint \
+  --out campaigns/<slug>/media/lookbook/lb_room_wide-v1-A.png -- \
+  --aspect_ratio 16:9 --image_references <client_photo_uuid>
+
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot lb_room_sheet --kind lookbook --round R2 --round-cap 35 \
+  --variant A --version 1 --model nano_banana_2_shots \
+  --out campaigns/<slug>/media/lookbook/lb_room_sheet-v1-A.png -- \
+  --aspect_ratio 16:9 --image_references <room_master_uuid>
+# Slice 3x3 sheet into clean standalone tiles before uploading winners via hf_guard.py upload:
+make slice-grid FILE=campaigns/<slug>/media/lookbook/lb_room_sheet-v1-A.png \
+  OUT_DIR=campaigns/<slug>/media/lookbook/tiles ROWS=3 COLS=3 TRIM=4 PREFIX=loc_room
+
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot lb_prop_clean --kind lookbook --round R2 --round-cap 35 \
+  --variant A --version 1 --model image_decompose --workflow \
+  --out campaigns/<slug>/media/lookbook/lb_prop_clean-v1-A.png -- \
+  --mode granular --image_references <cluttered_photo_uuid>
+
+# R4/R5 Continuous same-set extension (Seedance 2.5 video_extension)
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s03 --kind video --round R4B --round-cap 40 --version 1 \
+  --model seedance_2_5 --prompt-file campaigns/<slug>/prompts/s03_ext_v1.txt \
+  --out campaigns/<slug>/media/shots/s03-draft-v1.mp4 -- \
+  --mode video_extension --extension_mode forward --resolution 720p --duration 5 \
+  --video_references <s02_job_id> --image_references <canonical_prop_uuid>
+
+# R4/R5 Surgical prop rescue inside an approved clip (Genjutsu / Genjutsu Lite)
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s02 --kind video --round R5 --round-cap 100 --version 2 \
+  --model hf_mult_replace_object \
+  --prompt-file campaigns/<slug>/prompts/s02_prop_fix_v2.txt \
+  --out campaigns/<slug>/media/shots/s02-1080p-v2.mp4 -- \
+  --resolution 1080p --video_references <locked_clip_job_id> \
+  --image_references <canonical_prop_uuid>
 
 # R3 Keyframe still (surgical v2 re-roll uses cumulative round_spent + delta_cap)
 python3 scripts/hf_guard.py run --campaign campaigns/<slug> \

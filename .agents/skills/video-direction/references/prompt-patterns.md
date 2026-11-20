@@ -21,6 +21,14 @@ Vary genuinely orthogonal visual axes while holding product geometry and brand i
 - **Variant B:** low directional golden sunbeams, higher micro-contrast, closer 85mm intimate crop, warm travertine bounce.
 - **Variant C:** architectural one-point symmetry, overcast slate tones, crisp deep-grain tactile close-up, flat neutral fill.
 
+## `R3` Multi-Ref Still Assembly Pattern (Location + Cast + Prop)
+
+Lock spatial geography, contact shadows, prop scale, and color isolation in `2k`/`4k` `R3` stills before animating (see [Locations, Buildings & Props](../../video-consistency/references/locations-and-props.md)):
+
+```text
+35mm medium-wide frame inside the empty limestone workshop from Image 1 (camera near South doorway facing North-West window). The traveler from Image 2 stands beside the oak workbench facing screen-left, right hand resting naturally near the matte brushed-brass kettle from Image 3. Place the kettle squarely on the oak counter with a soft grounded contact shadow matching the cool 5200K daylight from the North window; keep kettle height roughly 1.3x the stoneware mug beside it. Strictly preserve the kettle's cool satin-brass pigment without warm wood bounce bleed. Unretouched 35mm film grain, natural depth of field.
+```
+
 ## Video Prompt Blueprints
 
 ### A. I2V Motion Prompt (`R4` / `R5`, Delta-Only Over `--start_image`)

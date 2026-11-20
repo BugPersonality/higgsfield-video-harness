@@ -9,7 +9,11 @@ instructions = """
 Execute only the assigned Lookbook, still, clip, audio, or FFmpeg unit inside
 its disjoint writable paths. Pass approved `--round`, cumulative `--round-cap`,
 `--version`, and (for lookbook only) `--variant` to `hf_guard.py preflight` /
-`run`, and `--round` to `hf_guard.py upload`. Probe produced media with
+`run`, and `--round` to `hf_guard.py upload`. Respect live CEL reference rules
+(`wan3_0` forbids `start_image`+`image_references`; `flux_3_video` forbids
+mixing images with `video_references`), and slice `2x2`/`3x3` angle sheets via
+`scripts/qa_media.py slice` before uploading standalone tiles. Probe produced
+media with
 `scripts/qa_media.py ... --json` and return exact paths, receipts, and contact
 sheets.
 

@@ -19,6 +19,22 @@ VALID_ASSET_STATUSES = ("DRAFT", "IN_REVIEW", "ITERATING", "LOCKED")
 VALID_ASSET_STATUS_SET = frozenset(VALID_ASSET_STATUSES)
 VALID_LOOKBOOK_KINDS = frozenset({"character", "object", "location"})
 VALID_CS4_MODES = frozenset({"t2v", "omni_reference", "video_edit", "video_extension"})
+STILL_HARD_REF_CAPS = {
+    "flux_kontext": 4,
+    "seedream_5_5": 10,
+    "kling_image_4_0": 10,
+    "kling_omni_image": 10,
+    "3d_jutsu_angles": 10,
+    "nano_banana_pro": 14,
+    "nano_banana_2_1": 14,
+}
+VIDEO_HARD_IMG_CAPS = {
+    "kling4_0": 10,
+    "kling_4_0_flash": 10,
+    "flux_3_video": 10,
+    "seedance_2_5": 30,
+    "cinematic_studio_video_4_0": 30,
+}
 FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 
 STEERING_BULLET_RE = re.compile(
@@ -487,6 +503,25 @@ def _validate_shotlist(
                 _check_ref_id_list(
                     still.get("image_references"), f"shot {sid}.still.image_references"
                 )
+                still_ref_count = (
+                    (len(still["references"]) if isinstance(still.get("references"), list) else 0)
+                    + (
+                        len(still["image_references"])
+                        if isinstance(still.get("image_references"), list)
+                        else 0
+                    )
+                )
+                s_model = str(still.get("model") or "").strip()
+                if s_model in STILL_HARD_REF_CAPS and still_ref_count > STILL_HARD_REF_CAPS[s_model]:
+                    errors.append(
+                        f"shotlist.json (shot {sid}.still): {still_ref_count} image references "
+                        f"exceeds live CEL limit ({STILL_HARD_REF_CAPS[s_model]}) for '{s_model}'"
+                    )
+                elif still_ref_count > 6:
+                    warnings.append(
+                        f"shotlist.json (shot {sid}.still): {still_ref_count} image references "
+                        "exceeds optimal R3 still budget (3-5, max 6); prune off-screen refs to prevent attention dilution"
+                    )
 
         video = shot.get("video")
         if not isinstance(video, dict):
@@ -528,6 +563,45 @@ def _validate_shotlist(
             _check_ref_id_list(
                 video.get("image_references"), f"shot {sid}.video.image_references"
             )
+            v_model = video.get("model")
+            video_ref_count = (
+                (len(video["image_references"]) if isinstance(video.get("image_references"), list) else 0)
+                + (len(video["references"]) if isinstance(video.get("references"), list) else 0)
+            )
+            start_src = video.get("start_image_from")
+            if start_src is None:
+                start_src = shot.get("start_image_from")
+            end_src = video.get("end_image_from")
+            if end_src is None:
+                end_src = shot.get("end_image_from")
+            has_start = start_src is not None
+            has_end = end_src is not None
+            total_video_imgs = video_ref_count + (1 if has_start else 0) + (1 if has_end else 0)
+            if v_model in VIDEO_HARD_IMG_CAPS and total_video_imgs > VIDEO_HARD_IMG_CAPS[v_model]:
+                errors.append(
+                    f"shotlist.json (shot {sid}.video): {total_video_imgs} total images "
+                    f"(start/end + image_references) exceeds live CEL limit ({VIDEO_HARD_IMG_CAPS[v_model]}) for '{v_model}'"
+                )
+            elif total_video_imgs > 5:
+                warnings.append(
+                    f"shotlist.json (shot {sid}.video): {total_video_imgs} total images "
+                    "exceeds optimal R4/R5 video budget (2-5); prune off-screen refs to prevent texture bleed and rigid motion"
+                )
+            if v_model in ("wan3_0", "wan3_0_prime") and (has_start or has_end) and video_ref_count > 0:
+                warnings.append(
+                    f"shotlist.json (shot {sid}.video): '{v_model}' live CEL forbids combining "
+                    "start_image/end_image with image_references; omit --image_references at runtime or use seedance_2_5/kling4_0"
+                )
+            if (
+                isinstance(start_src, str)
+                and start_src.strip().endswith(".last_frame")
+                and video_ref_count == 0
+                and v_model in ("seedance_2_5", "cinematic_studio_video_4_0", "kling4_0", "kling_4_0_flash")
+            ):
+                warnings.append(
+                    f"shotlist.json (shot {sid}.video): bridging from '{start_src.strip()}' without "
+                    "canonical R2 image_references risks photocopy cascade drift; include original locked prop/location IDs"
+                )
 
         shot_audio = shot.get("audio")
         if isinstance(shot_audio, dict):

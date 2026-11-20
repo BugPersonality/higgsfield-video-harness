@@ -393,5 +393,55 @@ class TestCheckCampaign(unittest.TestCase):
             )
 
 
+    def test_enforces_reference_budgets_cel_caps_and_photocopy_guard(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            camp = _copy_campaign_fixture(Path(tmp))
+            shotlist_path = camp / "shotlist.json"
+            base = json.loads(shotlist_path.read_text(encoding="utf-8"))
+
+            extra_refs = [
+                {"id": f"ref_extra_{i}", "kind": "prop", "local_path": f"media/references/e{i}.png", "upload_id": None}
+                for i in range(1, 11)
+            ]
+            base["references"].extend(extra_refs)
+            extra_ids = [r["id"] for r in extra_refs]
+
+            warn_mut = json.loads(json.dumps(base))
+            warn_mut["shots"][0]["still"]["references"] = extra_ids[:7]
+            warn_mut["shots"][0]["video"]["image_references"] = extra_ids[:5]
+            warn_mut["shots"][1]["video"]["model"] = "wan3_0"
+            warn_mut["shots"][1]["video"]["is_workflow"] = False
+            warn_mut["shots"][1]["video"]["start_image_from"] = "s02.still"
+            warn_mut["shots"][1]["video"]["image_references"] = ["ref_bag_front"]
+            warn_mut["shots"][2]["video"]["start_image_from"] = "s02.last_frame"
+            warn_mut["shots"][2]["video"]["image_references"] = []
+            shotlist_path.write_text(json.dumps(warn_mut, indent=2), encoding="utf-8")
+
+            code_w, data_w, comb_w = self._run(camp)
+            self.assertEqual(code_w, 0, msg=f"Advisory spatial warnings must not fail exit code:\n{comb_w}")
+            self.assertTrue(data_w.get("ok"), msg=data_w)
+            warns_text = " ".join(data_w.get("warnings", []))
+            self.assertIn("optimal R3 still budget", warns_text, msg=data_w)
+            self.assertIn("optimal R4/R5 video budget", warns_text, msg=data_w)
+            self.assertIn("wan3_0", warns_text, msg=data_w)
+            self.assertIn("photocopy", warns_text, msg=data_w)
+
+            err_mut = json.loads(json.dumps(base))
+            err_mut["shots"][0]["still"]["model"] = "flux_kontext"
+            err_mut["shots"][0]["still"]["references"] = extra_ids[:5]
+            err_mut["shots"][1]["video"]["model"] = "kling4_0"
+            err_mut["shots"][1]["video"]["is_workflow"] = False
+            err_mut["shots"][1]["video"]["start_image_from"] = "s02.still"
+            err_mut["shots"][1]["video"]["image_references"] = extra_ids[:10]
+            shotlist_path.write_text(json.dumps(err_mut, indent=2), encoding="utf-8")
+
+            code_e, data_e, comb_e = self._run(camp)
+            self.assertEqual(code_e, 1, msg=f"Hard CEL cap violations must fail:\n{comb_e}")
+            self.assertFalse(data_e.get("ok", True))
+            err_text = " ".join(data_e.get("errors", []))
+            self.assertIn("flux_kontext", err_text, msg=data_e)
+            self.assertIn("kling4_0", err_text, msg=data_e)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -811,5 +811,46 @@ class TestQaAndAssemble(unittest.TestCase):
             )
 
 
+    def test_slice_grid_splits_3x3_sheet_with_trim(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            sheet = tmp / "angles_3x3.png"
+            out_dir = tmp / "tiles"
+
+            _ffmpeg(
+                "-f", "lavfi", "-i", "testsrc2=size=900x540:duration=1",
+                "-frames:v", "1",
+                str(sheet),
+            )
+
+            rc, data, err = self._run_qa(
+                "slice",
+                str(sheet),
+                "--out-dir",
+                str(out_dir),
+                "--rows",
+                "3",
+                "--cols",
+                "3",
+                "--trim",
+                "4",
+                "--prefix",
+                "loc_room",
+            )
+            self.assertEqual(rc, 0, msg=f"err={err}\ndata={data}")
+            self.assertTrue(data["ok"], msg=data)
+            self.assertEqual(data["tile_count"], 9)
+            self.assertEqual((data["tile_width"], data["tile_height"]), (292, 172))
+            self.assertEqual(len(data["tiles"]), 9)
+
+            first_tile = Path(data["tiles"][0]["file"])
+            self.assertEqual(first_tile.name, "loc_room_r0_c0.png")
+            self.assertTrue(first_tile.is_file())
+            self.assertTrue(first_tile.read_bytes().startswith(PNG_MAGIC))
+            tprobe = _ffprobe_json(first_tile)
+            tv = next(s for s in tprobe["streams"] if s.get("codec_type") == "video")
+            self.assertEqual((int(tv["width"]), int(tv["height"])), (292, 172))
+
+
 if __name__ == "__main__":
     unittest.main()

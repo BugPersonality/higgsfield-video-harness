@@ -1108,6 +1108,104 @@ def build_lookbook(
     }
 
 
+def slice_grid(
+    image_path: Path,
+    *,
+    out_dir: Path,
+    rows: int = 3,
+    cols: int = 3,
+    trim: int = 0,
+    prefix: str = "tile",
+) -> dict[str, Any]:
+    """Slice a multi-panel contact sheet (e.g. 3x3 nano_banana_2_shots) into standalone PNG tiles."""
+    if not image_path.is_file():
+        raise FileNotFoundError(f"grid sheet image not found: {image_path}")
+    if rows < 1 or cols < 1:
+        raise ValueError(f"rows and cols must be >= 1, got {rows}x{cols}")
+    if trim < 0:
+        raise ValueError(f"trim must be >= 0, got {trim}")
+    clean_prefix = re.sub(r"[^A-Za-z0-9._-]+", "_", (prefix or "tile").strip()) or "tile"
+
+    ffmpeg, ffprobe = _ensure_ffmpeg_tools()
+    probe = _ffprobe_json(ffprobe, image_path)
+    vstream = next(
+        (s for s in (probe.get("streams") or []) if s.get("codec_type") == "video"),
+        None,
+    )
+    if vstream is None or not vstream.get("width") or not vstream.get("height"):
+        raise RuntimeError(f"could not determine dimensions of grid image: {image_path}")
+
+    src_w = int(vstream["width"])
+    src_h = int(vstream["height"])
+    cell_w = src_w // cols
+    cell_h = src_h // rows
+    crop_w = cell_w - (2 * trim)
+    crop_h = cell_h - (2 * trim)
+    if crop_w <= 0 or crop_h <= 0:
+        raise ValueError(
+            f"trim={trim}px leaves non-positive tile size ({crop_w}x{crop_h}) for "
+            f"{cols}x{rows} grid on {src_w}x{src_h} image"
+        )
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    tiles: list[dict[str, Any]] = []
+    for r in range(rows):
+        for c in range(cols):
+            x = (c * cell_w) + trim
+            y = (r * cell_h) + trim
+            tile_path = out_dir / f"{clean_prefix}_r{r}_c{c}.png"
+            proc = subprocess.run(
+                [
+                    ffmpeg,
+                    "-v",
+                    "error",
+                    "-y",
+                    "-i",
+                    str(image_path),
+                    "-vf",
+                    f"crop={crop_w}:{crop_h}:{x}:{y}",
+                    "-frames:v",
+                    "1",
+                    str(tile_path),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if proc.returncode != 0 or not tile_path.is_file():
+                raise RuntimeError(
+                    f"ffmpeg failed slicing tile r{r}_c{c} (exit {proc.returncode}): "
+                    f"{proc.stderr.strip()}"
+                )
+            tiles.append(
+                {
+                    "row": r,
+                    "col": c,
+                    "file": str(tile_path),
+                    "width": crop_w,
+                    "height": crop_h,
+                }
+            )
+
+    return {
+        "ok": True,
+        "command": "slice",
+        "source": str(image_path),
+        "out_dir": str(out_dir),
+        "source_width": src_w,
+        "source_height": src_h,
+        "rows": rows,
+        "cols": cols,
+        "trim": trim,
+        "tile_width": crop_w,
+        "tile_height": crop_h,
+        "tile_count": len(tiles),
+        "tiles": tiles,
+        "warnings": [],
+        "errors": [],
+    }
+
+
 def _print_human(report: dict[str, Any]) -> None:
     state = "OK" if report["ok"] else "FAIL"
     cmd = report["command"]
@@ -1120,6 +1218,14 @@ def _print_human(report: dict[str, Any]) -> None:
         )
         for slot in report.get("slots") or []:
             print(f"  [{slot['label']}] {slot['file']}")
+    elif cmd == "slice":
+        print(
+            f"[{state}] slice: {report['source']} -> {report['out_dir']} "
+            f"({report['cols']}x{report['rows']}, trim={report['trim']}px, "
+            f"tile={report['tile_width']}x{report['tile_height']}, count={report['tile_count']})"
+        )
+        for tile in report.get("tiles") or []:
+            print(f"  [r{tile['row']}_c{tile['col']}] {tile['file']}")
     elif cmd in ("clip", "render"):
         loud = report.get("loudness") or {}
         print(
@@ -1175,6 +1281,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="Uniform width of each tile in pixels (default: 480).",
     )
     lb.add_argument("--json", action="store_true", dest="as_json", help="Emit JSON report.")
+
+    # slice
+    sl = sub.add_parser(
+        "slice",
+        help="Slice a 2x2 or 3x3 multi-angle contact sheet into clean standalone PNG tiles.",
+    )
+    sl.add_argument("image", help="Path to grid contact sheet image (e.g. nano_banana_2_shots output).")
+    sl.add_argument("--out-dir", required=True, help="Directory to write individual PNG tiles.")
+    sl.add_argument("--rows", type=int, default=3, help="Grid rows (default: 3).")
+    sl.add_argument("--cols", type=int, default=3, help="Grid columns (default: 3).")
+    sl.add_argument(
+        "--trim",
+        type=int,
+        default=0,
+        help="Optional pixels to trim off each tile edge to strip thin panel divider lines (default: 0).",
+    )
+    sl.add_argument("--prefix", default="tile", help="Filename prefix for tiles (default: tile).")
+    sl.add_argument("--json", action="store_true", dest="as_json", help="Emit JSON report.")
 
     # clip
     cl = sub.add_parser("clip", help="Validate a single generated video clip.")
@@ -1263,6 +1387,29 @@ def main(argv: list[str] | None = None) -> int:
                 labels=labels_list,
                 cols=args.cols,
                 tile_width=args.tile_width,
+            )
+        except (FileNotFoundError, ValueError, RuntimeError) as exc:
+            if args.as_json:
+                print(json.dumps({"ok": False, "error": str(exc)}, indent=2))
+            else:
+                print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
+
+        if args.as_json:
+            print(json.dumps(report, indent=2, ensure_ascii=False))
+        else:
+            _print_human(report)
+        return 0 if report["ok"] else 1
+
+    if args.command == "slice":
+        try:
+            report = slice_grid(
+                Path(args.image),
+                out_dir=Path(args.out_dir),
+                rows=args.rows,
+                cols=args.cols,
+                trim=args.trim,
+                prefix=args.prefix,
             )
         except (FileNotFoundError, ValueError, RuntimeError) as exc:
             if args.as_json:

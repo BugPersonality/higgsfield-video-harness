@@ -7,7 +7,7 @@ PYTHON ?= python3
 SHELL_FILES := $(wildcard scripts/*.sh)
 
 .PHONY: help check test shellcheck docs-check check-instructions \
-	brief-check campaign-check campaign-init lookbook qa-clip qa-voice qa-render \
+	brief-check campaign-check campaign-init lookbook slice-grid qa-clip qa-voice qa-render \
 	assemble animatic budget-status
 
 help: ## List available commands
@@ -50,6 +50,10 @@ budget-status: ## Show spent vs remaining Campaign cap and per-round spend (CAMP
 lookbook: ## Stitch 1+ images into a labeled A/B/C Lookbook or Stills Strip PNG (FILES="a.png b.png" OUT=<out.png>)
 	@test -n "$(FILES)" && test -n "$(OUT)" || { echo "lookbook requires FILES='img1 img2 ...' OUT=<out.png>" >&2; exit 2; }
 	$(PYTHON) scripts/qa_media.py lookbook $(FILES) --out "$(OUT)" $(if $(LABELS),--labels "$(LABELS)") $(if $(COLS),--cols "$(COLS)")
+
+slice-grid: ## Slice a 2x2 or 3x3 angle sheet into standalone PNG tiles (FILE=<sheet.png> OUT_DIR=<dir> [ROWS=3] [COLS=3] [TRIM=0] [PREFIX=tile])
+	@test -n "$(FILE)" && test -n "$(OUT_DIR)" || { echo "slice-grid requires FILE=<sheet.png> OUT_DIR=<dir>" >&2; exit 2; }
+	$(PYTHON) scripts/qa_media.py slice "$(FILE)" --out-dir "$(OUT_DIR)" --rows "$(or $(ROWS),3)" --cols "$(or $(COLS),3)" --trim "$(or $(TRIM),0)" --prefix "$(or $(PREFIX),tile)"
 
 qa-clip: ## Probe one video clip and optionally write a 3x2 contact sheet (FILE=<mp4> [SHEET=<png>])
 	@test -n "$(FILE)" || { echo "qa-clip requires FILE=<path.mp4>" >&2; exit 2; }

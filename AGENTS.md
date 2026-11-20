@@ -72,6 +72,7 @@ Load a target only when its branch triggers:
 - Meaning-only alignment or resolving a taste fork → [Grilling](docs/grilling.md).
 - Commercial craft vocabulary (`swap test`, `mute test`, `Continuity Lock`, `test-take check`) → [Ad Craft Glossary](docs/ad-craft-glossary.md).
 - Model benchmarks, draft-vs-final routing, or `0 cr.` Web Unlimited browser workflow → [Model Selection](.agents/skills/higgsfield-cli/references/model-selection.md).
+- Consistent locations, buildings, objects/props, multi-angle sets, reference-count budgets, or cross-scene spatial continuity → [Locations, Buildings & Props](.agents/skills/video-consistency/references/locations-and-props.md).
 - Editing `AGENTS.md`, docs, roles, or skills → [Writing For Agents](docs/writing-for-agents.md).
 - Craft & workflow skills → [`.agents/skills`](.agents/skills): user-invoked `idea-refine`, `grilling`; commercial `ad-references`, `ad-concepts`, `ad-script`, `ad-storyboard`; production `higgsfield-cli`, `video-direction`, `video-consistency`, `video-qa`, `video-assembly`.
 - Commands, flags, and schemas → inspect `make help`, `scripts/<tool> --help`, and `campaigns/example-product-spot/`; run `make check` before finishing harness edits.

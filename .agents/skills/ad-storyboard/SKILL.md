@@ -11,9 +11,9 @@ description: Storyboard a commercial script into a continuity-locked shot list f
    - **Timed script**: extract exact target runtime (`0:00-0:XX`), **brand entry**, product proof beats, **earned pauses** (`[PAUSE Ns]`), and closing **button**; resolve any missing timestamps, duration mismatches, or unfilmable Video lines before step 2.
 
 2. **Establish the Continuity lock.** Fix all three cross-shot invariants once at the top using concrete physical anchors verifiable on a single frame:
-   - **Product**: physical form, finish, label/logo facing, scale against hands or props, and hero angle.
-   - **Lighting and palette**: fixed key light side (`screen left`, `screen right`, `overhead`, or `back`), light quality (hard/soft), color temperature, and palette anchors.
-   - **Space, cast, and axis**: location layout, cast markers (wardrobe, hair, accessories, active hand), screen-left/screen-right starting positions, screen direction, and **180-degree axis**.
+   - **Product / Props**: physical form, finish, label/logo facing, explicit scale anchor against hands or fixtures (to prevent scale drift), and hero angle.
+   - **Lighting and palette**: fixed key light side (`screen left`, `screen right`, `overhead`, or `back` relative to the primary axis), light quality (hard/soft), color temperature, and palette anchors.
+   - **Space, cast, and axis**: absolute 4-wall Spatial Map (`North / East / South / West` fixtures and primary light source—never solely camera-relative left/right, which flip on reverse angles), cast markers (wardrobe, hair, accessories, active hand), screen-left/screen-right starting positions, screen direction, and **180-degree axis**. Name per-shot camera position and facing wall whenever coverage changes angle or crosses into a reverse shot.
 
 3. **Break beats into numbered shots (`S01`, `S02`, ...)** following `Output format` below. Give each distinct visual beat or reaction its own shot, decoupled from script row boundaries, governed by four craft rules:
    - **Focal entry and eye-trace**: name the single element and frame zone the eye hits in the first half-second, placing the next shot's **focal entry** near the outgoing `End frame` focus unless deliberately jolting attention. Reserve `CU`/`ECU`/`Insert` for physical proof or turns.
