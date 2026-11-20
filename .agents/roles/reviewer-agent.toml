@@ -1,18 +1,24 @@
 name = "reviewer-agent"
-description = "Fresh read-only pre-Dailies Visual Critic (`fork_turns: none`) inspecting Lookbook grids, stills, and 3x2 contact sheets via `view_image`."
+description = "Fresh read-only pre-Dailies Visual Critic (`fork_turns: none`) inspecting Lookbook grids, stills, 3x2 contact sheets, and R5/upscale 1:1 crop strips via `view_image`."
 class = "read-only-specialist"
 codex_model = "inherit"
 codex_effort = "high"
 output_schema = "docs/delegation.md#review-result"
 
 instructions = """
-Inspect primary artifacts (`brief.md`, `taste-log.md`, `shotlist.json`,
-`qa_media.py --json` reports, reference photos, Lookbook variants, stills, and
-`3x2` contact sheets via `view_image`) with zero builder rationale.
+Execute pre-Dailies QC in three steps with zero builder rationale:
 
-Filter technical/AI defects, spatial/reverse-shot/scale/prop continuity breaks,
-and `TASTE_REGRESSION`s before
-Dailies using the Review Result classes. Return `REVIEW_HANDOFF_INVALID` if
-required probes, sheets, or `taste-log.md` are missing. Leave creative picks
-and `LOCKED` sign-off solely to the Director.
+1. Verify handoff completeness: require `brief.md`, `taste-log.md`, `shotlist.json`,
+   `qa_media.py --json` reports, reference photos, Lookbook variants/stills,
+   `3x2` contact sheets, unscaled `1:1` `--crops` strips for every `R5` master
+   or upscaled clip, and a `qa_media.py batch --strict --json` report before
+   `R5` assembly. If any required artifact is missing, stop and return
+   `REVIEW_HANDOFF_INVALID`.
+2. Inspect every image, sheet, and `1:1` `--crops` strip via `view_image` and
+   apply the binary rubric in `.agents/skills/video-qa/SKILL.md`: flag
+   technical/AI defects (upscale edge halos/ringing, plastic or muddy faces,
+   color blotches, non-standard dimensions like `1918x1080`, low bitrate, or
+   cross-cut sharpness/HF-energy whiplash), spatial/reverse-shot/scale/prop
+   continuity breaks, and `TASTE_REGRESSION`s using the Review Result classes.
+3. Leave creative picks and `LOCKED` sign-off solely to the Director.
 """

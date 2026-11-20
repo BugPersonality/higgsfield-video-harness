@@ -148,8 +148,9 @@ def collect_markdown_files(repo_root: Path) -> list[Path]:
         for md in sub.rglob("*.md"):
             if not md.is_file():
                 continue
-            # Skip gitignored binary media directories if any
-            if "media" in md.relative_to(repo_root).parts:
+            # Skip gitignored binary media and JS dependency directories if any
+            rel_parts = md.relative_to(repo_root).parts
+            if any(part in ("media", "node_modules", "dist") for part in rel_parts):
                 continue
             files.add(md.resolve())
 

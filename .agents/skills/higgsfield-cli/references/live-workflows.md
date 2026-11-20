@@ -13,25 +13,49 @@ for live flags and schemas.
    `--start_image`, `--end_image`, or `--image_references` (and on `seedance_2_5`,
    never combine `--draft true` with `--draft_job_id`). `marketing_studio_video`
    is also a `--workflow`, not a model.
-2. **`generate cost` traps (auto-upload, workflow `cost_params` & unquotable
+2. **Draft escalation & free `high` bitrate (`seedance_2_5` vs. `cinematic_studio_video_4_0`):**
+   `cinematic_studio_video_4_0` CLI does **not** expose `--draft` or
+   `--draft_job_id`; use `seedance_2_5` directly whenever an `R4` take must
+   escalate 1:1 into `R5` via `--draft_job_id`. `--draft_job_id` accepts only a
+   `seedance_2_5 --draft true` job UUID, and CEL still requires supplying
+   `--start_image` / `--image_references` whenever `--mode omni_reference` is
+   active. On both `seedance_2_5` and `cinematic_studio_video_4_0`, pass
+   `--bitrate_mode high` on `1080p` finals (`0 cr.` surcharge vs. `standard`).
+3. **Upscaler & finishing CLI gotchas:**
+   - `topaz_video` currently rejects `higgsfield generate cost` (`does not
+     support alpha v2 cost estimation`); quote and run Topaz Starlight in the
+     Higgsfield Web UI or externally.
+   - `topaz_hyperion_2_5` (SDR→10-bit ProRes/EXR, not a resolution upscaler)
+     rejects video dimensions not divisible by 4 (works on `1920×1080`; fails on
+     `854×480` and `1918×1080`).
+   - `bytedance_video_upscale` accepts **video job UUIDs** (not raw CloudFront
+     URLs) in `--video_references`, rounds `854×480` inputs to `1918×1080`, and
+     in `pro` mode injects edge halos on compressed `480p` clips (never upscale
+     `480p`—see [Mastering & Upscaling](mastering-and-upscaling.md)).
+   - `wan3_0` / `wan3_0_prime` forbid combining `start_image`/`end_image` with
+     `image_references` (CEL-enforced) and may output `30fps`; verify FPS before
+     mixing into a `24fps` cut.
+4. **`generate cost` traps (auto-upload, workflow `cost_params` & unquotable
    endpoints):** before Director approves uploading private media (`R1`), pass
    only cost-affecting flags or already-uploaded / placeholder UUIDs—never local
    paths under `media/references/`, which `generate cost` auto-uploads.
    `generate cost workflow <name>` accepts only `cost_params` from
    `workflow get <name> --json` (`hf_guard.py` filters these automatically).
    Verify live quoting before committing to `soul-id` (no `soul-id cost`
-   command) or `marketing_studio_video --specific_mode from_storyboard` (whose
-   live `cost_params` omit `storyboard_id` while validation requires it).
-3. **All workflow/model parameter flags use `snake_case`:** pass `--start_image`,
+   command), `topaz_video`, or `marketing_studio_video --specific_mode
+   from_storyboard` (whose live `cost_params` omit `storyboard_id` while
+   validation requires it).
+5. **All workflow/model parameter flags use `snake_case`:** pass `--start_image`,
    `--end_image`, `--image_references`, `--video_references`, `--audio_references`,
-   `--aspect_ratio`, `--extension_mode`, `--draft_job_id`, `--custom_reference_id`,
-   `--voice_id`, `--voice_type`, `--specific_mode`.
-4. **Guard boundary & per-variant `product-photoshoot`:** pass `hf_guard.py`
+   `--aspect_ratio`, `--bitrate_mode`, `--dynamic_range`, `--extension_mode`,
+   `--draft_job_id`, `--custom_reference_id`, `--voice_id`, `--voice_type`,
+   `--specific_mode`.
+6. **Guard boundary & per-variant `product-photoshoot`:** pass `hf_guard.py`
    flags before `--` and only model/workflow params after `--` (never duplicate
    `generate create`, `--wait`, or `--json`). For `product-photoshoot`, run
    separate `--count 1` calls per `--variant A|B|C` with distinct `--out` paths
    so every variant is saved.
-5. **Spatial, outpaint, relight, decomposition & prop-rescue CEL traps:**
+7. **Spatial, outpaint, relight, decomposition & prop-rescue CEL traps:**
    - `nano_banana_2_shots`, `outpaint`, `flux_2_pro_outpaint`, `image_background_remover`,
      and workflow `image_decompose` require **exactly 1** `--image_references`
      entry and accept **no `--prompt`** (`flux_2_pro_outpaint` also requires at
@@ -43,9 +67,9 @@ for live flags and schemas.
    - `nano_banana_2_relight` requires all five flags (`--image_references`,
      `--light_source` using the 26-point 3D cube `[f|m|b][u|m|d][l|m|r]` except `mmm`,
      `--light_quality`, `--color`, `--brightness`).
-   - `wan3_0` / `wan3_0_prime` forbid combining `--start_image`/`--end_image` with
-     `--image_references`; `flux_3_video` forbids mixing `--video_references` with
-     any image inputs and caps total images at `10`.
+   - `flux_3_video` forbids mixing `--video_references` with any image inputs
+     (`--start_image`, `--end_image`, `--image_references`), and caps total
+     images at `10`.
    - `kling_o3_image_reference` requires `--multi_prompt` if and only if
      `--multi_shots true` (`std` `6.25 cr.` / `pro` `10 cr.` for 5s).
    - `hf_mult_replace_object` (`480p`–`1080p`) and `hf_mult_replace_object_flash`
@@ -58,8 +82,9 @@ for live flags and schemas.
 
 ```bash
 # Free read-only schema & cost quote (0 cr.; never pass private local file paths)
-higgsfield workflow get cinematic_studio_video_4_0 --json
-higgsfield generate cost workflow cinematic_studio_video_4_0 --mode omni_reference --resolution 480p --duration 5 --json
+higgsfield model get seedance_2_5 --json
+higgsfield generate cost seedance_2_5 --mode omni_reference --draft true --duration 5 --prompt "test" --start_image <uploaded_uuid> --json
+higgsfield generate cost kling4_0 --mode reference-to-video --resolution 1080p --duration 5 --prompt "test" --start_image <uploaded_uuid> --json
 
 # Tracked upload (0 cr.; --round R2 for Lookbook, R3 for skipped-R2 photos or locked stills)
 python3 scripts/hf_guard.py upload --campaign campaigns/<slug> \
@@ -80,7 +105,7 @@ python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --prompt-file campaigns/<slug>/prompts/lb_traveler_v1.txt \
   --out campaigns/<slug>/media/lookbook/lb_traveler-v1-A.png -- --aspect_ratio 16:9
 
-# R2 Location / Angle / Relight / Outpaint / Slice / Decompose recipes (Asset Bible expansion)
+# R2 Location / Angle / Relight / Decompose recipes (Asset Bible expansion)
 python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --shot lb_room_master --kind lookbook --round R2 --round-cap 35 \
   --variant A --version 1 --model soul_location \
@@ -101,6 +126,7 @@ python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --image_references <room_master_uuid> --light_source fml \
   --light_quality soft --color "#f5b87a" --brightness 35
 
+# R2 Outpaint mismatched client photo / mint 3x3 angle sheet & slice clean 2K tiles
 python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --shot lb_room_wide --kind lookbook --round R2 --round-cap 35 \
   --variant A --version 1 --model outpaint \
@@ -146,22 +172,90 @@ python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --out campaigns/<slug>/media/stills/s02-v2.png -- \
   --aspect_ratio 16:9 --image_references <ref_uuid> --image_references <lb_uuid>
 
-# R4A Motion Pilot -> R4B Batch Draft -> R5 1080p Final (Cinema Studio 4.0)
+# R3 Keyframe still enhancement before R4 video (2k/4k still upscale, exactly 1 image_references)
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s02 --kind still --round R3 --round-cap 50 --version 3 \
+  --model bytedance_image_upscale \
+  --out campaigns/<slug>/media/stills/s02-v3-4k.png -- \
+  --resolution 4k --image_references <s02_still_uuid>
+
+# R4A Motion Pilot -> R5 Native 1080p Final (Seedance 2.5 latent escalation, preserves exact draft motion)
 python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --shot s02 --kind video --round R4A --round-cap 20 --version 1 \
-  --model cinematic_studio_video_4_0 --workflow \
-  --prompt-file campaigns/<slug>/prompts/s02_video_v1.txt \
+  --model seedance_2_5 --prompt-file campaigns/<slug>/prompts/s02_video_v1.txt \
   --out campaigns/<slug>/media/shots/s02-draft-v1.mp4 -- \
-  --mode omni_reference --resolution 480p --duration 5 --aspect_ratio 16:9 \
+  --mode omni_reference --draft true --duration 5 --aspect_ratio 16:9 \
   --start_image <s02_still_uuid> --image_references <ref_uuid>
 
-# R4B -> R5 Seedance draft (in R5, swap --draft true for --draft_job_id <job_id> --resolution 1080p)
+# Note: CEL requires keeping --start_image / refs when --mode omni_reference is set
 python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
-  --shot s01 --kind video --round R4B --round-cap 45 --model seedance_2_5 \
-  --prompt-file campaigns/<slug>/prompts/s01_video_v1.txt \
+  --shot s02 --kind video --round R5 --round-cap 100 --version 1 \
+  --model seedance_2_5 --prompt-file campaigns/<slug>/prompts/s02_video_v1.txt \
+  --out campaigns/<slug>/media/shots/s02-1080p-v1.mp4 -- \
+  --mode omni_reference --draft_job_id <seedance_draft_job_id> \
+  --start_image <s02_still_uuid> --image_references <ref_uuid> \
+  --resolution 1080p --bitrate_mode high --duration 5 --aspect_ratio 16:9
+
+# R4B 720p Draft -> R5 Value Native 1080p (Kling 4.0: 7.5 cr. flash draft -> 18.75 cr. native 1080p)
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s01 --kind video --round R4B --round-cap 40 --version 1 \
+  --model kling_4_0_flash --prompt-file campaigns/<slug>/prompts/s01_video_v1.txt \
   --out campaigns/<slug>/media/shots/s01-draft-v1.mp4 -- \
-  --mode omni_reference --draft true --duration 5 --aspect_ratio 16:9 \
-  --start_image <s01_still_uuid>
+  --mode reference-to-video --resolution 720p --duration 5 --aspect_ratio 16:9 \
+  --start_image <s01_still_uuid> --image_references <ref_uuid>
+
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s01 --kind video --round R5 --round-cap 100 --version 1 \
+  --model kling4_0 --prompt-file campaigns/<slug>/prompts/s01_video_v1.txt \
+  --out campaigns/<slug>/media/shots/s01-1080p-v1.mp4 -- \
+  --mode reference-to-video --resolution 1080p --duration 5 --aspect_ratio 16:9 \
+  --start_image <s01_still_uuid> --image_references <ref_uuid>
+
+# R4B 720p -> R5 Native 1080p Single-Frame I2V (Wan 3.0: 8.75 cr. -> 17.5 cr.; never mix start_image + image_references)
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s05 --kind video --round R5 --round-cap 100 --version 1 \
+  --model wan3_0 --prompt-file campaigns/<slug>/prompts/s05_video_v1.txt \
+  --out campaigns/<slug>/media/shots/s05-1080p-v1.mp4 -- \
+  --resolution 1080p --duration 5 --aspect_ratio 16:9 --start_image <s05_still_uuid>
+
+# R5 Motion-Locked Native 1080p Rescue (re-render a golden 480p take natively instead of upscaling; 22.5 cr.)
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s03 --kind video --round R5 --round-cap 100 --version 1 \
+  --model kling4_0 --prompt-file campaigns/<slug>/prompts/s03_video_v1.txt \
+  --out campaigns/<slug>/media/shots/s03-1080p-v1.mp4 -- \
+  --mode video-edit --resolution 1080p --duration 5 --aspect_ratio 16:9 \
+  --video_references <draft_job_id> --image_references <s03_still_uuid> --image_references <ref_uuid>
+
+# R5 Depth-Map Extraction for Motion-Guided Native Re-Render (7.57 cr.)
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s03 --kind video --round R5 --round-cap 100 --version 2 \
+  --model depth_anything_video \
+  --out campaigns/<slug>/media/shots/s03-depth-720p.mp4 -- \
+  --colormap grayscale --variant VDA-Large --resolution 720p --video_references <draft_job_id>
+
+# R5 Direct Native 1080p Hero (Cinema Studio 4.0, always --bitrate_mode high)
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s04 --kind video --round R5 --round-cap 100 --version 1 \
+  --model cinematic_studio_video_4_0 --workflow \
+  --prompt-file campaigns/<slug>/prompts/s04_video_v1.txt \
+  --out campaigns/<slug>/media/shots/s04-1080p-v1.mp4 -- \
+  --mode omni_reference --resolution 1080p --bitrate_mode high --duration 5 \
+  --aspect_ratio 16:9 --start_image <s04_still_uuid> --image_references <ref_uuid>
+
+# R5 Selective Pixel Upscale Pilot (ONLY clean >=720p source, <=2x, matched --fps, job UUID, 1-shot 1:1 crop check first)
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s06 --kind video --round R5 --round-cap 100 --version 1 \
+  --model bytedance_video_upscale \
+  --out campaigns/<slug>/media/shots/s06-1080p-pilot.mp4 -- \
+  --model_version standard --preset aigc --resolution 1080p --fps 24 \
+  --video_references <clean_720p_job_id>
+
+# R5 Pre-Assembly QA: per-clip 1:1 crops + cross-shot batch audit (0 cr.)
+python3 scripts/qa_media.py clip campaigns/<slug>/media/shots/s02-1080p-v1.mp4 \
+  --sheet campaigns/<slug>/qc/s02_r5_sheet.png \
+  --crops campaigns/<slug>/qc/s02_r5_crops.png --json
+python3 scripts/qa_media.py batch campaigns/<slug>/media/shots/s01-1080p-v1.mp4 \
+  campaigns/<slug>/media/shots/s02-1080p-v1.mp4 --strict --json
 
 # R3 Audio: VO (`higgsfield voices list`) and score
 python3 scripts/hf_guard.py run --campaign campaigns/<slug> \

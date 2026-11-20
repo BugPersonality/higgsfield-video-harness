@@ -84,6 +84,7 @@
         },
         "final_params": {
           "resolution": "1080p",
+          "bitrate_mode": "high",
           "duration": 5,
           "aspect_ratio": "16:9"
         },
@@ -136,6 +137,7 @@
         },
         "final_params": {
           "resolution": "1080p",
+          "bitrate_mode": "high",
           "duration": 5,
           "aspect_ratio": "16:9"
         },
@@ -185,6 +187,7 @@
         },
         "final_params": {
           "resolution": "1080p",
+          "bitrate_mode": "high",
           "duration": 5,
           "aspect_ratio": "16:9"
         },

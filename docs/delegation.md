@@ -29,25 +29,30 @@ session ceiling; reserve slots for Visual Critic QC and recovery):
   parent chat turns or builder rationales). Reuse a `worker-agent` only for
   bounded repair inside its unchanged asset, writable paths, and `--round-cap`;
   spawn a fresh actor when `version` bumps, scope changes, or independent QC runs.
-- **Codex tools:** inspect `lookbook.png`, stills, and `3x2` contact sheets via
-  `view_image`; run `open <artifact>` on macOS before posting Dailies when
-  `Auto-open dailies: true`. Run all paid campaign jobs through `hf_guard.py`
-  on `higgsfield` CLI, keeping MCP read-only.
+- **Codex tools:** inspect `lookbook.png`, stills, `3x2` contact sheets, and
+  `R5`/upscale `1:1` `--crops` strips via `view_image`; run `open <artifact>`
+  on macOS before posting Dailies when `Auto-open dailies: true`. Run all paid
+  campaign jobs through `hf_guard.py` on `higgsfield` CLI, keeping MCP
+  read-only.
 
 ## Pre-Dailies Visual Critic
 
 Before assembling any Dailies Packet for generated media (`R2`–`R5`), spawn a
 fresh read-only `reviewer-agent` (`fork_turns: "none"`) with primary inputs only
 (`brief.md`, `taste-log.md`, `shotlist.json`, `qa_media.py --json` reports,
-reference photos, and `lookbook.png`/stills/`3x2` contact sheets via
+reference photos, and `lookbook.png`/stills/`3x2` contact sheets—plus `1:1`
+unscaled `--crops` strips for all `R5` masters and upscaled clips—via
 `view_image`)—zero builder rationale.
 
 - **Filter defects, leave taste to the Director:** reject obvious AI/technical
-  defects, continuity breaks, taste regressions, or policy/budget blocks using
-  the `#review-result` classes below. Leave creative picks and `LOCKED` sign-off
-  solely to the Director.
+  defects (including upscale halos/ringing, plastic or muddy faces, color
+  blotches, non-standard dimensions, and cut-to-cut sharpness whiplash on `1:1`
+  crops), continuity breaks, taste regressions, or policy/budget blocks using
+  the `#review-result` classes below. Leave creative picks and `LOCKED`
+  sign-off solely to the Director.
 - **Fail closed on missing proof:** return `REVIEW_HANDOFF_INVALID` whenever
-  required `qa_media.py` JSON, `taste-log.md`, or contact sheets are missing.
+  required `qa_media.py` JSON, `taste-log.md`, contact sheets, or `R5` `1:1`
+  `--crops` strips are missing.
 - **Honest escalation:** fix root causes inside `Max auto-retries/asset` and
   `--round-cap` (tighten anchors, adjust motion beats, sanitize IP phrasing).
   When retries or round cap exhaust, surface any surviving borderline `CONCERN`
@@ -96,7 +101,7 @@ asset_id: <lookbook id | sNN.still | sNN.video | audio | export>
 status: DONE | NEEDS_PARENT
 outputs: <media, prompt, and QC paths written inside disjoint scope>
 receipts: <reservation_id, job_id or upload_id, credits, attempt>
-qa_summary: <qa_media.py JSON summary and contact-sheet/lookbook path>
+qa_summary: <qa_media.py JSON summary, contact-sheet/lookbook path, and R5/upscale 1:1 --crops path>
 blocker: <none | BUDGET_CAP | asset_locked | POLICY_BLOCK | retry_limit_exceeded | variant_limit_exceeded | reservation_in_flight | error>
 ```
 

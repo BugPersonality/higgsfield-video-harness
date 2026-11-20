@@ -33,13 +33,13 @@ Generating a single AI clip is easy. Directing a coherent **multi-shot commercia
 
 - **6-Round Director ↔ Crew Loop (`R0` → `R5`):** Move smoothly from brief (`0 cr.`) to story & live quote (`0 cr.`), Lookbook (`A / B / C`), Keyframe Stills + playable Animatic (`0` video cr.), Draft Motion, and `1080p` Final Master.
 - **Hard Credit Safety & Immutable Locks (`scripts/hf_guard.py`):** Every paid CLI call checks live `higgsfield generate cost`, enforces both a campaign-wide cap and a per-round `--round-cap`, serializes receipts with `flock`, resumes timed-out/failed downloads without double-charging, and refuses to touch `LOCKED` assets.
-- **Web Unlimited-First (`0 cr.`) & Benchmark Model Routing:** Prioritizes `0 cr.` Unlimited runs on `higgsfield.ai` via browser handoff (pausing cleanly for manual login/CAPTCHA), falls back to low-cost CLI draft models (`gpt_image_2_6`, `seedream_5_0_flash`, `seedance_2_0_mini`, `wan3_0`), and saves flagship models (`cinematic_studio_video_4_0`, `seedance_2_5`, `veo3_1`, `seedream_5_5`, `flux_3_image`) for approved hero frames and finals.
+- **Web Unlimited-First (`0 cr.`) & Native-First Mastering:** Prioritizes `0 cr.` Unlimited runs on `higgsfield.ai` via browser handoff (pausing cleanly for manual login/CAPTCHA), falls back to low-cost `720p` CLI drafts (`seedance_2_0_mini`, `kling_4_0_flash`, `wan3_0`) or `seedance_2_5 --draft true`, and graduates approved cuts natively to `1080p` (`seedance_2_5 --draft_job_id --bitrate_mode high`, `kling4_0`, `wan3_0`, `veo3_1`, `cinematic_studio_video_4_0`)—never pixel-upscaling `480p` drafts into `1080p` masters (see [Mastering & Upscaling](.agents/skills/higgsfield-cli/references/mastering-and-upscaling.md)).
 - **Real Ad-Agency Pre-Production Built In:** Ships 4 commercial craft skills—[`ad-references`](.agents/skills/ad-references/SKILL.md), [`ad-concepts`](.agents/skills/ad-concepts/SKILL.md), [`ad-script`](.agents/skills/ad-script/SKILL.md), and [`ad-storyboard`](.agents/skills/ad-storyboard/SKILL.md)—for swap-tested pitches, timed 3-column scripts (`Time | Video | Audio`), read-aloud pacing checks, sound-off mute tests, and risky-shot `test_take_check` pilots.
 - **Zero-Video-Credit Still Animatic (`make animatic`):** Watch and listen to your full spot (locked keyframes + voiceover + rough score) before spending a single credit on video generation.
 - **Cumulative Taste Memory (`taste-log.md` → `brands/<brand>/taste.md`):** Every plain-English reaction you give is distilled into structured rules (`Approved / LOCKED`, `More of`, `Change / Steer`, `Never`) that follow every prompt and reviewer—and graduate into reusable brand profiles for future campaigns.
-- **Automated Technical QA & Visual Critic (`scripts/qa_media.py` + `reviewer-agent`):** Automatically catches black gaps, frozen tails, static clips, and overflowing voiceover windows (`100ms` RMS), builds `3x2` contact sheets and labeled `A / B / C` lookbook grids, and runs an isolated read-only Vision reviewer to strip defects before Dailies reach you.
-- **Broadcast-Ready FFmpeg Mastering & Stems (`scripts/assemble.sh`):** FPS-locked re-encoded cuts (no concat freezes or A/V desync), two-pass `-14 LUFS` (`<= -1.0 dBTP`) loudness normalization, and unbaked `media/exports/stems/` (`video_only.mp4`, `diegetic.wav`, `vo.wav`, `music.wav`) ready for NLE finishing or optional Remotion graphics.
-- **Zero Third-Party Python Packages:** Runs on pure **Python 3.11+ stdlib**, **FFmpeg/ffprobe**, and **ShellCheck**, backed by 66 offline unit and integration tests (`make check`).
+- **Automated Technical QA & Visual Critic (`scripts/qa_media.py` + `reviewer-agent`):** Automatically catches black gaps, frozen tails, static clips, low bitrates, non-standard dimensions (`1918×1080`), sharpness spikes (`hf_edge_energy`), and overflowing voiceover windows (`100ms` RMS), builds `3x2` contact sheets, unscaled `1:1` native crop strips (`--crops`), and labeled `A / B / C` lookbook grids, and runs an isolated read-only Vision reviewer to strip defects before Dailies reach you.
+- **Broadcast-Ready FFmpeg Mastering & Stems (`scripts/assemble.sh`):** FPS-locked re-encoded cuts with `lanczos` scaling (no concat freezes or A/V desync), two-pass `-14 LUFS` (`<= -1.0 dBTP`) loudness normalization, and unbaked `media/exports/stems/` (`video_only.mp4`, `diegetic.wav`, `vo.wav`, `music.wav`) ready for NLE finishing or optional Remotion graphics.
+- **Zero Third-Party Python Packages:** Runs on pure **Python 3.11+ stdlib**, **FFmpeg/ffprobe**, and **ShellCheck**, backed by 71 offline unit and integration tests (`make check`).
 
 ---
 
@@ -105,7 +105,7 @@ git clone https://github.com/Dankosik/higgsfield-video-harness.git
 cd higgsfield-video-harness
 
 # Runs instruction sync, doc link checks, ShellCheck, mock spend guard,
-# synthetic FFmpeg QA/assembly, and 66 unit/integration tests offline (0 credits)
+# synthetic FFmpeg QA/assembly, and 71 unit/integration tests offline (0 credits)
 make check
 ```
 
@@ -174,16 +174,16 @@ make budget-status CAMPAIGN=example-product-spot
 
 ## Supported Models & Cost Routing
 
-The harness does not hardcode one model for every job. It checks **live Higgsfield CLI schemas and pricing** (`higgsfield model get`, `workflow get`, `generate cost`) and routes each stage along a 3-tier cost ladder documented in [Model Selection & Benchmarks](.agents/skills/higgsfield-cli/references/model-selection.md):
+The harness does not hardcode one model for every job. It checks **live Higgsfield CLI schemas and pricing** (`higgsfield model get`, `workflow get`, `generate cost`) and routes each stage along a 3-tier cost ladder documented in [Model Selection & Benchmarks](.agents/skills/higgsfield-cli/references/model-selection.md) and [Mastering & Upscaling](.agents/skills/higgsfield-cli/references/mastering-and-upscaling.md):
 
 1. **Priority 1 — `higgsfield.ai` Web Unlimited (`0 cr.`):** Uses Unlimited-eligible models in the browser first (with clean manual handoff for login/CAPTCHA), then ingests outputs through `hf_guard.py upload` (`0 cr.`) so downstream shots remain UUID-locked.
-2. **Priority 2 — Economy CLI Drafts:** Fast, low-credit image (`0.12–0.50 cr.`) and `480p` video (`2.5–5.0 cr.`) runs to prove composition, rhythm, and edit timing.
-3. **Priority 3 — Flagship `1080p` Finals:** High-fidelity multi-reference renders reserved strictly for approved `R5` upgrades and risky `R4A` pilots.
+2. **Priority 2 — Economy `720p` / Latent Drafts:** Fast, low-credit image (`0.12–0.50 cr.`), `720p` video (`5.0–8.75 cr.`), or `seedance_2_5 --draft true` (`15 cr.`) runs to prove composition, acting, and edit timing without falling into the `480p → 1080p` upscale artifact trap.
+3. **Priority 3 — Native `1080p` Finals:** High-fidelity native `1080p` masters (`kling4_0`, `wan3_0`, `veo3_1`, `seedance_2_5 --draft_job_id --bitrate_mode high`, `cinematic_studio_video_4_0 --bitrate_mode high`) reserved strictly for approved `R5` upgrades; pixel upscaling (`topaz_video` Starlight / SeedVR2 / `bytedance_video_upscale`) is restricted to clean `>= 720p` inputs (`<= 2×`) after a 1-shot `1:1` crop pilot.
 
-| Category | Economy Drafts / Fast Options (CLI) | Flagship / Hero Options (CLI) |
+| Category | Economy Drafts / Fast Options (CLI) | Native `1080p` / Flagship Options (CLI) |
 | --- | --- | --- |
 | **Lookbook & Stills (`R2`–`R3`)** | `soul_cinematic`, `gpt_image_2_6` (std), `seedream_5_0_flash`, `flux_2`, `product-photoshoot` | `nano_banana_2_1`, `nano_banana_pro`, `flux_3_image`, `gpt_image_2_6` (high), `seedream_5_5`, Soul-2 IDs (`text2image_soul_v2`) |
-| **Video Motion (`R4`–`R5`)** | `seedance_2_0_mini` (`480p`), `wan3_0` (`480p`), `cinematic_studio_video_v2`, `kling_o3_image_reference` | `cinematic_studio_video_4_0` (`omni_reference`, up to 30 images / 50 refs), `seedance_2_5` (`--draft_job_id` escalation), `veo3_1`, `minimax_h3` |
+| **Video Motion (`R4`–`R5`)** | `seedance_2_0_mini` (`720p`), `kling_4_0_flash` (`720p`), `wan3_0` (`720p`), `seedance_2_5` (`--draft true`) | `kling4_0` (`1080p` / `video-edit`), `wan3_0` / `wan3_0_prime` (`1080p`), `veo3_1`, `flux_3_video`, `seedance_2_5` (`--draft_job_id`, `--bitrate_mode high`), `cinematic_studio_video_4_0` (`omni_reference`, `--bitrate_mode high`) |
 | **Audio: Voice, Music & SFX (`R3`–`R5`)** | VO: `text2speech_v2` (`elevenlabs`, `seed_speech`), `seed_audio` · Music: `sonilo_music` | Multi-speaker dialogue: `elevenlabs_v4` · Score & SFX: `elevenlabs_music_v2_5`, `mirelo_text_to_audio` |
 
 ---
@@ -199,7 +199,7 @@ Built on open, agent-agnostic primitives—[`AGENTS.md`](AGENTS.md), 11 portable
 | **`evidence-agent`** | Read-only | Queries live Higgsfield schemas, `generate cost`, account balance, brand profiles, local photos, and `receipts.jsonl` |
 | **`specialist-agent`** | Read-only | Develops swap-tested concepts, 3-column scripts, continuity-locked storyboards, modern DiT prompts, and anti-IP rewrites |
 | **`worker-agent`** | Disjoint write scope | Executes one Lookbook entity, still, video shot, audio stem, or assembly unit via `hf_guard.py`, `qa_media.py`, and `assemble.sh` |
-| **`reviewer-agent`** | Fresh read-only | Unbiased pre-Dailies Visual Critic (`view_image`) that inspects stills & `3x2` contact sheets against `taste-log.md` and filters defects |
+| **`reviewer-agent`** | Fresh read-only | Unbiased pre-Dailies Visual Critic (`view_image`) that inspects stills, `3x2` contact sheets, and `R5`/upscale `1:1` crop strips against `taste-log.md` and filters defects |
 
 ### 11 Bundled Skills ([`.agents/skills/`](.agents/skills))
 
@@ -217,17 +217,18 @@ Run `make help` at any time to list every target:
 
 | Command | Purpose |
 | --- | --- |
-| `make check` | Run all offline checks (`check-instructions`, `docs-check`, `shellcheck`, 66 unit/integration tests, example campaign validation) |
+| `make check` | Run all offline checks (`check-instructions`, `docs-check`, `shellcheck`, 71 unit/integration tests, example campaign validation) |
 | `make campaign-init SLUG=<name> [BRAND=<brand>]` | Scaffold a new dated campaign folder with `brief.md`, `taste-log.md`, and gitignored `media/` folders |
 | `make brief-check CAMPAIGN=<slug>` | Verify `brief.md` structure, budget policy, and zero technical jargon or unresolved requester questions |
 | `make campaign-check CAMPAIGN=<slug>` | Validate `brief.md` + `taste-log.md` + `shotlist.json` invariants and verify planned spend `<= Campaign cap` |
 | `make budget-status CAMPAIGN=<slug>` | Show spent vs. remaining `Campaign cap`, active reservations, and per-round spend from `receipts.jsonl` |
 | `make lookbook FILES="a.png b.png" OUT=<out.png>` | Stitch images into a labeled `A / B / C` Lookbook or `stills_strip.png` Dailies board |
 | `make animatic CAMPAIGN=<slug>` | Build a `0`-video-credit playable `animatic.mp4` from approved stills + VO + rough music |
-| `make qa-clip FILE=<mp4> [SHEET=<png>]` | Probe resolution, FPS, black gaps, frozen tails, static frames, and generate a `3x2` contact sheet |
+| `make qa-clip FILE=<mp4> [SHEET=<png>] [CROPS=<png>]` | Probe resolution, FPS, bitrate, `hf_edge_energy`, black gaps, frozen tails, and generate a `3x2` contact sheet + `1:1` native crop strip |
+| `make qa-batch FILES="a.mp4 b.mp4" [STRICT=1]` | Audit cross-shot resolution, FPS, non-multiple-of-4 rounding, and `hf_edge_energy` sharpness outliers across `R5` clips before assembly |
 | `make qa-voice FILE=<wav> WINDOW=<sec>` | Check active speech bounds (`100ms` RMS) against the shot window so VO never overflows |
 | `make assemble CAMPAIGN=<slug>` | Assemble selected takes into `-14 LUFS` `master.mp4` (or `draft_cut.mp4`) plus unbaked `stems/` |
-| `make qa-render FILE=<mp4> [SHEET=<png>]` | Validate final render loudness (`-14 LUFS ± 1.0 LU`, `<= -1.0 dBTP`), black/frozen frames, and sheet |
+| `make qa-render FILE=<mp4> [SHEET=<png>] [CROPS=<png>]` | Validate final render loudness (`-14 LUFS ± 1.0 LU`, `<= -1.0 dBTP`), black/frozen frames, sheet, and `1:1` crop strip |
 
 Core mechanical scripts under [`scripts/`](scripts):
 

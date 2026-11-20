@@ -392,6 +392,26 @@ class TestCheckCampaign(unittest.TestCase):
                 msg=f"Expected invalid audio.music status diagnostic, got: {err2!r}",
             )
 
+    def test_warns_on_missing_high_bitrate_and_480p_pixel_upscale(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            camp = _copy_campaign_fixture(Path(tmp))
+            shotlist_path = camp / "shotlist.json"
+            base = json.loads(shotlist_path.read_text(encoding="utf-8"))
+
+            # Drop bitrate_mode from shot 0 (CS 4.0 1080p) and set shot 1 to 480p -> bytedance_video_upscale
+            mut = json.loads(json.dumps(base))
+            mut["shots"][0]["video"]["final_params"].pop("bitrate_mode", None)
+            mut["shots"][1]["video"]["model"] = "bytedance_video_upscale"
+            mut["shots"][1]["video"]["is_workflow"] = False
+            mut["shots"][1]["video"]["draft_params"]["resolution"] = "480p"
+            shotlist_path.write_text(json.dumps(mut, indent=2), encoding="utf-8")
+
+            code, data, comb = self._run(camp)
+            self.assertEqual(code, 0, msg=f"Warnings should not fail exit code:\n{comb}")
+            self.assertTrue(data.get("ok"), msg=data)
+            warns = " ".join(data.get("warnings", []))
+            self.assertIn("bitrate_mode", warns, msg=data)
+            self.assertIn("480p", warns, msg=data)
 
     def test_enforces_reference_budgets_cel_caps_and_photocopy_guard(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -399,6 +419,7 @@ class TestCheckCampaign(unittest.TestCase):
             shotlist_path = camp / "shotlist.json"
             base = json.loads(shotlist_path.read_text(encoding="utf-8"))
 
+            # Add extra declared references so reference IDs resolve cleanly
             extra_refs = [
                 {"id": f"ref_extra_{i}", "kind": "prop", "local_path": f"media/references/e{i}.png", "upload_id": None}
                 for i in range(1, 11)
@@ -406,9 +427,10 @@ class TestCheckCampaign(unittest.TestCase):
             base["references"].extend(extra_refs)
             extra_ids = [r["id"] for r in extra_refs]
 
+            # Case 1: Optimal-budget warnings, wan3_0 start+refs warning, and .last_frame photocopy warning
             warn_mut = json.loads(json.dumps(base))
-            warn_mut["shots"][0]["still"]["references"] = extra_ids[:7]
-            warn_mut["shots"][0]["video"]["image_references"] = extra_ids[:5]
+            warn_mut["shots"][0]["still"]["references"] = extra_ids[:7]  # > 6 optimal R3 budget
+            warn_mut["shots"][0]["video"]["image_references"] = extra_ids[:5]  # + start_image = 6 > 5 optimal video budget
             warn_mut["shots"][1]["video"]["model"] = "wan3_0"
             warn_mut["shots"][1]["video"]["is_workflow"] = False
             warn_mut["shots"][1]["video"]["start_image_from"] = "s02.still"
@@ -426,13 +448,14 @@ class TestCheckCampaign(unittest.TestCase):
             self.assertIn("wan3_0", warns_text, msg=data_w)
             self.assertIn("photocopy", warns_text, msg=data_w)
 
+            # Case 2: Hard live CEL cap exceeded (flux_kontext > 4 stills, kling4_0 > 10 video images)
             err_mut = json.loads(json.dumps(base))
             err_mut["shots"][0]["still"]["model"] = "flux_kontext"
-            err_mut["shots"][0]["still"]["references"] = extra_ids[:5]
+            err_mut["shots"][0]["still"]["references"] = extra_ids[:5]  # > 4 CEL cap
             err_mut["shots"][1]["video"]["model"] = "kling4_0"
             err_mut["shots"][1]["video"]["is_workflow"] = False
             err_mut["shots"][1]["video"]["start_image_from"] = "s02.still"
-            err_mut["shots"][1]["video"]["image_references"] = extra_ids[:10]
+            err_mut["shots"][1]["video"]["image_references"] = extra_ids[:10]  # 10 + start = 11 > 10 CEL cap
             shotlist_path.write_text(json.dumps(err_mut, indent=2), encoding="utf-8")
 
             code_e, data_e, comb_e = self._run(camp)

@@ -484,7 +484,7 @@ PY
     sdur="${STILL_DURS[$si]}"
     CLIP_NAME="$(printf "clip_%02d.mp4" "$IDX")"
     OUT_CLIP="${WORKDIR}/${CLIP_NAME}"
-    VF_NORM="scale=${TARGET_W}:${TARGET_H}:force_original_aspect_ratio=decrease,pad=${TARGET_W}:${TARGET_H}:(ow-iw)/2:(oh-ih)/2:black,setsar=1"
+    VF_NORM="scale=${TARGET_W}:${TARGET_H}:force_original_aspect_ratio=decrease:flags=lanczos,pad=${TARGET_W}:${TARGET_H}:(ow-iw)/2:(oh-ih)/2:black,setsar=1"
 
     ffmpeg -v error -y \
       -loop 1 -framerate "$TARGET_FPS" -t "$sdur" -i "$still" \
@@ -623,7 +623,18 @@ PY
     OUT_CLIP="${WORKDIR}/${CLIP_NAME}"
     AUDIO_STREAM="$(ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "$clip" | head -n 1 || true)"
 
-    VF_NORM="scale=${TARGET_W}:${TARGET_H}:force_original_aspect_ratio=decrease,pad=${TARGET_W}:${TARGET_H}:(ow-iw)/2:(oh-ih)/2:black,setsar=1"
+    CLIP_DIM_FPS="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height,avg_frame_rate -of csv=p=0 "$clip" | head -n 1 || true)"
+    if [[ -n "$CLIP_DIM_FPS" ]]; then
+      IFS=',' read -r cw ch cfps <<< "$CLIP_DIM_FPS"
+      if [[ -n "$cw" && -n "$ch" ]] && [[ "$cw" != "$TARGET_W" || "$ch" != "$TARGET_H" ]]; then
+        echo "WARN: clip '${clip}' dimensions (${cw}x${ch}) differ from target (${TARGET_W}x${TARGET_H}); lanczos scaling/padding applied" >&2
+      fi
+      if [[ -n "$cfps" && "$cfps" != "$TARGET_FPS" && "$cfps" != "${TARGET_FPS}/1" ]]; then
+        echo "WARN: clip '${clip}' native FPS (${cfps}) differs from target (${TARGET_FPS}); check for pulldown judder" >&2
+      fi
+    fi
+
+    VF_NORM="scale=${TARGET_W}:${TARGET_H}:force_original_aspect_ratio=decrease:flags=lanczos,pad=${TARGET_W}:${TARGET_H}:(ow-iw)/2:(oh-ih)/2:black,setsar=1"
 
     if [[ -n "$AUDIO_STREAM" ]]; then
       HAS_CLIP_AUDIO=1

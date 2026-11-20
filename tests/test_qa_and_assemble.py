@@ -810,6 +810,39 @@ class TestQaAndAssemble(unittest.TestCase):
                 msg=f"Expected window_s '2.0-4.0' delay on 1.5s VO (>=3.3s), got {vo_dur}s",
             )
 
+    def test_clip_qa_crops_strip_and_upscale_quality_warnings(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            clip_bad = tmp / "upscaled_1918x1080.mp4"
+            crops_png = tmp / "crops.png"
+
+            # Synthetic 1918x1080 (non-multiple-of-4 rounding) low-bitrate HD clip
+            _ffmpeg(
+                "-f", "lavfi", "-i", "testsrc2=size=1918x1080:rate=24:duration=2",
+                "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=2",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-preset", "ultrafast",
+                "-b:v", "400k", "-maxrate", "400k", "-bufsize", "400k",
+                "-c:a", "aac", "-b:a", "128k",
+                str(clip_bad),
+            )
+
+            rc, data, err = self._run_qa("clip", str(clip_bad), "--crops", str(crops_png))
+            self.assertEqual(rc, 0, msg=f"err={err}\ndata={data}")
+            self.assertTrue(data["ok"], msg=data)
+            self.assertEqual(data["crops"], str(crops_png))
+            self.assertTrue(crops_png.is_file(), "1:1 crop strip PNG was not created")
+            self.assertTrue(crops_png.read_bytes().startswith(PNG_MAGIC))
+
+            # Unscaled 3x1 strip of 560x560 crops => 1680x560
+            cprobe = _ffprobe_json(crops_png)
+            cv = next(s for s in cprobe["streams"] if s.get("codec_type") == "video")
+            self.assertEqual((int(cv["width"]), int(cv["height"])), (1680, 560))
+
+            self.assertIsNotNone(data["metadata"].get("video_bitrate_kbps"))
+            self.assertIsNotNone(data["quality"].get("hf_edge_energy"))
+            warn_codes = {w["code"] for w in data.get("warnings", [])}
+            self.assertIn("non_standard_dimensions", warn_codes, msg=data)
+            self.assertIn("low_video_bitrate", warn_codes, msg=data)
 
     def test_slice_grid_splits_3x3_sheet_with_trim(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_str:
@@ -850,6 +883,50 @@ class TestQaAndAssemble(unittest.TestCase):
             tprobe = _ffprobe_json(first_tile)
             tv = next(s for s in tprobe["streams"] if s.get("codec_type") == "video")
             self.assertEqual((int(tv["width"]), int(tv["height"])), (292, 172))
+
+    def test_batch_qa_detects_resolution_fps_and_hf_sharpness_outliers(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            clean_a = tmp / "clean_a.mp4"
+            clean_b = tmp / "clean_b.mp4"
+            outlier = tmp / "outlier.mp4"
+
+            for out_path in (clean_a, clean_b):
+                _ffmpeg(
+                    "-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=24:duration=2",
+                    "-vf", "gblur=sigma=2.0",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                    str(out_path),
+                )
+
+            _ffmpeg(
+                "-f", "lavfi", "-i", "testsrc2=size=1278x720:rate=30:duration=2",
+                "-vf", "unsharp=5:5:2.0:5:5:0.0",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                str(outlier),
+            )
+
+            rc_ok, data_ok, err_ok = self._run_qa(
+                "batch", str(clean_a), str(clean_b), "--strict",
+            )
+            self.assertEqual(rc_ok, 0, msg=f"err={err_ok}\ndata={data_ok}")
+            self.assertTrue(data_ok["ok"], msg=data_ok)
+            self.assertEqual(data_ok["baseline"]["resolution"], "1280x720")
+            self.assertEqual(data_ok["warnings"], [])
+            self.assertEqual(data_ok["errors"], [])
+
+            rc_bad, data_bad, err_bad = self._run_qa(
+                "batch", str(clean_a), str(clean_b), str(outlier), "--strict",
+            )
+            self.assertEqual(rc_bad, 1, msg=f"err={err_bad}\ndata={data_bad}")
+            self.assertFalse(data_bad["ok"], msg=data_bad)
+            self.assertEqual(data_bad["baseline"]["resolution"], "1280x720")
+            err_codes = {e["code"] for e in data_bad["errors"]}
+            warn_codes = {w["code"] for w in data_bad["warnings"]}
+            self.assertIn("non_standard_dimensions", err_codes, msg=data_bad)
+            self.assertIn("resolution_mismatch", err_codes, msg=data_bad)
+            self.assertIn("fps_mismatch", err_codes, msg=data_bad)
+            self.assertIn("hf_sharpness_outlier", warn_codes, msg=data_bad)
 
 
 if __name__ == "__main__":

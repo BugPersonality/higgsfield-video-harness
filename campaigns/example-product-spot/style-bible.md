@@ -52,7 +52,7 @@ Brand: [Nord Atelier Brand Profile](../../brands/example-brand/brand.md)
 
 ## Cross-Shot Continuity Checklist
 
-Every candidate lookbook variant, still, and 3x2 video contact sheet is inspected by an independent, fresh read-only Visual Critic (`reviewer-agent` via `view_image`, never self-approved by the generating worker) against [taste-log.md](taste-log.md) and all five invariants:
+Every candidate lookbook variant, still, `3x2` video contact sheet, and `R5` `1:1` native crop strip is inspected by an independent, fresh read-only Visual Critic (`reviewer-agent` via `view_image`, never self-approved by the generating worker) against [taste-log.md](taste-log.md) and all five invariants:
 
 1. Saddle-tan matte leather hue matches across `s01` -> `s02` -> `s03` with diffuse natural grain.
 2. Hardware stays square satin-brushed antique brass across every angle and motion frame.

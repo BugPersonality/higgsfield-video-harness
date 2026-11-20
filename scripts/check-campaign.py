@@ -564,6 +564,22 @@ def _validate_shotlist(
                 video.get("image_references"), f"shot {sid}.video.image_references"
             )
             v_model = video.get("model")
+            draft_params = video.get("draft_params") if isinstance(video.get("draft_params"), dict) else {}
+            final_params = video.get("final_params") if isinstance(video.get("final_params"), dict) else {}
+            if v_model in ("cinematic_studio_video_4_0", "seedance_2_5"):
+                final_res = str(final_params.get("resolution") or "").lower()
+                if final_res in ("1080p", "4k") and final_params.get("bitrate_mode") != "high":
+                    warnings.append(
+                        f"shotlist.json (shot {sid}.video.final_params): '{v_model}' at {final_res} "
+                        "should set 'bitrate_mode': 'high' (0 cr. surcharge vs. standard)"
+                    )
+            if v_model in ("bytedance_video_upscale", "topaz_video", "video_upscale") and (
+                str(draft_params.get("resolution") or "").lower() == "480p"
+            ):
+                warnings.append(
+                    f"shotlist.json (shot {sid}.video): pixel-upscaling a 480p draft with '{v_model}' "
+                    "causes halos/artifacts; prefer native 1080p or a clean >=720p source"
+                )
             video_ref_count = (
                 (len(video["image_references"]) if isinstance(video.get("image_references"), list) else 0)
                 + (len(video["references"]) if isinstance(video.get("references"), list) else 0)

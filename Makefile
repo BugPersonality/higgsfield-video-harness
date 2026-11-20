@@ -7,7 +7,7 @@ PYTHON ?= python3
 SHELL_FILES := $(wildcard scripts/*.sh)
 
 .PHONY: help check test shellcheck docs-check check-instructions \
-	brief-check campaign-check campaign-init lookbook slice-grid qa-clip qa-voice qa-render \
+	brief-check campaign-check campaign-init lookbook slice-grid qa-clip qa-batch qa-voice qa-render \
 	assemble animatic budget-status
 
 help: ## List available commands
@@ -55,17 +55,21 @@ slice-grid: ## Slice a 2x2 or 3x3 angle sheet into standalone PNG tiles (FILE=<s
 	@test -n "$(FILE)" && test -n "$(OUT_DIR)" || { echo "slice-grid requires FILE=<sheet.png> OUT_DIR=<dir>" >&2; exit 2; }
 	$(PYTHON) scripts/qa_media.py slice "$(FILE)" --out-dir "$(OUT_DIR)" --rows "$(or $(ROWS),3)" --cols "$(or $(COLS),3)" --trim "$(or $(TRIM),0)" --prefix "$(or $(PREFIX),tile)"
 
-qa-clip: ## Probe one video clip and optionally write a 3x2 contact sheet (FILE=<mp4> [SHEET=<png>])
+qa-clip: ## Probe one video clip, optional 3x2 sheet, and optional 1:1 native crops (FILE=<mp4> [SHEET=<png>] [CROPS=<png>] [CROP_FOCUS=thirds|center|left|right])
 	@test -n "$(FILE)" || { echo "qa-clip requires FILE=<path.mp4>" >&2; exit 2; }
-	$(PYTHON) scripts/qa_media.py clip "$(FILE)" $(if $(SHEET),--sheet "$(SHEET)")
+	$(PYTHON) scripts/qa_media.py clip "$(FILE)" $(if $(SHEET),--sheet "$(SHEET)") $(if $(CROPS),--crops "$(CROPS)") $(if $(CROP_FOCUS),--crop-focus "$(CROP_FOCUS)")
+
+qa-batch: ## Audit cross-shot resolution, FPS, and HF-sharpness consistency across R5 clips (FILES="a.mp4 b.mp4" [STRICT=1])
+	@test -n "$(FILES)" || { echo "qa-batch requires FILES='clip1.mp4 clip2.mp4 ...'" >&2; exit 2; }
+	$(PYTHON) scripts/qa_media.py batch $(FILES) $(if $(STRICT),--strict)
 
 qa-voice: ## Check VO duration window using 100ms RMS energy (FILE=<wav> WINDOW=<sec>)
 	@test -n "$(FILE)" && test -n "$(WINDOW)" || { echo "qa-voice requires FILE=<audio> WINDOW=<sec>" >&2; exit 2; }
 	$(PYTHON) scripts/qa_media.py voice "$(FILE)" --window "$(WINDOW)"
 
-qa-render: ## Validate final assembled render loudness, black/frozen frames, and sheet (FILE=<mp4> [SHEET=<png>])
+qa-render: ## Validate final assembled render loudness, black/frozen frames, sheet, and 1:1 crops (FILE=<mp4> [SHEET=<png>] [CROPS=<png>] [CROP_FOCUS=thirds|center|left|right])
 	@test -n "$(FILE)" || { echo "qa-render requires FILE=<path.mp4>" >&2; exit 2; }
-	$(PYTHON) scripts/qa_media.py render "$(FILE)" $(if $(SHEET),--sheet "$(SHEET)")
+	$(PYTHON) scripts/qa_media.py render "$(FILE)" $(if $(SHEET),--sheet "$(SHEET)") $(if $(CROPS),--crops "$(CROPS)") $(if $(CROP_FOCUS),--crop-focus "$(CROP_FOCUS)")
 
 assemble: ## Assemble selected takes from CAMPAIGN=<slug|path> into master.mp4 + stems/
 	@test -n "$(CAMPAIGN)" || { echo "assemble requires CAMPAIGN=<slug|path>" >&2; exit 2; }

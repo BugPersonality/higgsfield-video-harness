@@ -15,8 +15,10 @@
   and ingest downloads via `hf_guard.py upload`). When using CLI credits, prove
   meaning before story, story and live costs before pixels, Lookbook `A / B / C`
   before scenes, economy draft stills and a 0-video-credit Still Animatic
-  before motion, economy draft video (`seedance_2_0_mini` / `wan3_0`) before
-  flagship pilots, and `1080p` mastering only on approved cuts.
+  before motion, economy `720p` drafts (`seedance_2_0_mini` / `kling_4_0_flash` /
+  `wan3_0`) or `seedance_2_5 --draft true` before native `1080p` mastering
+  (never pixel-upscale `480p` drafts into `1080p` masters; verify `R5` / upscaled
+  clips at `1:1` pixel crops).
 - **Keep the Director boundary jargon-free.** Present visual artifacts, light,
   texture, pacing, `A / B / C` choices (or blends), and plain credit totals.
   Keep model slugs, CLI flags, prompt syntax, UUID wiring, codecs, and FFmpeg
@@ -72,6 +74,7 @@ Load a target only when its branch triggers:
 - Meaning-only alignment or resolving a taste fork → [Grilling](docs/grilling.md).
 - Commercial craft vocabulary (`swap test`, `mute test`, `Continuity Lock`, `test-take check`) → [Ad Craft Glossary](docs/ad-craft-glossary.md).
 - Model benchmarks, draft-vs-final routing, or `0 cr.` Web Unlimited browser workflow → [Model Selection](.agents/skills/higgsfield-cli/references/model-selection.md).
+- `R4 → R5` mastering, latent draft escalation (`--draft_job_id`), video upscaling rules (when upscaling works vs. native `1080p`), or Topaz / ByteDance / Hyperion tool routing → [Mastering & Upscaling](.agents/skills/higgsfield-cli/references/mastering-and-upscaling.md).
 - Consistent locations, buildings, objects/props, multi-angle sets, reference-count budgets, or cross-scene spatial continuity → [Locations, Buildings & Props](.agents/skills/video-consistency/references/locations-and-props.md).
 - Editing `AGENTS.md`, docs, roles, or skills → [Writing For Agents](docs/writing-for-agents.md).
 - Craft & workflow skills → [`.agents/skills`](.agents/skills): user-invoked `idea-refine`, `grilling`; commercial `ad-references`, `ad-concepts`, `ad-script`, `ad-storyboard`; production `higgsfield-cli`, `video-direction`, `video-consistency`, `video-qa`, `video-assembly`.

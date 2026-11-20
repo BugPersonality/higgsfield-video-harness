@@ -40,7 +40,10 @@ For JSON shapes and CLI flags, inspect the living fixtures and tools directly:
   live schemas (`model get` / `workflow get` / `voices list`) and run live
   `higgsfield generate cost` per round (using cost-affecting params or UUIDs
   only—never pass private local file paths, which `generate cost` auto-uploads).
-  Write `shotlist.json` + initial `prompts/` and verify
+  Write `shotlist.json` + initial `prompts/` (choosing each shot's `R4 → R5`
+  escalation path upfront per
+  [Mastering & Upscaling](../.agents/skills/higgsfield-cli/references/mastering-and-upscaling.md)
+  so drafts never dead-end in `480p` upscaling) and verify
   `make campaign-check CAMPAIGN=<slug>` (`R2 + R3 + R4 + R5 <= Campaign cap`).
 - **Dailies 1B:** Readable beat-by-beat story + exact round-by-round price list
   + approval ask for uploading local `media/references/` photos (if any) and
@@ -94,12 +97,19 @@ For JSON shapes and CLI flags, inspect the living fixtures and tools directly:
   `--round-cap`.
 
 ### R4 — Motion Dailies (`~45–90 cr.`)
+- **Draft-to-Final planning:** Plan `R5` escalation *before* shooting `R4` (see
+  [Mastering & Upscaling](../.agents/skills/higgsfield-cli/references/mastering-and-upscaling.md)).
+  Prefer Web `Unlimited` (`0 cr.`) first, then `720p` economy drafts
+  (`seedance_2_0_mini`, `kling_4_0_flash`, `wan3_0`), or **`seedance_2_5`
+  `--draft true`** when an approved take must escalate 1:1 into native `1080p`
+  via `--draft_job_id` (CLI `cinematic_studio_video_4_0` omits `--draft_job_id`).
 - **R4A (Risk-First Pilot):** Shoot shots with `test_take_check != null` first
-  at draft settings (`480p`/`720p`/`--draft true`) via `hf_guard.py run --round
-  R4A --round-cap <r4a_cap>`. Probe with `scripts/qa_media.py clip <mp4> --sheet
-  <png> --json` and inspect via fresh `reviewer-agent`. Stop with **Dailies 4A**
-  (pilot clip + `R4B` Cost Ticket). *(Skip `R4A` only when zero shots carry
-  `test_take_check` and Director approved batch `--round R4` on Dailies 3.)*
+  at draft settings (`720p` or `seedance_2_5 --draft true`) via `hf_guard.py
+  run --round R4A --round-cap <r4a_cap>`. Probe with `scripts/qa_media.py clip
+  <mp4> --sheet <png> --json` and inspect via fresh `reviewer-agent`. Stop with
+  **Dailies 4A** (pilot clip + `R4B` Cost Ticket). *(Skip `R4A` only when zero
+  shots carry `test_take_check` and Director approved batch `--round R4` on
+  Dailies 3.)*
 - **R4B (Batch Draft & Cut):** Shoot remaining unlocked shots in parallel via
   `hf_guard.py run --round R4B --round-cap <r4b_cap>` (or `--round R4` when
   `R4A` was skipped). Probe each clip (`qa_media.py clip --sheet <png> --json`),
@@ -107,18 +117,32 @@ For JSON shapes and CLI flags, inspect the living fixtures and tools directly:
   `shotlist.json`, and assemble `draft_cut.mp4` via `make assemble
   CAMPAIGN=<slug> OUT=campaigns/<slug>/media/exports/draft_cut.mp4` (`-14 LUFS`,
   `<= -1.0 dBTP`).
-- **Dailies 4B:** Playable `draft_cut.mp4` + **per-shot `1080p` upgrade prices**
-  for `R5`. Mark shots kept as-is (no `R5` upgrade) `LOCKED`; keep shots
-  scheduled for `R5` `1080p` upgrade unlocked (`IN_REVIEW` or `ITERATING`,
-  bumping `version` if prompt/parameters change) so `hf_guard.py` permits `R5`.
+- **Dailies 4B:** Playable `draft_cut.mp4` + **per-shot native `1080p` upgrade
+  prices** for `R5` (never offer `480p → 1080p` pixel upscaling as a budget
+  shortcut; quote native `1080p` options such as Web `Unlimited`, `kling4_0`,
+  `wan3_0`, or `seedance_2_5 --draft_job_id`). Mark shots kept as-is (no `R5`
+  upgrade) `LOCKED`; keep shots scheduled for `R5` `1080p` upgrade unlocked
+  (`IN_REVIEW` or `ITERATING`, bumping `version` if prompt/parameters change) so
+  `hf_guard.py` permits `R5`.
 - *Done when:* pilot passes Dailies 4A (when applicable), Director approves cut
   rhythm in `draft_cut.mp4`, kept shots are `LOCKED`, upgrade targets stay
   unlocked, and Director approves `R5` `--round-cap`.
 
 ### R5 — Final Master (`1080p`, approved quote)
-- **Craft:** Upgrade **only** Director-approved unlocked shots to `1080p` via
-  `hf_guard.py run --round R5 --round-cap <r5_cap>`. Probe every upgraded clip
-  (`qa_media.py clip --sheet <png> --json`), filter via fresh `reviewer-agent`,
+- **Craft:** Upgrade **only** Director-approved unlocked shots to **native
+  `1080p`** via `hf_guard.py run --round R5 --round-cap <r5_cap>` following the
+  5-step runbook in
+  [Mastering & Upscaling](../.agents/skills/higgsfield-cli/references/mastering-and-upscaling.md)
+  (Web `Unlimited`, `seedance_2_5 --draft_job_id --bitrate_mode high`,
+  `kling4_0` / `wan3_0` / `veo3_1` / `wan3_0_prime`, `kling4_0 --mode
+  video-edit` motion-locked rescue, or direct `cinematic_studio_video_4_0`
+  `--bitrate_mode high`). Never pixel-upscale `480p` drafts; pixel upscaling
+  is allowed only for clean `>= 720p` inputs (`<= 2×`) after passing all 6
+  Upscale Gate checks and a 1-shot `1:1` `--crops` pilot. Probe every upgraded
+  clip with **`qa_media.py clip <mp4> --sheet <sheet.png> --crops <crops.png>
+  --json`**, run **`qa_media.py batch <r5_clips...> --strict --json`** to audit
+  cross-shot resolution/FPS/`hf_edge_energy` consistency, filter via fresh
+  `reviewer-agent` (inspecting both `3x2` sheets and `1:1` native-pixel crops),
   update `video.selected_take` in `shotlist.json`, assemble `master.mp4` +
   `stems/` via `make assemble CAMPAIGN=<slug>`, and verify `make qa-render
   FILE=campaigns/<slug>/media/exports/master.mp4` (plus optional

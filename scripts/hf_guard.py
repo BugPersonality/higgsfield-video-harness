@@ -102,7 +102,13 @@ def _is_number(val: Any) -> bool:
 
 
 def _extract_numeric_field(payload: Any, keys: tuple[str, ...]) -> float | None:
-    """Search payload (shallow then nested dicts) for the first finite numeric value matching keys."""
+    """Search payload (shallow then nested dicts/lists) for the first finite numeric value matching keys."""
+    if isinstance(payload, list):
+        for item in payload:
+            found = _extract_numeric_field(item, keys)
+            if found is not None:
+                return found
+        return None
     if not isinstance(payload, dict):
         return None
     for k in keys:
@@ -117,14 +123,14 @@ def _extract_numeric_field(payload: Any, keys: tuple[str, ...]) -> float | None:
                         return f
                 except ValueError:
                     pass
-    for nested_key in ("data", "estimate", "result", "account", "billing", "job", "cost"):
+    for nested_key in ("data", "estimate", "result", "results", "account", "billing", "job", "jobs", "cost"):
         nested = payload.get(nested_key)
-        if isinstance(nested, dict):
+        if isinstance(nested, (dict, list)):
             found = _extract_numeric_field(nested, keys)
             if found is not None:
                 return found
     for v in payload.values():
-        if isinstance(v, dict):
+        if isinstance(v, (dict, list)):
             found = _extract_numeric_field(v, keys)
             if found is not None:
                 return found
@@ -132,26 +138,51 @@ def _extract_numeric_field(payload: Any, keys: tuple[str, ...]) -> float | None:
 
 
 def _extract_string_field(payload: Any, keys: tuple[str, ...]) -> str | None:
+    if isinstance(payload, list):
+        for item in payload:
+            if isinstance(item, str) and item.strip():
+                if any(k in ("url", "output_url", "media_url") for k in keys):
+                    return item.strip()
+            elif isinstance(item, (dict, list)):
+                found = _extract_string_field(item, keys)
+                if found is not None:
+                    return found
+        return None
     if not isinstance(payload, dict):
         return None
     for k in keys:
         v = payload.get(k)
         if isinstance(v, str) and v.strip():
             return v.strip()
-    for nested_key in ("data", "result", "job", "output", "asset", "upload"):
+    for nested_key in (
+        "data",
+        "result",
+        "results",
+        "raw",
+        "original",
+        "min",
+        "job",
+        "output",
+        "asset",
+        "upload",
+        "media",
+        "image",
+        "video",
+        "audio",
+    ):
         nested = payload.get(nested_key)
         if isinstance(nested, dict):
             found = _extract_string_field(nested, keys)
             if found is not None:
                 return found
-    for list_key in ("outputs", "results", "assets", "files", "media", "items"):
+    for list_key in ("jobs", "outputs", "results", "assets", "files", "media", "items"):
         items = payload.get(list_key)
         if isinstance(items, list):
             for item in items:
                 if isinstance(item, str) and item.strip():
                     if any(k in ("url", "output_url", "media_url") for k in keys):
                         return item.strip()
-                elif isinstance(item, dict):
+                elif isinstance(item, (dict, list)):
                     found = _extract_string_field(item, keys)
                     if found is not None:
                         return found
@@ -379,14 +410,20 @@ def _run_cli(cmd: list[str]) -> tuple[int, str, str, Any]:
         try:
             parsed = json.loads(stdout)
         except json.JSONDecodeError:
-            for line in reversed(stdout.splitlines()):
-                line_s = line.strip()
-                if line_s.startswith(("{", "[")):
-                    try:
-                        parsed = json.loads(line_s)
-                        break
-                    except json.JSONDecodeError:
-                        pass
+            decoder = json.JSONDecoder()
+            idx = 0
+            length = len(stdout)
+            while idx < length:
+                while idx < length and stdout[idx] not in "{[":
+                    idx += 1
+                if idx >= length:
+                    break
+                try:
+                    obj, end = decoder.raw_decode(stdout, idx)
+                    parsed = obj
+                    idx = end
+                except json.JSONDecodeError:
+                    idx += 1
     return proc.returncode, proc.stdout, proc.stderr, parsed
 
 
@@ -1279,7 +1316,7 @@ def _find_in_flight_job(
             else:
                 get_cmd = _build_get_cmd(hf_bin, hf_command, rec_jid)
                 get_rc, _, get_err, get_json = _run_cli(get_cmd)
-                if get_rc == 0 and isinstance(get_json, dict):
+                if get_rc == 0 and isinstance(get_json, (dict, list)):
                     gstatus = str(
                         _extract_string_field(get_json, ("status", "state")) or ""
                     ).lower()
@@ -1287,12 +1324,14 @@ def _find_in_flight_job(
                         g_url = _extract_string_field(
                             get_json,
                             (
+                                "result_url",
                                 "url",
                                 "output_url",
                                 "media_url",
                                 "video_url",
                                 "image_url",
                                 "audio_url",
+                                "min_result_url",
                                 "local_path",
                                 "path",
                             ),
@@ -2056,13 +2095,13 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
     # Parse response
     job_id = (
         _extract_string_field(exec_json, ("job_id", "id", "request_set_id", "request_id"))
-        if isinstance(exec_json, dict)
+        if isinstance(exec_json, (dict, list))
         else None
     ) or resumed_job_id or ""
 
     raw_status = (
         _extract_string_field(exec_json, ("status", "state"))
-        if isinstance(exec_json, dict)
+        if isinstance(exec_json, (dict, list))
         else None
     )
     status = _normalize_job_status(raw_status, exec_rc)
@@ -2072,17 +2111,19 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
         _extract_string_field(
             exec_json,
             (
+                "result_url",
                 "url",
                 "output_url",
                 "media_url",
                 "video_url",
                 "image_url",
                 "audio_url",
+                "min_result_url",
                 "local_path",
                 "path",
             ),
         )
-        if isinstance(exec_json, dict)
+        if isinstance(exec_json, (dict, list))
         else None
     )
 
@@ -2090,7 +2131,7 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
         _extract_numeric_field(
             exec_json, ("credits", "credits_used", "actual_credits", "cost")
         )
-        if isinstance(exec_json, dict)
+        if isinstance(exec_json, (dict, list))
         else None
     )
     if reported_credits is not None and (
@@ -2218,6 +2259,8 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
     elif download_error:
         result["error_code"] = "download_failed"
         result["error"] = download_error
+        if exec_out.strip():
+            result["raw_stdout_preview"] = exec_out.strip()[:1500]
     elif not is_completed:
         result["exit_code"] = exec_rc
         if exec_err.strip():

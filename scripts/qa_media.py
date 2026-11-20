@@ -444,10 +444,176 @@ def _build_contact_sheet(
             )
 
 
+def _build_native_crop_strip(
+    ffmpeg: str,
+    video_path: Path,
+    width: int,
+    height: int,
+    duration: float,
+    crops_path: Path,
+    *,
+    crop_focus: str = "thirds",
+) -> None:
+    """Extract 3 unscaled 1:1 native-pixel crops (20%, 50%, 80%) for artifact/halo inspection."""
+    crops_path.parent.mkdir(parents=True, exist_ok=True)
+    crop_w = min(560, width)
+    crop_h = min(560, height)
+    crop_w -= crop_w % 2
+    crop_h -= crop_h % 2
+    crop_w = max(2, crop_w)
+    crop_h = max(2, crop_h)
+    span_x = max(0, width - crop_w)
+    # Slightly upper-biased vertical crop aligns with faces/heads in standard 16:9 / 9:16 framing
+    crop_y = max(0, int(round((height - crop_h) * 0.35)))
+
+    if crop_focus == "left":
+        x_offsets = [int(round(span_x * 0.18))] * 3
+    elif crop_focus == "right":
+        x_offsets = [int(round(span_x * 0.82))] * 3
+    elif crop_focus == "center":
+        x_offsets = [span_x // 2] * 3
+    else:
+        # Default "thirds" sweeps left-center, center, and right-center across 20%/50%/80%
+        x_offsets = [
+            int(round(span_x * 0.18)),
+            span_x // 2,
+            int(round(span_x * 0.82)),
+        ]
+
+    if duration <= 0.4:
+        timestamps = [0.0, max(0.0, duration * 0.4), max(0.0, duration - 0.02)]
+    else:
+        timestamps = [duration * 0.20, duration * 0.50, duration * 0.80]
+
+    with tempfile.TemporaryDirectory(prefix="qa_crops_") as tmp_dir:
+        tmp = Path(tmp_dir)
+        for idx, (ts, crop_x) in enumerate(zip(timestamps, x_offsets)):
+            frame_out = tmp / f"c{idx}.png"
+            crop_filter = f"crop={crop_w}:{crop_h}:{crop_x}:{crop_y}"
+            proc = subprocess.run(
+                [
+                    ffmpeg,
+                    "-v",
+                    "error",
+                    "-ss",
+                    f"{ts:.3f}",
+                    "-i",
+                    str(video_path),
+                    "-frames:v",
+                    "1",
+                    "-vf",
+                    crop_filter,
+                    "-y",
+                    str(frame_out),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if proc.returncode != 0 or not frame_out.is_file():
+                fallback_ts = max(0.0, ts - 0.15)
+                proc2 = subprocess.run(
+                    [
+                        ffmpeg,
+                        "-v",
+                        "error",
+                        "-ss",
+                        f"{fallback_ts:.3f}",
+                        "-i",
+                        str(video_path),
+                        "-frames:v",
+                        "1",
+                        "-vf",
+                        crop_filter,
+                        "-y",
+                        str(frame_out),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                if proc2.returncode != 0 or not frame_out.is_file():
+                    raise RuntimeError(
+                        f"failed to extract 1:1 crop frame {idx} at {ts:.3f}s: "
+                        f"{proc2.stderr.strip()}"
+                    )
+
+        tile_proc = subprocess.run(
+            [
+                ffmpeg,
+                "-v",
+                "error",
+                "-i",
+                str(tmp / "c%d.png"),
+                "-vf",
+                "tile=3x1",
+                "-frames:v",
+                "1",
+                "-y",
+                str(crops_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if tile_proc.returncode != 0 or not crops_path.is_file():
+            raise RuntimeError(
+                f"failed to tile 3x1 native crop strip: {tile_proc.stderr.strip()}"
+            )
+
+
+def _measure_hf_edge_energy(ffmpeg: str, video_path: Path, duration: float) -> float | None:
+    """Measure mean 3x3 Laplacian edge energy across 3 sampled frames (sharpness/ringing proxy)."""
+    if duration <= 0.4:
+        timestamps = [0.0]
+    else:
+        timestamps = [duration * 0.25, duration * 0.50, duration * 0.75]
+    samples: list[float] = []
+    lap_vf = (
+        "format=gray,"
+        "convolution=0 -1 0 -1 4 -1 0 -1 0:0 -1 0 -1 4 -1 0 -1 0:"
+        "0 -1 0 -1 4 -1 0 -1 0:0 -1 0 -1 4 -1 0 -1 0,"
+        "signalstats,metadata=print:key=lavfi.signalstats.YAVG:file=-"
+    )
+    for ts in timestamps:
+        proc = subprocess.run(
+            [
+                ffmpeg,
+                "-v",
+                "error",
+                "-ss",
+                f"{ts:.3f}",
+                "-i",
+                str(video_path),
+                "-frames:v",
+                "1",
+                "-vf",
+                lap_vf,
+                "-f",
+                "null",
+                "-",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            continue
+        for m in re.finditer(r"YAVG=([0-9.]+)", proc.stdout):
+            val = _parse_finite_float(m.group(1))
+            if val is not None:
+                samples.append(val)
+    if not samples:
+        return None
+    return round(sum(samples) / len(samples), 3)
+
+
 def inspect_clip(
     video_path: Path,
     *,
     sheet_path: Path | None = None,
+    crops_path: Path | None = None,
+    crop_focus: str = "thirds",
     max_still: float = 3.0,
     max_frozen_tail: float | None = None,
     black_min: float = 0.5,
@@ -476,6 +642,10 @@ def inspect_clip(
         fps = _parse_rational(vstream.get("avg_frame_rate")) or _parse_rational(
             vstream.get("r_frame_rate")
         )
+    raw_vbr = _parse_finite_float(vstream.get("bit_rate")) if vstream else None
+    if raw_vbr is None:
+        raw_vbr = _parse_finite_float(fmt.get("bit_rate"))
+    video_bitrate_kbps = round(raw_vbr / 1000.0, 1) if raw_vbr and raw_vbr > 0 else None
 
     metadata = {
         "duration": duration,
@@ -483,6 +653,7 @@ def inspect_clip(
         "height": height,
         "fps": fps,
         "video_codec": vstream.get("codec_name") if vstream else None,
+        "video_bitrate_kbps": video_bitrate_kbps,
         "has_audio": astream is not None,
         "audio_codec": astream.get("codec_name") if astream else None,
         "sample_rate": int(astream["sample_rate"])
@@ -500,6 +671,7 @@ def inspect_clip(
 
     black_gaps: list[dict[str, float]] = []
     motion: dict[str, Any] = {}
+    quality: dict[str, float | None] = {"hf_edge_energy": None}
     volume: dict[str, float | None] = {"mean_volume_db": None, "max_volume_db": None}
     loudness: dict[str, float | None] = {
         "integrated_lufs": None,
@@ -508,7 +680,48 @@ def inspect_clip(
         "threshold": None,
     }
 
-    if vstream is not None and duration and duration > 0:
+    if vstream is not None and width and height and duration and duration > 0:
+        max_dim = max(width, height)
+        if max_dim >= 1200 and (width % 4 != 0 or height % 4 != 0):
+            warnings.append(
+                {
+                    "code": "non_standard_dimensions",
+                    "message": (
+                        f"HD/master dimensions {width}x{height} are not divisible by 4 "
+                        "(common upscale rounding artifact such as 1918x1080; triggers pillarbox padding and breaks Hyperion)"
+                    ),
+                    "width": width,
+                    "height": height,
+                }
+            )
+        if video_bitrate_kbps is not None:
+            if max_dim >= 1900 and video_bitrate_kbps < 1800.0:
+                warnings.append(
+                    {
+                        "code": "low_video_bitrate",
+                        "message": (
+                            f"1080p+ video bitrate is low ({video_bitrate_kbps} kbps < 1800 kbps); "
+                            "prefer --bitrate_mode high on native 1080p masters"
+                        ),
+                        "video_bitrate_kbps": video_bitrate_kbps,
+                        "threshold_kbps": 1800.0,
+                    }
+                )
+            elif 640 <= max_dim < 1900 and video_bitrate_kbps < 900.0:
+                warnings.append(
+                    {
+                        "code": "low_video_bitrate",
+                        "message": (
+                            f"video bitrate is low ({video_bitrate_kbps} kbps < 900 kbps); "
+                            "compressed drafts this starved must never be pixel-upscaled"
+                        ),
+                        "video_bitrate_kbps": video_bitrate_kbps,
+                        "threshold_kbps": 900.0,
+                    }
+                )
+
+        quality["hf_edge_energy"] = _measure_hf_edge_energy(ffmpeg, video_path, duration)
+
         black_gaps = _detect_black_gaps(ffmpeg, video_path, black_min)
         for gap in black_gaps:
             errors.append(
@@ -569,6 +782,16 @@ def inspect_clip(
 
         if sheet_path is not None:
             _build_contact_sheet(ffmpeg, video_path, duration, sheet_path)
+        if crops_path is not None:
+            _build_native_crop_strip(
+                ffmpeg,
+                video_path,
+                width,
+                height,
+                duration,
+                crops_path,
+                crop_focus=crop_focus,
+            )
 
     if astream is None:
         if not allow_silent:
@@ -596,7 +819,9 @@ def inspect_clip(
         "command": "clip",
         "path": str(video_path),
         "sheet": str(sheet_path) if sheet_path else None,
+        "crops": str(crops_path) if crops_path else None,
         "metadata": metadata,
+        "quality": quality,
         "black_gaps": black_gaps,
         "motion": motion,
         "volume": volume,
@@ -610,6 +835,8 @@ def inspect_render(
     video_path: Path,
     *,
     sheet_path: Path | None = None,
+    crops_path: Path | None = None,
+    crop_focus: str = "thirds",
     target_lufs: float = -14.0,
     lufs_tolerance: float = 1.0,
     max_true_peak: float = -1.0,
@@ -623,6 +850,8 @@ def inspect_render(
     report = inspect_clip(
         video_path,
         sheet_path=sheet_path,
+        crops_path=crops_path,
+        crop_focus=crop_focus,
         max_still=max_still,
         max_frozen_tail=max_frozen_tail,
         black_min=black_min,
@@ -672,6 +901,186 @@ def inspect_render(
 
     report["ok"] = len(errors) == 0
     return report
+
+
+def inspect_batch(
+    video_paths: list[Path],
+    *,
+    max_hf_ratio: float = 1.5,
+    strict: bool = False,
+) -> dict[str, Any]:
+    """Audit cross-shot consistency (resolution, FPS, bitrate, HF edge energy) across a cut."""
+    if not video_paths:
+        raise ValueError("at least one video path is required")
+    if not math.isfinite(max_hf_ratio) or max_hf_ratio <= 1.0:
+        raise ValueError("--max-hf-ratio must be > 1.0")
+
+    ffmpeg, ffprobe = _ensure_ffmpeg_tools()
+    errors: list[dict[str, Any]] = []
+    warnings: list[dict[str, Any]] = []
+    clips: list[dict[str, Any]] = []
+
+    for vpath in video_paths:
+        if not vpath.is_file():
+            raise FileNotFoundError(f"media file not found: {vpath}")
+        probe = _ffprobe_json(ffprobe, vpath)
+        streams = probe.get("streams") or []
+        fmt = probe.get("format") or {}
+        vstream = next((s for s in streams if s.get("codec_type") == "video"), None)
+        duration = _parse_finite_float(fmt.get("duration"))
+        if duration is None and vstream is not None:
+            duration = _parse_finite_float(vstream.get("duration"))
+        width = int(vstream["width"]) if vstream and vstream.get("width") else None
+        height = int(vstream["height"]) if vstream and vstream.get("height") else None
+        fps = (
+            (_parse_rational(vstream.get("avg_frame_rate")) or _parse_rational(vstream.get("r_frame_rate")))
+            if vstream
+            else None
+        )
+        raw_vbr = _parse_finite_float(vstream.get("bit_rate")) if vstream else None
+        if raw_vbr is None:
+            raw_vbr = _parse_finite_float(fmt.get("bit_rate"))
+        vbr_kbps = round(raw_vbr / 1000.0, 1) if raw_vbr and raw_vbr > 0 else None
+        hf = (
+            _measure_hf_edge_energy(ffmpeg, vpath, duration)
+            if vstream and duration and duration > 0
+            else None
+        )
+        clips.append(
+            {
+                "path": str(vpath),
+                "width": width,
+                "height": height,
+                "fps": fps,
+                "duration": duration,
+                "video_bitrate_kbps": vbr_kbps,
+                "hf_edge_energy": hf,
+            }
+        )
+        if not width or not height:
+            errors.append(
+                {"code": "missing_video_stream", "path": str(vpath), "message": f"{vpath}: missing video stream"}
+            )
+        elif max(width, height) >= 1200 and (width % 4 != 0 or height % 4 != 0):
+            errors.append(
+                {
+                    "code": "non_standard_dimensions",
+                    "path": str(vpath),
+                    "width": width,
+                    "height": height,
+                    "message": (
+                        f"{vpath}: HD dimensions {width}x{height} are not divisible by 4 "
+                        "(upscale rounding artifact such as 1918x1080 or 1278x720)"
+                    ),
+                }
+            )
+        if width and height and max(width, height) >= 1900 and vbr_kbps is not None and vbr_kbps < 1800.0:
+            warnings.append(
+                {
+                    "code": "low_video_bitrate",
+                    "path": str(vpath),
+                    "video_bitrate_kbps": vbr_kbps,
+                    "threshold_kbps": 1800.0,
+                    "message": (
+                        f"{vpath}: 1080p+ video bitrate is low ({vbr_kbps} kbps < 1800 kbps); "
+                        "prefer --bitrate_mode high on native 1080p masters"
+                    ),
+                }
+            )
+
+    # Modal resolution (preferring valid multiple-of-4 dimensions so upscale rounding flags outliers) and FPS
+    dims_list = [(c["width"], c["height"]) for c in clips if c["width"] and c["height"]]
+    valid_dims = [d for d in dims_list if d[0] % 4 == 0 and d[1] % 4 == 0]
+    fps_list = [round(float(c["fps"]), 2) for c in clips if c["fps"] is not None]
+    hf_vals = sorted(float(c["hf_edge_energy"]) for c in clips if c["hf_edge_energy"] is not None)
+    clean_hf_vals = sorted(
+        float(c["hf_edge_energy"])
+        for c in clips
+        if c["hf_edge_energy"] is not None
+        and c["width"]
+        and c["height"]
+        and c["width"] % 4 == 0
+        and c["height"] % 4 == 0
+    )
+
+    dim_pool = valid_dims if valid_dims else dims_list
+    modal_dims = max(set(dim_pool), key=dim_pool.count) if dim_pool else None
+    modal_fps = max(set(fps_list), key=fps_list.count) if fps_list else None
+
+    def _median(vals: list[float]) -> float | None:
+        if not vals:
+            return None
+        mid = len(vals) // 2
+        return vals[mid] if len(vals) % 2 == 1 else round((vals[mid - 1] + vals[mid]) / 2.0, 3)
+
+    median_hf = _median(hf_vals)
+    # Anchor HF sharpness baseline to median of valid mod-4 clips so upscale batches don't skew baseline up
+    # and a single dark/bokeh native shot doesn't false-flag crisp detailed native shots.
+    baseline_hf = _median(clean_hf_vals) if clean_hf_vals else median_hf
+
+    for c in clips:
+        if modal_dims and c["width"] and c["height"] and (c["width"], c["height"]) != modal_dims:
+            entry = {
+                "code": "resolution_mismatch",
+                "path": c["path"],
+                "got": f"{c['width']}x{c['height']}",
+                "expected": f"{modal_dims[0]}x{modal_dims[1]}",
+                "message": (
+                    f"{c['path']}: resolution {c['width']}x{c['height']} differs from "
+                    f"cut baseline {modal_dims[0]}x{modal_dims[1]}"
+                ),
+            }
+            errors.append(entry)
+        if modal_fps is not None and c["fps"] is not None and abs(float(c["fps"]) - modal_fps) > 0.25:
+            entry = {
+                "code": "fps_mismatch",
+                "path": c["path"],
+                "got": c["fps"],
+                "expected": modal_fps,
+                "message": (
+                    f"{c['path']}: native FPS {c['fps']} differs from cut baseline {modal_fps} "
+                    "(risk of pulldown judder)"
+                ),
+            }
+            if strict:
+                errors.append(entry)
+            else:
+                warnings.append(entry)
+        if baseline_hf and baseline_hf > 0 and c["hf_edge_energy"] is not None:
+            ratio = round(float(c["hf_edge_energy"]) / baseline_hf, 2)
+            c["hf_ratio_to_baseline"] = ratio
+            if ratio > max_hf_ratio:
+                warnings.append(
+                    {
+                        "code": "hf_sharpness_outlier",
+                        "path": c["path"],
+                        "hf_edge_energy": c["hf_edge_energy"],
+                        "baseline_hf": round(baseline_hf, 3),
+                        "ratio": ratio,
+                        "max_hf_ratio": max_hf_ratio,
+                        "message": (
+                            f"{c['path']}: hf_edge_energy={c['hf_edge_energy']} is {ratio}x clean median "
+                            f"({round(baseline_hf, 3)}, limit {max_hf_ratio}x) — inspect 1:1 --crops to confirm "
+                            "genuine scene texture vs. upscale halos/oversharpening"
+                        ),
+                    }
+                )
+
+    return {
+        "ok": len(errors) == 0,
+        "command": "batch",
+        "clip_count": len(clips),
+        "baseline": {
+            "resolution": f"{modal_dims[0]}x{modal_dims[1]}" if modal_dims else None,
+            "fps": modal_fps,
+            "median_hf_edge_energy": round(median_hf, 3) if median_hf is not None else None,
+            "clean_median_hf_edge_energy": round(baseline_hf, 3) if baseline_hf is not None else None,
+            "max_hf_ratio": max_hf_ratio,
+        },
+        "clips": clips,
+        "warnings": warnings,
+        "errors": errors,
+    }
 
 
 def inspect_voice(
@@ -1228,14 +1637,31 @@ def _print_human(report: dict[str, Any]) -> None:
             print(f"  [r{tile['row']}_c{tile['col']}] {tile['file']}")
     elif cmd in ("clip", "render"):
         loud = report.get("loudness") or {}
+        qual = report.get("quality") or {}
         print(
             f"[{state}] {cmd}: {report['path']} "
             f"({meta.get('width')}x{meta.get('height')} @{meta.get('fps')}fps, "
             f"dur={meta.get('duration')}s, codec={meta.get('video_codec')}, "
+            f"vbr={meta.get('video_bitrate_kbps')}kbps, hf={qual.get('hf_edge_energy')}, "
             f"audio={meta.get('has_audio')}, lufs={loud.get('integrated_lufs')})"
         )
         if report.get("sheet"):
             print(f"  Contact sheet: {report['sheet']}")
+        if report.get("crops"):
+            print(f"  1:1 crop strip: {report['crops']}")
+    elif cmd == "batch":
+        base = report.get("baseline") or {}
+        print(
+            f"[{state}] batch: {report.get('clip_count')} clips "
+            f"(baseline={base.get('resolution')} @{base.get('fps')}fps, "
+            f"min_hf={base.get('min_hf_edge_energy')}, median_hf={base.get('median_hf_edge_energy')})"
+        )
+        for c in report.get("clips") or []:
+            ratio_s = f" ({c['hf_ratio_to_baseline']}x)" if c.get("hf_ratio_to_baseline") is not None else ""
+            print(
+                f"  - {c['path']}: {c.get('width')}x{c.get('height')} @{c.get('fps')}fps, "
+                f"vbr={c.get('video_bitrate_kbps')}kbps, hf={c.get('hf_edge_energy')}{ratio_s}"
+            )
     else:
         loud = report.get("loudness") or {}
         print(
@@ -1282,28 +1708,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     lb.add_argument("--json", action="store_true", dest="as_json", help="Emit JSON report.")
 
-    # slice
-    sl = sub.add_parser(
-        "slice",
-        help="Slice a 2x2 or 3x3 multi-angle contact sheet into clean standalone PNG tiles.",
-    )
-    sl.add_argument("image", help="Path to grid contact sheet image (e.g. nano_banana_2_shots output).")
-    sl.add_argument("--out-dir", required=True, help="Directory to write individual PNG tiles.")
-    sl.add_argument("--rows", type=int, default=3, help="Grid rows (default: 3).")
-    sl.add_argument("--cols", type=int, default=3, help="Grid columns (default: 3).")
-    sl.add_argument(
-        "--trim",
-        type=int,
-        default=0,
-        help="Optional pixels to trim off each tile edge to strip thin panel divider lines (default: 0).",
-    )
-    sl.add_argument("--prefix", default="tile", help="Filename prefix for tiles (default: tile).")
-    sl.add_argument("--json", action="store_true", dest="as_json", help="Emit JSON report.")
-
     # clip
     cl = sub.add_parser("clip", help="Validate a single generated video clip.")
     cl.add_argument("video", help="Path to video file.")
     cl.add_argument("--sheet", default=None, help="Output path for 3x2 PNG contact sheet.")
+    cl.add_argument(
+        "--crops",
+        default=None,
+        help="Output path for unscaled 1:1 native-pixel 3-frame crop strip (mandatory for R5/upscale QC).",
+    )
+    cl.add_argument(
+        "--crop-focus",
+        choices=("thirds", "center", "left", "right"),
+        default="thirds",
+        help="Horizontal crop framing for --crops (default: thirds = left/center/right sweep).",
+    )
     cl.add_argument(
         "--max-still", type=float, default=3.0, help="Max static frame duration in seconds (default: 3.0)."
     )
@@ -1342,6 +1761,17 @@ def build_parser() -> argparse.ArgumentParser:
     rn = sub.add_parser("render", help="Validate final assembled video render and loudness.")
     rn.add_argument("video", help="Path to assembled master video file.")
     rn.add_argument("--sheet", default=None, help="Output path for 3x2 PNG contact sheet.")
+    rn.add_argument(
+        "--crops",
+        default=None,
+        help="Output path for unscaled 1:1 native-pixel 3-frame crop strip.",
+    )
+    rn.add_argument(
+        "--crop-focus",
+        choices=("thirds", "center", "left", "right"),
+        default="thirds",
+        help="Horizontal crop framing for --crops (default: thirds = left/center/right sweep).",
+    )
     rn.add_argument("--target-lufs", type=float, default=-14.0, help="Target integrated LUFS (default: -14.0).")
     rn.add_argument("--lufs-tolerance", type=float, default=1.0, help="Allowed +/- LUFS tolerance (default: 1.0).")
     rn.add_argument("--max-true-peak", type=float, default=-1.0, help="Strict max true peak dBTP ceiling (default: -1.0).")
@@ -1365,6 +1795,43 @@ def build_parser() -> argparse.ArgumentParser:
     )
     rn.add_argument("--strict", action="store_true", help="Treat still_stretch warnings as errors.")
     rn.add_argument("--json", action="store_true", dest="as_json", help="Emit JSON report.")
+
+    # slice
+    sl = sub.add_parser(
+        "slice",
+        help="Slice a 2x2 or 3x3 multi-angle contact sheet into clean standalone PNG tiles.",
+    )
+    sl.add_argument("image", help="Path to grid contact sheet image (e.g. nano_banana_2_shots output).")
+    sl.add_argument("--out-dir", required=True, help="Directory to write individual PNG tiles.")
+    sl.add_argument("--rows", type=int, default=3, help="Grid rows (default: 3).")
+    sl.add_argument("--cols", type=int, default=3, help="Grid columns (default: 3).")
+    sl.add_argument(
+        "--trim",
+        type=int,
+        default=0,
+        help="Optional pixels to trim off each tile edge to strip thin panel divider lines (default: 0).",
+    )
+    sl.add_argument("--prefix", default="tile", help="Filename prefix for tiles (default: tile).")
+    sl.add_argument("--json", action="store_true", dest="as_json", help="Emit JSON report.")
+
+    # batch
+    bt = sub.add_parser(
+        "batch",
+        help="Audit cross-shot resolution, FPS, bitrate, and HF-sharpness consistency across clips before assembly.",
+    )
+    bt.add_argument("videos", nargs="+", help="Ordered video clip paths in the edit.")
+    bt.add_argument(
+        "--max-hf-ratio",
+        type=float,
+        default=1.5,
+        help="Max allowed hf_edge_energy ratio vs. clean mod-4 median before emitting a warning (default: 1.5).",
+    )
+    bt.add_argument(
+        "--strict",
+        action="store_true",
+        help="Treat fps_mismatch warnings as hard errors (hf_sharpness_outlier stays a visual-inspection warning).",
+    )
+    bt.add_argument("--json", action="store_true", dest="as_json", help="Emit JSON report.")
 
     return parser
 
@@ -1424,6 +1891,26 @@ def main(argv: list[str] | None = None) -> int:
             _print_human(report)
         return 0 if report["ok"] else 1
 
+    if args.command == "batch":
+        try:
+            report = inspect_batch(
+                [Path(p) for p in args.videos],
+                max_hf_ratio=args.max_hf_ratio,
+                strict=args.strict,
+            )
+        except (FileNotFoundError, ValueError, RuntimeError) as exc:
+            if args.as_json:
+                print(json.dumps({"ok": False, "error": str(exc)}, indent=2))
+            else:
+                print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
+
+        if args.as_json:
+            print(json.dumps(report, indent=2, ensure_ascii=False))
+        else:
+            _print_human(report)
+        return 0 if report["ok"] else 1
+
     target_path = Path(args.video if args.command in ("clip", "render") else args.audio)
     if not target_path.is_file():
         msg = f"media file not found: {target_path}"
@@ -1438,6 +1925,8 @@ def main(argv: list[str] | None = None) -> int:
             report = inspect_clip(
                 target_path,
                 sheet_path=Path(args.sheet) if args.sheet else None,
+                crops_path=Path(args.crops) if args.crops else None,
+                crop_focus=args.crop_focus,
                 max_still=args.max_still,
                 max_frozen_tail=args.max_frozen_tail,
                 black_min=args.black_min,
@@ -1462,6 +1951,8 @@ def main(argv: list[str] | None = None) -> int:
             report = inspect_render(
                 target_path,
                 sheet_path=Path(args.sheet) if args.sheet else None,
+                crops_path=Path(args.crops) if args.crops else None,
+                crop_focus=args.crop_focus,
                 target_lufs=args.target_lufs,
                 lufs_tolerance=args.lufs_tolerance,
                 max_true_peak=args.max_true_peak,

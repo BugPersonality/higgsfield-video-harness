@@ -18,7 +18,8 @@ Always try cheaper tiers before spending flagship credits:
 2. **Economy CLI drafts (Priority 2):** When the model has no `Unlimited`
    toggle, the Director wants fast parallel CLI batches, or multi-ref counts
    exceed web convenience, run cheap CLI draft models (`0.12–0.5 cr.` stills;
-   `2.5–5 cr.` `480p` video) via `hf_guard.py run`.
+   `5–8.75 cr.` `720p` video or `15 cr.` `seedance_2_5 --draft true`) via
+   `hf_guard.py run`.
 3. **Flagship CLI finals (Priority 3):** Reserve flagship models and `1080p`
    renders (`35–80 cr.`) strictly for Director-approved `R5` upgrades or
    high-risk multi-reference `R4A` pilots.
@@ -70,27 +71,24 @@ Higgsfield CLI pricing:
 
 ## Video Models — Benchmarks & Case Routing
 
-**Resolution truth (why switching draft model beats `<480p`):**
-`cinematic_studio_video_4_0` only supports `480p / 720p / 1080p` (no `360p`).
-Only `gemini_omni_flash_1_1` and `gemini_omni_flash_1_2` expose `360p`, and
-their `360p` (8s) jobs cost `6–8 cr.`—more expensive than `seedance_2_0_mini`
-at `480p` (`2.5 cr.`). Cut draft burn by **switching draft model**, not chasing
-sub-`480p` resolutions.
+**Resolution & escalation truth (why `720p` drafts or `seedance_2_5 --draft` beat dead-end `480p`):**
+`cinematic_studio_video_4_0` only supports `480p / 720p / 1080p` (no `360p`) and does **not** expose `--draft_job_id` in CLI, while pixel-upscaling `480p` drafts (`< 1 Mbps`) into `1080p` creates halos, muddy faces, and worse economics than native `1080p`. Cut draft burn by choosing cheap `720p` draft engines (`seedance_2_0_mini`, `kling_4_0_flash`, `wan3_0`) or `seedance_2_5 --draft true` (which escalates natively via `--draft_job_id`). Follow [Mastering & Upscaling](mastering-and-upscaling.md) for every `R4 → R5` upgrade decision.
 
 Based on Artificial Analysis Video Arena (I2V/T2V Elo) and live CLI pricing
 (5s clips unless noted):
 
 | Model / Workflow (`job_type`) | CLI Cost (5s) | Refs Supported | Benchmark Strength | Best Use Case |
 | :--- | ---: | :--- | :--- | :--- |
-| `seedance_2_0_mini` (`480p` / `720p`) | **`2.5 cr.`** (`4s` = `2 cr.`) / `5 cr.` | `start_image`, `end_image`, `image_references` | Fast lightweight Seedance motion | **Default `R4` economy draft** (6× cheaper than CS 4.0) to prove rhythm, camera move & edit cut |
-| `wan3_0` (`480p` / `720p`) | **`5.0 cr.`** / `8.75 cr.` | `start_image`, `end_image`, `image_references` | **Top Elo leader (~1175)**: natural fabric/light physics & subject stability | **Best quality/cost `R4` realistic draft** (3× cheaper than CS 4.0) and calm narrative takes |
-| `cinematic_studio_video_v2` (`std`, `sound=off`) | **`5.0 cr.`** (`sound=on` = `7.5 cr.`) | `start_image`, `end_image`, `image_references` | Older Cinema Studio framing | Cheap alternative draft when staying inside Cinema Studio style |
-| `grok_video_v15_lite` (`480p`) | `5.0 cr.` | `start_image` only | Fast basic I2V | Simple single-frame motion tests without multi-ref continuity |
-| `kling_o3_image_reference` (`std`) | `6.25 cr.` | `image_references` | Multi-ref motion & smooth fabric | Reference-driven motion drafts |
+| `seedance_2_0_mini` (`480p` / `720p`) | `2.5 cr.` (`4s` = `2 cr.`) / **`5 cr.`** | `start_image`, `end_image`, `image_references` | Fast lightweight Seedance motion | **Default `R4` economy `720p` draft** (3× cheaper than `480p` CS 4.0) to prove rhythm, camera move & edit cut |
+| `kling_4_0_flash` (`720p`) | **`7.5 cr.`** | Up to 10 images + `video_references` (`video-edit`, `reference-to-video`) | Fast multi-ref Kling 4.0 choreography | **Default `R4` `720p` draft** before native `1080p` `kling4_0` mastering |
+| `wan3_0` (`480p` / `720p` / `1080p`) | `5 cr.` / **`8.75 cr.`** / **`17.5 cr.`** | `start_image`+`end_image` OR `image_references` (mutually exclusive) | **Top Elo leader (~1175)**: natural fabric/light physics & subject stability | **Best value `720p` draft & cheapest native `1080p` master** for calm I2V takes *(verify FPS—may output 30fps)* |
+| `kling4_0` (`720p` / `1080p` / `4k`) | `12.5 cr.` / **`18.75 cr.`** (`video-edit` `22.5 cr.`) / `45 cr.` | Up to 10 images (`start`/`end` + `image_references`) + `video_references` + `--dynamic_range hdr` | Top motion stability, facial consistency, multi-ref control & native stereo | **Default value native `1080p` `R5` master** (4.3× cheaper than CS 4.0 `1080p`) and motion-locked `video-edit` rescue |
+| `veo3_1_lite` / `veo3_1` (`fast high` 4s / `preview`) | `12 cr.` / **`16 cr.`** (4s fast high) / `32 cr.` | `start_image` / T2V | **Benchmark leader for atmospheric light, DOF & cinema audio** | Moody single-subject atmospheric native `1080p` shots without heavy wardrobe ref stacks |
+| `wan3_0_prime` (`720p` / `1080p`) | `15 cr.` / **`30 cr.`** | `start_image`+`end_image` OR `image_references` | Elevated fine skin/fabric micro-detail over `wan3_0` | Premium native `1080p` character portraits and tactile single-subject hero takes |
+| `flux_3_video` (`720p` / `1080p` / `2k` / `4k`) | `30 cr.` / **`40 cr.`** | Up to 10 images OR `video_references` (mutually exclusive) | Editorial FLUX 3 color science and crisp single-frame look | Stylized fashion/editorial hero shots prioritizing color grade over long choreography |
 | `minimax_h3` / `minimax_h3_max` | `10–12.5 cr.` | `start_image` / refs | **Top-5 Elo (~1161)**: strong character likeness retention | Calm portrait/character shots where face stability matters |
-| `veo3_1_lite` / `veo3_1` | `12 cr.` / `32 cr.` | I2V / T2V | **Benchmark leader for atmospheric light, DOF & cinema audio** | Moody single-subject atmospheric shots without heavy wardrobe ref stacks |
-| `cinematic_studio_video_4_0` (`480p` / `720p` / `1080p`) | `15` / `35` / **`80 cr.`** | Up to 30 images / 50 refs (`omni_reference`) | Best multi-reference continuity + native diegetic foley | **Flagship `R5` `1080p` master** & complex multi-ref `R4A` pilots (mirrors, outfit swaps) |
-| `seedance_2_5` (`480p`/`720p` draft → `1080p`) | `15 cr.` → **`80 cr.`** | Up to 30 images (`omni_reference`) + `--draft_job_id` | **Top-5 Elo (~1160)**: multi-shot narrative & VFX coherence | Flagship `R5` when escalating an approved `--draft true` take via `--draft_job_id` |
+| `seedance_2_5` (`--draft true` → `1080p` / `4k`) | `15 cr.` → **`80 cr.`** (`140 cr.` `4k`) | Up to 30 images / 50 refs (`omni_reference`) + `--draft_job_id` + free `--bitrate_mode high` | **Top-5 Elo (~1160)**: multi-shot narrative, exact draft-to-final latent lock & VFX | **Gold standard `R4 → R5` CLI path** when exact acting/timing must transfer 1:1 into native `1080p` (`--bitrate_mode high`) |
+| `cinematic_studio_video_4_0` (`480p` / `720p` / `1080p`) | `15` / `35` / **`80 cr.`** | Up to 30 images / 50 refs (`omni_reference`) + free `--bitrate_mode high` *(no CLI `--draft_job_id`)* | Best multi-reference continuity + native diegetic foley + Web Cinema Studio presets | Direct native `1080p` (`--bitrate_mode high`) hero shots or Web Cinema Studio upgrades—avoid `480p` CLI drafts if you need 1:1 `R5` escalation |
 
 ## Quick Round-by-Round Defaults
 
@@ -100,10 +98,19 @@ Based on Artificial Analysis Video Arena (I2V/T2V Elo) and live CLI pricing
 - **`R3` Locked Hero Stills:** Web `Unlimited` (`0 cr.`) if eligible → else
   `nano_banana_2_1` (`1.5 cr.`), `flux_3_image` (`2 cr.`), or `seedream_5_5`
   (`3.5 cr.`) only on approved compositions.
-- **`R4A` / `R4B` Motion Drafts:** Web `Unlimited` (`0 cr.`) if eligible →
-  else CLI `seedance_2_0_mini` (`480p`, `2.5 cr.`) for rhythm/cut proof or
-  `wan3_0` (`480p`, `5 cr.`) for photorealistic draft takes; reserve
-  `cinematic_studio_video_4_0` (`480p`, `15 cr.`) for complex multi-ref pilots.
-- **`R5` Final Master (`1080p`):** Upgrade only Director-approved unlocked
-  shots using `cinematic_studio_video_4_0` / `seedance_2_5` (multi-ref hero
-  shots) or `wan3_0_prime` / `veo3_1` (atmospheric single-subject shots).
+- **`R4A` / `R4B` Motion Drafts:** Web `Unlimited` (`0 cr.`) first → else CLI
+  `seedance_2_0_mini` (`720p`, `5 cr.`) / `kling_4_0_flash` (`720p`, `7.5 cr.`) /
+  `wan3_0` (`720p`, `8.75 cr.`) for clean legible drafts; use **`seedance_2_5`
+  `--draft true` (`15 cr.`)** whenever an `R4A`/`R4B` take needs guaranteed 1:1
+  latent escalation to native `1080p` via `--draft_job_id`.
+- **`R5` Final Master (`1080p`):** Follow [Mastering & Upscaling](mastering-and-upscaling.md).
+  Upgrade unlocked winners **natively at `1080p`**: Web `Unlimited` (`0 cr.`) if
+  eligible → `seedance_2_5 --draft_job_id <id> --resolution 1080p --bitrate_mode high`
+  (`80 cr.`) for locked draft takes → `kling4_0` (`18.75 cr.`, or `video-edit`
+  `22.5 cr.`) / `wan3_0` (`17.5 cr.`) / `veo3_1` (`16 cr.`) / `wan3_0_prime`
+  (`30 cr.`) for high-value native `1080p` → `cinematic_studio_video_4_0`
+  (`1080p`, `--bitrate_mode high`, `80 cr.`) for direct multi-ref hero shots.
+  Never pixel-upscale `480p` drafts; reserve pixel upscaling (`topaz_video`
+  Starlight / SeedVR2 / `bytedance_video_upscale`) strictly for clean `>= 720p`
+  sources (`<= 2×`) after passing the 6-rule Upscale Gate and a 1-shot `1:1`
+  crop pilot.

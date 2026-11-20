@@ -11,11 +11,14 @@ its disjoint writable paths. Pass approved `--round`, cumulative `--round-cap`,
 `--version`, and (for lookbook only) `--variant` to `hf_guard.py preflight` /
 `run`, and `--round` to `hf_guard.py upload`. Respect live CEL reference rules
 (`wan3_0` forbids `start_image`+`image_references`; `flux_3_video` forbids
-mixing images with `video_references`), and slice `2x2`/`3x3` angle sheets via
-`scripts/qa_media.py slice` before uploading standalone tiles. Probe produced
-media with
-`scripts/qa_media.py ... --json` and return exact paths, receipts, and contact
-sheets.
+mixing images with `video_references`; `seedance_2_5 --mode omni_reference
+--draft_job_id` still requires `--start_image` or image refs), and slice
+`2x2`/`3x3` angle sheets via `scripts/qa_media.py slice` before uploading
+standalone tiles. Probe produced media with `scripts/qa_media.py ... --json`
+(always passing `--sheet <png>`, plus `--crops <png>` for every `R5` master or
+upscaled clip), run `scripts/qa_media.py batch <clips...> --strict --json`
+before `R5` assembly, and return exact paths, receipts, contact sheets, `1:1`
+crop strips, and batch reports.
 
 Return `NEEDS_PARENT` immediately on any `hf_guard.py` refusal (budget, retry,
 variant limit, `asset_locked`, `reservation_in_flight`).
