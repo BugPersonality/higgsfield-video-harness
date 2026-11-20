@@ -23,11 +23,34 @@ Vary genuinely orthogonal visual axes while holding product geometry and brand i
 
 ## `R3` Multi-Ref Still Assembly Pattern (Location + Cast + Prop)
 
-Lock spatial geography, contact shadows, prop scale, and color isolation in `2k`/`4k` `R3` stills before animating (see [Locations, Buildings & Props](../../video-consistency/references/locations-and-props.md)):
+Lock spatial geography, contact shadows, prop scale, color proportions, and room-light integration in `2k`/`4k` `R3` stills before animating (see [Locations, Buildings & Props](../../video-consistency/references/locations-and-props.md)):
 
 ```text
-35mm medium-wide frame inside the empty limestone workshop from Image 1 (camera near South doorway facing North-West window). The traveler from Image 2 stands beside the oak workbench facing screen-left, right hand resting naturally near the matte brushed-brass kettle from Image 3. Place the kettle squarely on the oak counter with a soft grounded contact shadow matching the cool 5200K daylight from the North window; keep kettle height roughly 1.3x the stoneware mug beside it. Strictly preserve the kettle's cool satin-brass pigment without warm wood bounce bleed. Unretouched 35mm film grain, natural depth of field.
+35mm medium-wide frame inside the empty limestone workshop from Image 1 (camera near South doorway facing North-West window). The traveler from Image 2 stands beside the oak workbench facing screen-left, right hand resting naturally near the matte brushed-brass kettle from Image 3. Place the kettle squarely on the oak counter with a soft grounded contact shadow matching the cool 5200K daylight from the North window; keep kettle height roughly 1.3x the stoneware mug beside it. Strictly preserve the kettle's cool satin-brass pigment without warm wood bounce bleed.
+PALETTE, stated first: 50% pale warm limestone & matte plaster, 30% aged oak & charcoal wool, 20% muted satin brass & stoneware cream.
+Shot on 35mm daylight-balanced 250-speed negative film, fine grain, natural depth of field; tech tail palette: pale limestone 50%, oak & charcoal 30%, satin brass & cream 20%.
 ```
+
+### Percentage Palette Lock & Anti-Cutout Room-Light Integration
+
+- **Percentage Palette Lock (`R2`/`R3` stills):** Declare exact 3-band color proportions early (`PALETTE, stated first: 45% <dominant>, 35% <secondary>, 20% <accent>`) and mirror the same ratio in the closing technical tail (`tech tail palette: ...`) so multi-scene stills stay grade-locked before post color.
+- **Anti-Cutout Room-Light Integration (`R3` stills & `omni_reference` video):** Whenever compositing a `@character` plate into a `@location`, bind the subject physically into the room instead of letting the model add flattering studio light:
+  1. **Surface bounce:** name upward bounce off the floor/table opening chin, jaw, or brim shadows.
+  2. **Shared lens-to-subject haze:** place the room's air/haze *between the lens and the actor* with slightly lifted blacks so the subject is never crisper than the background.
+  3. **Ambient room tint:** state that skin and wardrobe absorb the room's cool/warm cast rather than glowing golden against a cool set.
+  4. **Natural wrap (documentary/grounded cinema):** omit artificial key, rim, edge light, god rays, and specular flashes when diffuse ambient light owns the scene.
+- **`R3` Cinema Spec Still Skeleton (`Seedream 5.0 Pro`, `2k`, high-continuity narrative):**
+  ```text
+  Cinematic film still. <1-sentence scene summary>. Location @Image1.
+  COMPOSITION: <focal length>, camera height/position, subject crop & foreground/background layers.
+  @Image2 — <subject placement, posture, material wear, exact hand contact>.
+  @Image3 — CRITICAL CORRECTION (on v2+ retries only): <exact placement/action>, NOT <the v1 failure mode>.
+  THE LIGHT & GRADE: <4-part diffuse/motivated lighting>; <lifted blacks / contrast / saturation rules>.
+  PALETTE, stated first: 50% <dominant>, 30% <secondary>, 20% <accent>.
+  LIGHTING, palette restated: <single/motivated light source + brightest/darkest zones>.
+  FOCUS: locked on <exact sharp plane>, aperture wide open; <foreground/background falloff>.
+  Shot on 35mm daylight-balanced 250-speed negative film, fine grain; tech tail palette: <same 50%/30%/20% split>. No text, no watermark.
+  ```
 
 ## Video Prompt Blueprints
 
@@ -92,6 +115,46 @@ Action & Dialogue: Character B lifts her eyes to Character A, exhales softly, an
 [SHOT 3] (8-10s)
 Framing & Camera: Tight close-up on Character A, locked-off static tripod shot.
 Action: Character A gives one slow measured nod as distant car headlights sweep faintly across the wet glass behind him.
+```
+
+### F. `Seedance 2.5` 2-Shot Hard-Cut Paired Block (`6s = 3s + HARD CUT + 3s`, `omni_reference`)
+
+Pair two adjacent same-set cuts into one `6s` `seedance_2_5` clip (`18 cr.` draft → `96 cr.` `1080p --bitrate_mode high` = `48 cr./cut`) to lock identical grain, exposure, room haze, and prop state across the hard cut:
+
+```text
+OUTPUT SETTINGS
+TWO SHOTS, 6 SECONDS TOTAL. SHOT A is 3 seconds. SHOT B is 3 seconds. HARD CUT BETWEEN THEM — zero dissolve, fade, or wipe. 24fps, photoreal live action, interior daylight, no dialogue.
+
+REFERENCE ROLES
+@Image1 governs the protagonist; @Image2 governs the hero prop; @Image3 governs the room. Preserve 100% of each reference's identity and material finish.
+
+LIGHT INTEGRATION
+Broad diffuse room daylight only; upward soft bounce off the pale floor opens chin and brim shadows; room haze sits between lens and actor so blacks stay slightly lifted and skin absorbs the room's cool tint. No key light, rim light, god rays, or specular flash. Identical grade across both shots.
+
+SHOT A (3s) — TACTILE DETAIL
+85mm wide open, tight low shot on the prop resting on the floor; only hand and forearm enter frame. Handheld follows the hand rising slightly late behind the lift (unhurried, weighted grip, no gimbal polish).
+0:00-0:08 — Prop still on surface.
+0:08-1:16 — Hand closes cleanly on prop in one unhurried move, fingers leaving faint clean tracks in surface dust.
+1:16-3:00 — Hand lifts prop up out of top frame as handheld camera rises slightly late.
+
+HARD CUT.
+
+SHOT B (3s) — TWO-PLANE REACTION (RESTRAINT)
+85mm wide open, near-still handheld. Large completely out-of-focus prop in foreground to one side; protagonist's eyes razor-sharp behind it. Focus stays locked on eyes for the entire shot (no rack focus).
+0:00-1:08 — Hand slowly rotates the prop in foreground; eyes track the turn without moving head.
+1:08-2:12 — Holds gaze on prop noticeably longer than reading time (engaged gaze, one slow natural blink; never glassy or looking at lens).
+2:12-3:00 — One audible exhale through the nose and slight jaw unclench; restrained stillness, zero smile or camera-played emotion.
+
+AUDIO — ONLY THESE SOUNDS EXIST
+1. Wide quiet room tone. 2. Soft skin-on-dust friction and fabric creak (Shot A). 3. Quiet breathing and one soft nasal exhale (Shot B).
+NO MUSIC. NO BACKGROUND SCORE. Native diegetic sound only. No subtitles, no captions, no on-screen text.
+
+POSITIVE CONSTRAINTS (closing lock — repeat only the 5-8 hardest invariants)
+- @Image1, @Image2, @Image3 100% match their references; TWO SHOTS (3s + 3s) with ONE HARD CUT.
+- Broad diffuse room light + upward floor bounce + lens-to-subject haze; cool room tint in skin; zero rim/key/god-rays.
+- Shot A: hand & forearm only, handheld rising slightly late behind the lift, weighted grip with no rattle.
+- Shot B: foreground prop completely out of focus, eyes razor-sharp for full shot (no rack focus), held gaze + one nasal exhale, never looking into lens.
+- Identical 35mm 250-speed film grain and grade across both shots; no slow motion, speed ramps, or freeze frame.
 ```
 
 ## Camera Grammar and Geometric Pairs

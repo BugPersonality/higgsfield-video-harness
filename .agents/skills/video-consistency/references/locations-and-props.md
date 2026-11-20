@@ -28,7 +28,7 @@ Execute in strict round order. Never invent new walls, scales, or props inside `
 - *Done when:* `make campaign-check` passes with zero errors, every multi-angle/reverse/mirror set has a planned Reverse Wall, and every shot declares only visible refs.
 
 ### Step B — `R2A` Master Taste Lock (Unlimited-First)
-1. Follow [Model Selection](../../higgsfield-cli/references/model-selection.md): check **`higgsfield.ai` Web `Unlimited` (`0 cr.`)** first for multi-plate Asset Bibles; fall back to `soul_location` (`0.12 cr.`) / economy CLI drafts → hero `2k`/`4k` lock (`seedream_5_5`, `nano_banana_2_1`, `flux_3_image`).
+1. Follow [Model Selection](../../higgsfield-cli/references/model-selection.md): check **`higgsfield.ai` Web `Unlimited` (`0 cr.`)** first for multi-plate Asset Bibles; fall back to `soul_location` (`0.12 cr.`) / economy CLI drafts → hero `2k`/`4k` lock (`seedream_v5_pro` `2.5 cr.` workhorse, `seedream_5_5` `3.5 cr.`, `nano_banana_2_1`, `flux_3_image`).
 2. Generate `A / B / C` variants of **Empty Masters** (zero people, zero stray clutter) and **`#808080` matte mid-gray Props** (`5000–5600K` soft diffused light, soft contact shadow). Keep invented characters isolated *without* hero props in `R2A`.
 3. Filter via fresh `reviewer-agent`, ship `Dailies 2`, upload approved winners via `hf_guard.py upload --round R2`, and set `status: "LOCKED"` + `approved_upload_id` in `shotlist.json`.
 - *Done when:* every primary location, building, prop, and cast Master is `LOCKED` with an `approved_upload_id`.
@@ -45,7 +45,7 @@ Execute in strict round order. Never invent new walls, scales, or props inside `
 ### Step D — `R3` Keyframe Assembly (`2k`/`4k` Stills)
 1. For each shot, bind **3–5 visible-only refs** (`1–2` matching location/wall plates + `1` cast + `1–2` visible props). Omit off-screen props and unused walls (**Visibility Pruning**).
 2. Write the still prompt using the **4-part `R3` template** in Section 3 (`[Camera + Facing Wall] + [Placement & Contact Shadow] + [Scale Ratio] + [Pigment Isolation]`).
-3. Render at **`2k` or `4k`** (`nano_banana_2_1`, `seedream_5_5`, `kling_image_4_0`), audit via `reviewer-agent` (check 4-wall geography, reflections, doorway thresholds, prop scale, and state), ship `Dailies 3` + `animatic.mp4`, lock approved stills, and upload via `hf_guard.py upload --round R3`.
+3. Render at **`2k` or `4k`** (`seedream_v5_pro`, `nano_banana_2_1`, `seedream_5_5`, `kling_image_4_0`), audit via `reviewer-agent` (check 4-wall geography, reflections, doorway thresholds, prop scale, and state), ship `Dailies 3` + `animatic.mp4`, lock approved stills, and upload via `hf_guard.py upload --round R3`.
 - *Done when:* every shot's spatial geometry, scale, reflection, and lighting continuity is visibly proven in `LOCKED` `R3` stills before spending a single video credit.
 
 ### Step E — `R4 / R5` Delta Motion & Surgical Prop Rescue
@@ -93,16 +93,16 @@ CAM: near South door facing North-West (35mm) | EYELINE: screen-left toward West
 ```
 
 ### C. Fill-in-the-Blank Prompt Skeletons
-- **`R2A` Empty Location Master:** `Empty architectural film still, 24mm lens, locked-off eye-level wide shot of <room/exterior>, completely uninhabited with zero people and zero loose tabletop clutter. <North/East/South/West key fixtures>. <4-part motivated lighting>. Unretouched 35mm cinema still, <aspect_ratio>.`
-- **`R2A` Neutral Prop Plate:** `Studio product reference plate of <exact prop form & materials>, 3/4 hero angle centered on a clean 50% neutral matte mid-gray (#808080) seamless backdrop with a soft grounded contact shadow underneath. Soft diffused color-neutral 5400K studio lighting, zero harsh black shadows, zero colored reflections, zero background clutter.`
+- **`R2A` Empty Location Master:** `Empty architectural film still, 24mm lens, locked-off eye-level wide shot of <room/exterior>, completely uninhabited with zero people and zero loose tabletop clutter. <North/East/South/West key fixtures>. <4-part motivated lighting>. PALETTE, stated first: <45% dominant>, <35% secondary>, <20% accent>. Unretouched 35mm cinema still; tech tail palette: <same 45%/35%/20% split>, <aspect_ratio>.`
+- **`R2A` Neutral Orthographic Prop Plate:** `Prop reference plate. Isolated object study of <exact prop form, materials & critical hardware invariants—explicitly naming absent/matte parts>, centered in pure orthographic side profile (or 3/4 hero angle + matching reverse view) square to the lens with zero perspective skew on a flat seamless neutral mid-gray (#808080 / #8E8A84) backdrop with soft grounded contact shadow. Broad soft color-neutral 5400K studio light, deep edge-to-edge focus, zero harsh shadows, zero color grade—a reference plate built to be read and reused, not a cinematic hero shot.`
 - **`R3` Multi-Ref Scene Assembly (`2k`/`4k`):** `<focal length> <shot scale> inside the <location> from Image 1 (camera near <wall> facing <wall>). The <character> from Image 2 <pose & eyeline> beside the <prop> from Image 3. Place the <prop> squarely on <surface> with a soft grounded contact shadow matching the <key light direction>; keep <prop height/size> roughly <scale ratio> beside <benchmark>. Strictly preserve the <prop>'s original <color/finish> without wall color bleed.`
 - **`R4/R5` Delta-Only Motion (`omni_reference`):** `Starting from the opening frame, preserve the exact <prop> geometry from @Image2 and the <wall/fixture> from @Image3. <One dominant camera move>. 0-2s: <counted physical beat 1 + gaze anchor>. 2-5s: <counted physical beat 2 + secondary physics>. Audio: <concrete diegetic foley + room tone>. NO MUSIC. NO BACKGROUND SCORE. Native diegetic sound only.`
 
 ## 4. Canonical Input Standards & High-Risk Edge Cases
 
-- **Interiors (3–4 plates):** Empty Master Wide (`24–28mm`) + Reverse Wall (`~120–180°`) + Corner (`45–90°`) or Isometric Floor Plan + optional Hero Detail Zone. Match `aspect_ratio` and base light across plates.
+- **Interiors (3–4 plates):** Empty Master Wide (`24–28mm`) + Reverse Wall (`~120–180°`) + Corner (`45–90°`) or Isometric Floor Plan + optional Hero Detail Zone. Match `aspect_ratio`, base light, and **Percentage Palette** (`45% / 35% / 20%`) across plates.
 - **Buildings (3–4 plates):** 3/4 Hero Facade + Street-Level Approach + Reverse Exit View + optional Aerial/Isometric Massing. Include real-world scale anchors (~2.1m door, steps, lamppost, parked car); leave tiny building signage out and composite legible signs in post.
-- **Props (2–4 plates):** `#808080` matte mid-gray background with soft contact shadow (pure white only for dark matte objects *with* contact shadow), diffused color-neutral `5000–5600K` light (prevents *Lighting Bake-In*), zero clutter: Hero 3/4 + Front/Side/Back (if rotated) + Scale Reference (in hand/beside benchmark) + Macro Detail (`CU`/`ECU` only).
+- **Props (2–4 plates):** Flat `#808080` / `#8E8A84` matte mid-gray background (pure white only for dark matte objects *with* contact shadow), broad color-neutral `5000–5600K` light (prevents *Lighting Bake-In*), deep edge-to-edge focus, zero clutter: **Orthographic Side Profile** (zero perspective skew, explicit hardware invariants, *"built to be read and reused, not a hero shot"*) + Hero 3/4 / Reverse pair + Scale Reference (in hand/beside benchmark) + Macro Detail (`CU`/`ECU` only).
 - **Vehicles & large machinery:** Exterior 3/4 + Side/Rear + separate Interior Cabin/Dashboard plate; keep plates/screens angled away or blank for post compositing.
 - **Mirrors, glass & reflections:** Reflections show the **opposite wall** and **rear** of the subject/prop—bind the Reverse Wall plate in `R3` and name the reflected wall/back explicitly so models never clone the front pose or invent a foreign room.
 - **Exterior ↔ Interior thresholds:** Lock a **Threshold Anchor** matching door color, handle, swing direction on both sides, and matching exterior sky/weather/street through windows.
@@ -119,7 +119,7 @@ Exceeding optimal counts triggers **attention dilution**, **attribute bleed**, a
 | :--- | :--- | :--- | :--- |
 | **Image (`R3`)** | | | |
 | `nano_banana_pro` / `nano_banana_2_1` | `<= 14` (`<= 13` + mask) | **3–5** (max 6) | Top spatial reasoning & multi-ref blending; render at **`2k`/`4k`** |
-| `seedream_5_5` | `<= 10` | **3–5** | Top photoreal architecture, skin & fabric at `2k` |
+| `seedream_v5_pro` / `seedream_5_5` | `<= 10` | **3–5** | `v5_pro` (`2.5 cr.`) workhorse orthographic bibles & `2k` keyframes; `5_5` (`3.5 cr.`) flagship fabric/macro close-ups |
 | `kling_image_4_0` / `kling_omni_image` | `<= 10` (incl. `kling_element_ids`) | **3–5** | Strong storyboard staging (`2k`–`4k`) |
 | `gpt_image_2_6` | `image_references[]` | **2–4** | Strong mirror/spatial logic (check photoreal taste) |
 | `flux_kontext` | `<= 4` | **1–2** | Single-step edits, reverse walls & state shifts (`1.5 cr.`) |

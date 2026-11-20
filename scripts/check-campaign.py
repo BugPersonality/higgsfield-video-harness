@@ -50,6 +50,7 @@ STILL_HARD_REF_CAPS = {
     "soul_cinematic": 1,
     "cinematic_studio_image": 4,
     "flux_kontext": 4,
+    "seedream_v5_pro": 10,
     "seedream_5_5": 10,
     "kling_image_4_0": 10,
     "kling_omni_image": 10,

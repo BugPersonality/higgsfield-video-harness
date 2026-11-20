@@ -71,14 +71,16 @@ qa-render: ## Validate final assembled render loudness, black/frozen frames, she
 	@test -n "$(FILE)" || { echo "qa-render requires FILE=<path.mp4>" >&2; exit 2; }
 	$(PYTHON) scripts/qa_media.py render "$(FILE)" $(if $(SHEET),--sheet "$(SHEET)") $(if $(CROPS),--crops "$(CROPS)") $(if $(CROP_FOCUS),--crop-focus "$(CROP_FOCUS)")
 
-assemble: ## Assemble selected takes from CAMPAIGN=<slug|path> into master.mp4 + stems/
+assemble: ## Assemble selected takes from CAMPAIGN=<slug|path> into master.mp4 + stems/ (optional LUT=<.cube> GRAIN=<1..20>)
 	@test -n "$(CAMPAIGN)" || { echo "assemble requires CAMPAIGN=<slug|path>" >&2; exit 2; }
 	@cdir="$(if $(wildcard $(CAMPAIGN)/shotlist.json),$(CAMPAIGN),$(if $(wildcard campaigns/$(CAMPAIGN)/shotlist.json),campaigns/$(CAMPAIGN),$(CAMPAIGN)))"; \
 	bash scripts/assemble.sh --campaign "$$cdir" --manifest "$$cdir/shotlist.json" \
 		--out "$(or $(OUT),$$cdir/media/exports/master.mp4)" \
 		--stems-dir "$(or $(STEMS),$$cdir/media/exports/stems)" \
 		$(if $(MUSIC),--music "$(MUSIC)") \
-		$(if $(VO),--vo "$(VO)")
+		$(if $(VO),--vo "$(VO)") \
+		$(if $(LUT),--lut "$(LUT)") \
+		$(if $(GRAIN),--grain "$(GRAIN)")
 
 animatic: ## Build a zero-video-credit still animatic from approved stills in CAMPAIGN=<slug|path>
 	@test -n "$(CAMPAIGN)" || { echo "animatic requires CAMPAIGN=<slug|path>" >&2; exit 2; }

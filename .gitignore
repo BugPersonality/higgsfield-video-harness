@@ -19,10 +19,15 @@ credentials.json
 
 # Heavy binary campaign media (text specs, prompts, shotlist, ledger, and JSON QC stay in Git)
 campaigns/*/media/
+campaigns/*/.receipts.lock
 campaigns/*/qc/*.png
 campaigns/*/qc/*.jpg
 campaigns/*/qc/*.mp4
 campaigns/*/qc/*.wav
+campaigns/*/qc/**/*.png
+campaigns/*/qc/**/*.jpg
+campaigns/*/qc/**/*.mp4
+campaigns/*/qc/**/*.wav
 *.mp4
 *.mov
 *.webm

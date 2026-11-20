@@ -928,6 +928,116 @@ class TestQaAndAssemble(unittest.TestCase):
             self.assertIn("fps_mismatch", err_codes, msg=data_bad)
             self.assertIn("hf_sharpness_outlier", warn_codes, msg=data_bad)
 
+    def test_assemble_finishing_lut_and_grain_flags(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            clip1 = tmp / "shot1.mp4"
+            clip2 = tmp / "shot2.mp4"
+            out_plain = tmp / "plain.mp4"
+            out_graded = tmp / "graded.mp4"
+            stems_dir = tmp / "stems"
+            lut_file = tmp / "warm shift.cube"
+
+            # Valid 2x2x2 3D LUT that shifts colors noticeably toward warm tint
+            lut_file.write_text(
+                "\n".join(
+                    [
+                        "TITLE \"WarmTest\"",
+                        "LUT_3D_SIZE 2",
+                        "0.15 0.05 0.00",
+                        "1.00 0.15 0.00",
+                        "0.15 0.90 0.00",
+                        "1.00 0.95 0.05",
+                        "0.10 0.05 0.70",
+                        "0.95 0.15 0.75",
+                        "0.15 0.85 0.70",
+                        "1.00 0.95 0.80",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            for clip, freq in ((clip1, 440), (clip2, 520)):
+                _ffmpeg(
+                    "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=24:duration=2",
+                    "-f", "lavfi", "-i", f"sine=frequency={freq}:sample_rate=48000:duration=2",
+                    "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                    "-c:a", "aac", "-b:a", "128k",
+                    "-shortest",
+                    str(clip),
+                )
+
+            proc_plain = subprocess.run(
+                [
+                    "bash", str(ASSEMBLE_SCRIPT),
+                    "--clips", f"{clip1},{clip2}",
+                    "--out", str(out_plain),
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(
+                proc_plain.returncode, 0,
+                msg=f"plain assemble failed:\nstdout={proc_plain.stdout}\nstderr={proc_plain.stderr}",
+            )
+
+            proc_graded = subprocess.run(
+                [
+                    "bash", str(ASSEMBLE_SCRIPT),
+                    "--clips", f"{clip1},{clip2}",
+                    "--lut", str(lut_file),
+                    "--grain", "4",
+                    "--stems-dir", str(stems_dir),
+                    "--out", str(out_graded),
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(
+                proc_graded.returncode, 0,
+                msg=f"graded assemble failed:\nstdout={proc_graded.stdout}\nstderr={proc_graded.stderr}",
+            )
+            self.assertTrue(out_graded.is_file())
+            self.assertTrue((stems_dir / "video_only.mp4").is_file())
+
+            def _mid_frame_rgb(mp4: Path) -> bytes:
+                p = subprocess.run(
+                    [
+                        "ffmpeg", "-v", "error", "-ss", "1.0", "-i", str(mp4),
+                        "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-",
+                    ],
+                    capture_output=True, check=True,
+                )
+                return p.stdout
+
+            self.assertNotEqual(
+                _mid_frame_rgb(out_plain),
+                _mid_frame_rgb(out_graded),
+                "Finishing --lut + --grain must visibly modify rendered frames",
+            )
+
+            # Invalid --lut path and out-of-range --grain must fail with exit code 2
+            proc_bad_lut = subprocess.run(
+                [
+                    "bash", str(ASSEMBLE_SCRIPT),
+                    "--clips", str(clip1),
+                    "--lut", str(tmp / "missing.cube"),
+                    "--out", str(tmp / "bad1.mp4"),
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(proc_bad_lut.returncode, 2)
+
+            proc_bad_grain = subprocess.run(
+                [
+                    "bash", str(ASSEMBLE_SCRIPT),
+                    "--clips", str(clip1),
+                    "--grain", "99",
+                    "--out", str(tmp / "bad2.mp4"),
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(proc_bad_grain.returncode, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

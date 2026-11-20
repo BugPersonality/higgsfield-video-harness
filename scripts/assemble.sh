@@ -16,6 +16,8 @@ MUSIC=""
 MUSIC_VOL="0.14"
 SFX_VOL="0.18"
 VO=""
+LUT=""
+GRAIN=""
 NO_LOUDNORM=0
 ALLOW_SILENT=0
 
@@ -36,6 +38,8 @@ Options:
   --music-vol <float>       Music linear gain <= 0.35 (clamped <= 0.16 with --vo; default: 0.14)
   --sfx-vol <float>         Clip diegetic audio linear gain <= 0.20 (default: 0.18)
   --vo <file>               Optional voiceover track (always mixed at 1.0 per Level Law)
+  --lut <file.cube>         Optional 3D LUT file (.cube/.3dl) applied across concatenated video for unified grade
+  --grain <float>           Optional subtle shared temporal 35mm grain strength (1..20, e.g. 3-5)
   --no-loudnorm             Skip -14 LUFS / -1.5 dBTP loudness normalization pass
   --allow-silent            Explicitly allow a silent master in final qa_media.py render check
   -h, --help                Show this help message
@@ -103,6 +107,16 @@ while [[ $# -gt 0 ]]; do
       VO="$2"
       shift 2
       ;;
+    --lut)
+      [[ $# -ge 2 ]] || die "--lut requires a value"
+      LUT="$2"
+      shift 2
+      ;;
+    --grain)
+      [[ $# -ge 2 ]] || die "--grain requires a value"
+      GRAIN="$2"
+      shift 2
+      ;;
     --no-loudnorm)
       NO_LOUDNORM=1
       shift
@@ -135,6 +149,23 @@ fi
 command -v ffmpeg >/dev/null 2>&1 || die "ffmpeg is required in PATH"
 command -v ffprobe >/dev/null 2>&1 || die "ffprobe is required in PATH"
 command -v "$PYTHON_BIN" >/dev/null 2>&1 || die "${PYTHON_BIN} is required in PATH"
+
+if [[ -n "$LUT" ]]; then
+  [[ -f "$LUT" ]] || die "--lut file not found: $LUT"
+fi
+if [[ -n "$GRAIN" ]]; then
+  GRAIN="$("$PYTHON_BIN" - "$GRAIN" <<'PY'
+import math, sys
+try:
+    val = float(sys.argv[1])
+except ValueError:
+    sys.exit(2)
+if not math.isfinite(val) or val <= 0.0 or val > 20.0:
+    sys.exit(2)
+print(f"{val:g}")
+PY
+  )" || die "--grain must be a number in (0, 20], got: $GRAIN"
+fi
 
 WORKDIR=""
 cleanup() {
@@ -669,13 +700,40 @@ for ((i = 0; i < CLIP_COUNT; i++)); do
 done
 CONCAT_FILTER="${CONCAT_FILTER}concat=n=${CLIP_COUNT}:v=1:a=1[vcat][acat]"
 
+FINISH_CHAIN=""
+if [[ -n "$LUT" ]]; then
+  LUT_BASE="$(basename "$LUT")"
+  if [[ "$LUT_BASE" == *.* ]]; then
+    LUT_EXT="${LUT_BASE##*.}"
+  else
+    LUT_EXT="cube"
+  fi
+  LUT_SAFE="${WORKDIR}/grade.${LUT_EXT}"
+  cp "$LUT" "$LUT_SAFE"
+  FINISH_CHAIN="lut3d=file='${LUT_SAFE}'"
+fi
+if [[ -n "$GRAIN" ]]; then
+  GRAIN_FILTER="noise=c0s=${GRAIN}:c0f=t+u"
+  if [[ -n "$FINISH_CHAIN" ]]; then
+    FINISH_CHAIN="${FINISH_CHAIN},${GRAIN_FILTER}"
+  else
+    FINISH_CHAIN="${GRAIN_FILTER}"
+  fi
+fi
+
+VIDEO_MAP="[vcat]"
+if [[ -n "$FINISH_CHAIN" ]]; then
+  CONCAT_FILTER="${CONCAT_FILTER};[vcat]${FINISH_CHAIN}[vfin]"
+  VIDEO_MAP="[vfin]"
+fi
+
 VIDEO_ONLY="${WORKDIR}/video_only.mp4"
 DIEGETIC_WAV="${WORKDIR}/diegetic.wav"
 
 ffmpeg -v error -y \
   "${CONCAT_INPUTS[@]}" \
   -filter_complex "$CONCAT_FILTER" \
-  -map "[vcat]" -an -r "$TARGET_FPS" -c:v libx264 -crf 18 -pix_fmt yuv420p -g 30 "$VIDEO_ONLY" \
+  -map "$VIDEO_MAP" -an -r "$TARGET_FPS" -c:v libx264 -crf 18 -pix_fmt yuv420p -g 30 "$VIDEO_ONLY" \
   -map "[acat]" -vn -c:a pcm_s16le -ar 48000 -ac 2 "$DIEGETIC_WAV"
 
 VIDEO_DURATION="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$VIDEO_ONLY")"

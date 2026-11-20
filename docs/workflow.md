@@ -36,8 +36,15 @@ For JSON shapes and CLI flags, inspect the living fixtures and tools directly:
   Stop with **Dailies 1A** so the Director picks or blends a direction.
 - **R1B (Blueprint & Quote):** Run `ad-script` (`Time | Video | Audio`,
   read-aloud budget, mute test) → `ad-storyboard` (`Continuity Lock`,
-  `test_take_check`) → `style-bible.md`. Dispatch `evidence-agent` to inspect
-  live schemas (`model get` / `workflow get` / `voices list`) and run live
+  `test_take_check`) → `style-bible.md`. Choose one explicit **Production &
+  Prompt Architecture** upfront based on genre and cap: **Commercial Hybrid**
+  (default 15–30s spots: short delta I2V on `wan3_0`/`kling4_0` + selective
+  `seedance_2_5` hero takes), **Cinema Spec** (full `R2A/R2B` typed Asset Bible
+  on `seedream_v5_pro` + structured prose specs + paired `6s` 2-shot `3s + HARD
+  CUT + 3s` `seedance_2_5` blocks), or **Ultra-Lean Stylized Multi-Shot**
+  ([case study](../.agents/skills/video-direction/references/seedance-spec-case-study.md):
+  `12–20s` packed `720p High` cuts). Dispatch `evidence-agent` to inspect live
+  schemas (`model get` / `workflow get` / `voices list`) and run live
   `higgsfield generate cost` per round (using cost-affecting params or UUIDs
   only—never pass private local file paths, which `generate cost` auto-uploads).
   Write `shotlist.json` + initial `prompts/` (choosing each shot's camera tool
@@ -54,35 +61,42 @@ For JSON shapes and CLI flags, inspect the living fixtures and tools directly:
   (`1B`), and Director approves reference uploads (if any) plus the next round's
   `--round-cap`.
 
-### R2 — Casting & World Lookbook (`~20–45 cr.`, skip if `lookbook: []`)
+### R2 — Casting & World Asset Bible (`~20–45 cr.`, skip if `lookbook: []`)
 - **Skip rule:** Skip `R2` automatically when real photos in `media/references/`
   already cover every hero object, character, and location (`lookbook: []`);
   upload those photos at the start of `R3` via `hf_guard.py upload --round R3`
   and save `references[].upload_id` in `shotlist.json`.
-- **Craft:** Upload any approved local `media/references/` photos needed for
-  Lookbook generation via `hf_guard.py upload --round R2` (`references[].upload_id`).
-  Dispatch parallel `worker-agent` lanes to generate 2–3 contrasting variants
-  (`--variant A`, `B`, `C`, `--version 1`) per `lookbook[]` entity via
+- **R2A (Discovery & Master Lock):** Upload any approved local
+  `media/references/` photos needed for Lookbook generation via
+  `hf_guard.py upload --round R2` (`references[].upload_id`). Organize outputs
+  by entity type under `media/lookbook/{characters,locations,props}/`. Dispatch
+  parallel `worker-agent` lanes to generate 2–3 contrasting variants
+  (`--variant A`, `B`, `C`, `--version 1`) per `lookbook[]` entity (Web
+  `Unlimited` or `soul_location`/`soul_cast` `0.12 cr.` → hero `2k` lock on
+  `seedream_v5_pro`/`seedream_5_5`/`flux_3_image`) via
   `hf_guard.py run --round R2 --round-cap <cap>`. Filter defects and
   `TASTE_REGRESSION`s via fresh `reviewer-agent`, then build one labeled grid
   with `make lookbook FILES="..." OUT=campaigns/<slug>/qc/lookbook.png LABELS="A,B,C"`.
-- **Dailies 2:** `qc/lookbook.png` + comparative picks + `R3` Cost Ticket.
+- **Dailies 2:** `qc/lookbook.png` + comparative picks + `R2B`/`R3` Cost Ticket.
   Upload chosen winners via `hf_guard.py upload --round R2`, record
   `approved_variant`, `approved_take`, and `approved_upload_id`, and set
-  `status: "LOCKED"` in `shotlist.json`. When the storyboard covers reverse
-  angles, multi-angle interiors/buildings, time-of-day shifts, close-up props,
-  or recurring characters with head turns and expressive acting, expand the
-  locked Master(s) into clean **Reverse Wall / Multi-Angle / State / Scale
-  plates** (`3d_jutsu_angles`, `nano_banana_2_shots`, `nano_banana_2_relight`,
-  `image_decompose`) and **Character Bible / Expression Calibration plates** (or
-  `Soul ID` / Kling Elements) per
+  `status: "LOCKED"` in `shotlist.json`.
+- **R2B (Asset Bible Gate — before `R3`, skip only on simple single-angle spots):**
+  Whenever the storyboard uses reverse angles, mirrors, multi-angle sets,
+  recurring props, or expressive/turning characters, expand locked `R2A`
+  Masters (`variants_requested: 1`) into typed canonical plates under
+  `media/lookbook/{characters,locations,props}/`—clean empty **Reverse Wall /
+  Multi-Angle / State** plates, **orthographic `#808080` neutral-gray Prop
+  plates** (`seedream_v5_pro` / `3d_jutsu_angles` / `nano_banana_2_shots` →
+  `make slice-grid`), and **Character Bible / Expression Calibration** plates
+  (or `Soul ID` / Kling Elements) per
   [Locations, Buildings & Props](../.agents/skills/video-consistency/references/locations-and-props.md)
   and
-  [Characters & Expressions](../.agents/skills/video-consistency/references/characters-and-expressions.md)
-  before staging `R3` stills.
-- *Done when:* every `lookbook[]` entity is `LOCKED` with a verified
-  `approved_upload_id` (or `R2` is skipped with `lookbook: []`) and Director
-  approves `R3` `--round-cap`.
+  [Characters & Expressions](../.agents/skills/video-consistency/references/characters-and-expressions.md)—and
+  lock their UUIDs before staging `R3` keyframes.
+- *Done when:* every triggered `R2A` Master and `R2B` Bible plate is `LOCKED`
+  with a verified `approved_upload_id` (or `R2` is skipped with `lookbook: []`)
+  and Director approves `R3` `--round-cap`.
 
 ### R3 — Keyframe Stills & Still Animatic (`~30–50 cr.`, `0` video cr.)
 - **Craft:** If `R2` was skipped, upload approved local `media/references/` via
@@ -153,8 +167,12 @@ For JSON shapes and CLI flags, inspect the living fixtures and tools directly:
   --json`**, run **`qa_media.py batch <r5_clips...> --strict --json`** to audit
   cross-shot resolution/FPS/`hf_edge_energy` consistency, filter via fresh
   `reviewer-agent` (inspecting both `3x2` sheets and `1:1` native-pixel crops),
-  update `video.selected_take` in `shotlist.json`, assemble `master.mp4` +
-  `stems/` via `make assemble CAMPAIGN=<slug>`, and verify `make qa-render
+  update `video.selected_take` in `shotlist.json`, and run **Post-Production
+  Finishing** before delivery: unify color/texture across mixed engines via
+  optional `LUT=<grade.cube> GRAIN=3..5` in `make assemble CAMPAIGN=<slug>` (or
+  grade exported `stems/` in DaVinci Resolve), layer clean diegetic foley +
+  uncut beat-locked music (zero baked AI score), composite any Remotion title
+  or endcard overlays last, and verify `make qa-render
   FILE=campaigns/<slug>/media/exports/master.mp4` (plus optional
   `brain_activity` virality analysis if approved).
 - **Final Dailies 5:** `master.mp4` + `stems/` + spend receipt
