@@ -77,7 +77,30 @@ for live flags and schemas.
      and **`>= 1`** `--image_references`.
    - Creating Cinema Studio Elements or `kling_element_ids` is Web-UI only; CLI
      accepts pre-existing `kling_element_ids` or uploaded `--image_references` UUIDs.
-8. **Character, expression, Motion Control & Intone CEL traps:**
+8. **Camera workflow CEL, default & cost traps (see [Camera Control](../../video-direction/references/camera-control.md)):**
+   - `cinematic_studio_video_3_5` (`--workflow`, `25 cr.` `720p` / `65 cr.` `1080p` for 5s):
+     `--camera_style` / `--light_scheme` / `--color_grading` are **mutually exclusive**
+     with `--style_prompt` (CEL-enforced); `duration` defaults to **`15`** and
+     `prompt_language` defaults to **`zh`**—always pass `--duration 5 --prompt_language en`
+     unless a 15s clip or Chinese prompt is intended; `<= 15` total media refs.
+   - `cinematic_studio_3_0` (`--workflow`, `25 cr.` `720p` / `65 cr.` `1080p` for 5s,
+     supports `4k` + `--speedramp`): `prompt_language` defaults to **`zh`**—pass
+     `--prompt_language en`; `<= 15` total media refs. (`cinematic_studio_video_v2`
+     accepts `speedramp` in `auto|custom|linear|slowmo|speedup|impact`.)
+   - `cinematic_studio_image` (`--workflow`): caps `--image_references` at `<= 4`
+     and exposes `camera_focal_length_id` alongside `camera_model_id`, `camera_lens_id`,
+     and `camera_aperture_id`.
+   - `kling_4_0_flash` omits `--end_image` (use `kling4_0`, `kling_o3_flf`, `seedance_2_5`,
+     or `wan3_0` for Start+End bridges; `kling_o3_flf` requires `--start_image` whenever
+     `--end_image` is set). `seedance_2_0` and `seedance_2_0_mini` cap total images
+     (including start/end) at `<= 9` (`<= 12` total media).
+   - `draw_to_video` (`--workflow`, `26 cr.` `720p` / `63.5 cr.` `1080p` for 5s):
+     requires **exactly 1** sketch/annotated image in `--image_references` (no `--start_image`/`--end_image`).
+   - `reframe` (`--workflow`, `25.5 cr.` `720p` / `63 cr.` `1080p` for 5s):
+     requires **exactly 1** `--video_references` (no `--end_image`); reserve for adapting
+     an already-locked master to a second aspect ratio rather than replacing native-ratio
+     generation or pre-video `outpaint`.
+9. **Character, expression, Motion Control & Intone CEL traps:**
    - `text2image_soul_v2` and `soul_cinematic` (`0.12 cr.`) both cap
      `--image_references` at `<= 1`; `text2image_soul_v2` also forbids combining
      `--style_id` with `--image_references`. `higgsfield soul-id create` accepts
@@ -192,6 +215,38 @@ python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --out campaigns/<slug>/media/shots/s02-1080p-v2.mp4 -- \
   --resolution 1080p --video_references <locked_clip_job_id> \
   --image_references <canonical_prop_uuid>
+
+# R4/R5 Camera-style / speedramp / motion-transfer / post-reframe workflows
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s04 --kind video --round R4B --round-cap 60 --version 1 \
+  --model cinematic_studio_video_3_5 --workflow \
+  --prompt-file campaigns/<slug>/prompts/s04_video_v1.txt \
+  --out campaigns/<slug>/media/shots/s04-draft-v1.mp4 -- \
+  --resolution 720p --duration 5 --aspect_ratio 16:9 --prompt_language en \
+  --camera_style intimate_observer --light_scheme window \
+  --start_image <s04_still_uuid>
+
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s05 --kind video --round R4B --round-cap 60 --version 1 \
+  --model cinematic_studio_3_0 --workflow \
+  --prompt-file campaigns/<slug>/prompts/s05_video_v1.txt \
+  --out campaigns/<slug>/media/shots/s05-draft-v1.mp4 -- \
+  --resolution 720p --duration 5 --aspect_ratio 16:9 --prompt_language en \
+  --speedramp fast_to_slowmo --start_image <s05_still_uuid>
+
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s06 --kind video --round R4B --round-cap 60 --version 1 \
+  --model hf_mult_motion_control \
+  --prompt-file campaigns/<slug>/prompts/s06_motion_v1.txt \
+  --out campaigns/<slug>/media/shots/s06-draft-v1.mp4 -- \
+  --resolution 720p --video_references <previz_or_ref_video_uuid> \
+  --image_references <s06_still_uuid> --image_references <canonical_prop_uuid>
+
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s04 --kind video --round R5 --round-cap 120 --version 2 \
+  --model reframe --workflow \
+  --out campaigns/<slug>/media/shots/s04-9x16-v2.mp4 -- \
+  --resolution 1080p --aspect_ratio 9:16 --video_references <locked_16x9_job_id>
 
 # R2 Cast Lookbook (0.12 cr.) & R4/R5 Acting Transfer (Kling 3.0 Motion Control workflow, 10/15 cr. 5s)
 python3 scripts/hf_guard.py run --campaign campaigns/<slug> \

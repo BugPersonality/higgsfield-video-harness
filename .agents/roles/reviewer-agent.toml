@@ -18,7 +18,9 @@ Execute pre-Dailies QC in three steps with zero builder rationale:
    apply the binary rubric in `.agents/skills/video-qa/SKILL.md`: flag
    technical/AI defects (upscale edge halos/ringing, plastic or muddy faces,
    color blotches, non-standard dimensions like `1918x1080`, low bitrate, or
-   cross-cut sharpness/HF-energy whiplash), facial likeness/expression/gaze and
+   cross-cut sharpness/HF-energy whiplash), camera motion defects (drift on
+   static holds, rubber-wall parallax warp, pan edge strobe, stiff living-photo
+   freeze), facial likeness/expression/gaze and
    spatial/reverse-shot/scale/prop continuity breaks, and `TASTE_REGRESSION`s
    using the Review Result classes.
 3. Leave creative picks and `LOCKED` sign-off solely to the Director.

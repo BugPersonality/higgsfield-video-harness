@@ -96,7 +96,7 @@ Action: Character A gives one slow measured nod as distant car headlights sweep 
 
 ## Camera Grammar and Geometric Pairs
 
-Default to **one dominant camera move per shot** and specify `Locked-off static tripod shot` whenever stillness is intended. Match the verb to real 3D optics:
+Default to **one dominant camera move per shot** and specify `Locked-off static tripod shot, horizon level` whenever stillness is intended. For deterministic Higgsfield camera tool routing (Cinema Studio 4.0/3.5/3.0, 3D Jutsu, Draw to Video, Motion Transfer, Reframe), optics recipes, `camera_style`/`speedramp` enums, special rigs, and in-camera transitions, follow [Camera Control](camera-control.md). Match the verb to real 3D optics:
 
 | Physical translation (creates 3D parallax) | Optical / fixed-axis move (no new parallax) | Rule of thumb |
 | --- | --- | --- |

@@ -40,8 +40,10 @@ For JSON shapes and CLI flags, inspect the living fixtures and tools directly:
   live schemas (`model get` / `workflow get` / `voices list`) and run live
   `higgsfield generate cost` per round (using cost-affecting params or UUIDs
   only—never pass private local file paths, which `generate cost` auto-uploads).
-  Write `shotlist.json` + initial `prompts/` (choosing each shot's `R4 → R5`
-  escalation path upfront per
+  Write `shotlist.json` + initial `prompts/` (choosing each shot's camera tool
+  and optical family per
+  [Camera Control](../.agents/skills/video-direction/references/camera-control.md)
+  and its `R4 → R5` escalation path upfront per
   [Mastering & Upscaling](../.agents/skills/higgsfield-cli/references/mastering-and-upscaling.md)
   so drafts never dead-end in `480p` upscaling) and verify
   `make campaign-check CAMPAIGN=<slug>` (`R2 + R3 + R4 + R5 <= Campaign cap`).
@@ -101,7 +103,11 @@ For JSON shapes and CLI flags, inspect the living fixtures and tools directly:
   `--round-cap`.
 
 ### R4 — Motion Dailies (`~45–90 cr.`)
-- **Draft-to-Final planning:** Plan `R5` escalation *before* shooting `R4` (see
+- **Draft-to-Final & camera planning:** Plan camera tool routing per
+  [Camera Control](../.agents/skills/video-direction/references/camera-control.md)
+  (Motion Transfer, `3D Jutsu` previz, Start+End, Native Multi-Shot, Cinema
+  Studio `4.0`/`3.5`/`3.0`, or clean I2V) and `R5` escalation *before* shooting
+  `R4` (see
   [Mastering & Upscaling](../.agents/skills/higgsfield-cli/references/mastering-and-upscaling.md)).
   Prefer Web `Unlimited` (`0 cr.`) first, then `720p` economy drafts
   (`seedance_2_0_mini`, `kling_4_0_flash`, `wan3_0`), or **`seedance_2_5`

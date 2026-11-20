@@ -19,9 +19,36 @@ VALID_ASSET_STATUSES = ("DRAFT", "IN_REVIEW", "ITERATING", "LOCKED")
 VALID_ASSET_STATUS_SET = frozenset(VALID_ASSET_STATUSES)
 VALID_LOOKBOOK_KINDS = frozenset({"character", "object", "location"})
 VALID_CS4_MODES = frozenset({"t2v", "omni_reference", "video_edit", "video_extension"})
+VALID_CS35_CAMERA_STYLES = frozenset(
+    {
+        "classic_static",
+        "silent_machine",
+        "one_take",
+        "epic_scale",
+        "intimate_observer",
+        "impossible_camera",
+        "documentary_snap",
+        "raw_chaos",
+        "dreamy_flow",
+    }
+)
+VALID_CS30_SPEEDRAMPS = frozenset(
+    {
+        "auto",
+        "linear",
+        "slowmo",
+        "speedup",
+        "fast_to_slowmo",
+        "slowmo_to_fast",
+        "super_slowmo",
+        "impact",
+    }
+)
+VALID_CS2_SPEEDRAMPS = frozenset({"auto", "custom", "linear", "slowmo", "speedup", "impact"})
 STILL_HARD_REF_CAPS = {
     "text2image_soul_v2": 1,
     "soul_cinematic": 1,
+    "cinematic_studio_image": 4,
     "flux_kontext": 4,
     "seedream_5_5": 10,
     "kling_image_4_0": 10,
@@ -31,6 +58,8 @@ STILL_HARD_REF_CAPS = {
     "nano_banana_2_1": 14,
 }
 VIDEO_HARD_IMG_CAPS = {
+    "seedance_2_0": 9,
+    "seedance_2_0_mini": 9,
     "kling4_0": 10,
     "kling_4_0_flash": 10,
     "flux_3_video": 10,
@@ -651,6 +680,111 @@ def _validate_shotlist(
                         f"shotlist.json (shot {sid}.video): 'intone' live CEL requires "
                         f"1-6 audio_references, got {in_aud}"
                     )
+            elif v_model in ("cinematic_studio_video_3_5", "cinematic_studio_3_0", "cinematic_studio_video_v2"):
+                if video.get("is_workflow") is not True:
+                    errors.append(
+                        f"shotlist.json (shot {sid}.video): model '{v_model}' "
+                        "requires 'is_workflow': true"
+                    )
+                tier_dicts = [
+                    ("video", video),
+                    ("draft_params", draft_params),
+                    ("final_params", final_params),
+                ]
+                has_start_tmp = (
+                    video.get("start_image_from") is not None or shot.get("start_image_from") is not None
+                )
+                has_end_tmp = (
+                    video.get("end_image_from") is not None or shot.get("end_image_from") is not None
+                )
+                cs_media_total = (
+                    (len(video["image_references"]) if isinstance(video.get("image_references"), list) else 0)
+                    + (len(video["video_references"]) if isinstance(video.get("video_references"), list) else 0)
+                    + (len(video["audio_references"]) if isinstance(video.get("audio_references"), list) else 0)
+                    + (1 if has_start_tmp else 0)
+                    + (1 if has_end_tmp else 0)
+                )
+                if v_model in ("cinematic_studio_video_3_5", "cinematic_studio_3_0") and cs_media_total > 15:
+                    errors.append(
+                        f"shotlist.json (shot {sid}.video): '{v_model}' live CEL allows at most "
+                        f"15 total media references (got {cs_media_total})"
+                    )
+                if v_model == "cinematic_studio_video_3_5":
+                    for tier_name, td in tier_dicts:
+                        c_style = td.get("camera_style")
+                        if c_style is not None and c_style not in VALID_CS35_CAMERA_STYLES:
+                            errors.append(
+                                f"shotlist.json (shot {sid}.video.{tier_name}): invalid camera_style "
+                                f"{c_style!r} (expected one of {sorted(VALID_CS35_CAMERA_STYLES)})"
+                            )
+                        has_inline_axis = any(
+                            td.get(k) is not None for k in ("camera_style", "light_scheme", "color_grading")
+                        )
+                        if has_inline_axis and td.get("style_prompt") is not None:
+                            errors.append(
+                                f"shotlist.json (shot {sid}.video.{tier_name}): 'cinematic_studio_video_3_5' "
+                                "live CEL forbids combining camera_style/light_scheme/color_grading with style_prompt"
+                            )
+                    if not any(td.get("prompt_language") for _, td in tier_dicts):
+                        warnings.append(
+                            f"shotlist.json (shot {sid}.video): 'cinematic_studio_video_3_5' defaults "
+                            "prompt_language to 'zh'; set 'prompt_language': 'en' explicitly for English prompts"
+                        )
+                    if (
+                        isinstance(dur_val, (int, float))
+                        and not isinstance(dur_val, bool)
+                        and float(dur_val) != 15.0
+                        and not any(td.get("duration") is not None for _, td in tier_dicts)
+                    ):
+                        warnings.append(
+                            f"shotlist.json (shot {sid}.video): 'cinematic_studio_video_3_5' defaults "
+                            "duration to 15s in live CLI; set 'duration' explicitly in draft_params/final_params"
+                        )
+                elif v_model == "cinematic_studio_3_0":
+                    for tier_name, td in tier_dicts:
+                        sr = td.get("speedramp")
+                        if sr is not None and sr not in VALID_CS30_SPEEDRAMPS:
+                            errors.append(
+                                f"shotlist.json (shot {sid}.video.{tier_name}): invalid speedramp "
+                                f"{sr!r} for 'cinematic_studio_3_0' (expected one of {sorted(VALID_CS30_SPEEDRAMPS)})"
+                            )
+                    if not any(td.get("prompt_language") for _, td in tier_dicts):
+                        warnings.append(
+                            f"shotlist.json (shot {sid}.video): 'cinematic_studio_3_0' defaults "
+                            "prompt_language to 'zh'; set 'prompt_language': 'en' explicitly for English prompts"
+                        )
+                elif v_model == "cinematic_studio_video_v2":
+                    for tier_name, td in tier_dicts:
+                        sr = td.get("speedramp")
+                        if sr is not None and sr not in VALID_CS2_SPEEDRAMPS:
+                            errors.append(
+                                f"shotlist.json (shot {sid}.video.{tier_name}): invalid speedramp "
+                                f"{sr!r} for 'cinematic_studio_video_v2' (expected one of {sorted(VALID_CS2_SPEEDRAMPS)})"
+                            )
+            elif v_model == "draw_to_video":
+                if video.get("is_workflow") is not True:
+                    errors.append(
+                        f"shotlist.json (shot {sid}.video): model 'draw_to_video' "
+                        "requires 'is_workflow': true"
+                    )
+                dtv_imgs = len(video["image_references"]) if isinstance(video.get("image_references"), list) else 0
+                if dtv_imgs != 1:
+                    errors.append(
+                        f"shotlist.json (shot {sid}.video): 'draw_to_video' live CEL requires "
+                        f"exactly 1 sketch image in image_references (got {dtv_imgs})"
+                    )
+            elif v_model == "reframe":
+                if video.get("is_workflow") is not True:
+                    errors.append(
+                        f"shotlist.json (shot {sid}.video): model 'reframe' "
+                        "requires 'is_workflow': true"
+                    )
+                rf_vids = len(video["video_references"]) if isinstance(video.get("video_references"), list) else 0
+                if rf_vids != 1:
+                    errors.append(
+                        f"shotlist.json (shot {sid}.video): 'reframe' live CEL requires "
+                        f"exactly 1 video_references entry (got {rf_vids})"
+                    )
             if v_model in ("cinematic_studio_video_4_0", "seedance_2_5", "intone"):
                 final_res = str(final_params.get("resolution") or "").lower()
                 if final_res in ("1080p", "4k") and final_params.get("bitrate_mode") != "high":
@@ -682,10 +816,16 @@ def _validate_shotlist(
                 "hf_mult_motion_control",
                 "hf_mult_motion_control_flash",
                 "intone",
+                "draw_to_video",
             ) and (has_start or has_end):
                 errors.append(
                     f"shotlist.json (shot {sid}.video): '{v_model}' live CLI does not accept "
                     "start_image/end_image; pass stills via image_references (or character_images for intone)"
+                )
+            if v_model in ("kling_4_0_flash", "reframe") and has_end:
+                errors.append(
+                    f"shotlist.json (shot {sid}.video): '{v_model}' live CLI does not accept "
+                    "end_image; use kling4_0, kling_o3_flf, seedance_2_5, or wan3_0 for Start+End bridges"
                 )
             if v_model == "kling_o3_flf" and has_end and not has_start:
                 errors.append(

@@ -13,7 +13,10 @@ Director has a real comparative choice.
 
 For storyboards and prompts, anchor locations with an absolute `N/E/S/W` 4-wall
 Spatial Map, per-shot camera facing wall, scale ratios, and mutable prop states;
-stay within optimal visible-only reference budgets (`3-5` for `R3` stills, `2-4`
+route optics, camera tools, rigs, and speedramps per
+`.agents/skills/video-direction/references/camera-control.md` (same lens family
+per set, One-Move Rule, Zero Double-Command, parallax-accurate verbs); stay
+within optimal visible-only reference budgets (`3-5` for `R3` stills, `2-4`
 for `R4/R5` video) and pair every `@ImageN` tag with its concrete object noun.
 
 Stay strictly read-only: leave file writes, spending, and Dailies selection to

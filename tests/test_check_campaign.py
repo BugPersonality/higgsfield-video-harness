@@ -523,6 +523,111 @@ class TestCheckCampaign(unittest.TestCase):
             self.assertIn("start_image/end_image", errs, msg=data_bad)
             self.assertIn("intone", errs, msg=data_bad)
 
+    def test_enforces_camera_workflows_speedramp_and_end_image_cel_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            camp = _copy_campaign_fixture(Path(tmp))
+            shotlist_path = camp / "shotlist.json"
+            base = json.loads(shotlist_path.read_text(encoding="utf-8"))
+            base["references"].extend(
+                [
+                    {"id": "ref_sketch", "kind": "sketch", "local_path": "media/references/sketch.png", "upload_id": None},
+                    {"id": "ref_master_vid", "kind": "video", "local_path": "media/references/master.mp4", "upload_id": None},
+                ]
+            )
+
+            # Valid camera workflow configs: CS 3.5 (camera_style + prompt_language + duration), CS 3.0 (speedramp), reframe (1 video)
+            ok_mut = json.loads(json.dumps(base))
+            ok_mut["shots"][0]["video"]["model"] = "cinematic_studio_video_3_5"
+            ok_mut["shots"][0]["video"]["is_workflow"] = True
+            ok_mut["shots"][0]["video"]["draft_params"] = {
+                "resolution": "720p",
+                "duration": 5,
+                "prompt_language": "en",
+                "camera_style": "intimate_observer",
+            }
+            ok_mut["shots"][0]["video"]["final_params"] = {
+                "resolution": "1080p",
+                "duration": 5,
+                "prompt_language": "en",
+                "camera_style": "intimate_observer",
+            }
+            ok_mut["shots"][1]["video"]["model"] = "cinematic_studio_3_0"
+            ok_mut["shots"][1]["video"]["is_workflow"] = True
+            ok_mut["shots"][1]["video"]["draft_params"] = {
+                "resolution": "720p",
+                "duration": 5,
+                "prompt_language": "en",
+                "speedramp": "fast_to_slowmo",
+            }
+            ok_mut["shots"][1]["video"]["final_params"] = {
+                "resolution": "1080p",
+                "duration": 5,
+                "prompt_language": "en",
+                "speedramp": "fast_to_slowmo",
+            }
+            ok_mut["shots"][2]["video"]["model"] = "reframe"
+            ok_mut["shots"][2]["video"]["is_workflow"] = True
+            ok_mut["shots"][2]["video"]["start_image_from"] = None
+            ok_mut["shots"][2]["video"]["end_image_from"] = None
+            ok_mut["shots"][2]["video"]["image_references"] = []
+            ok_mut["shots"][2]["video"]["video_references"] = ["ref_master_vid"]
+            shotlist_path.write_text(json.dumps(ok_mut, indent=2), encoding="utf-8")
+
+            code_ok, data_ok, comb_ok = self._run(camp)
+            self.assertEqual(code_ok, 0, msg=f"Valid camera workflows must pass:\n{comb_ok}")
+            self.assertTrue(data_ok.get("ok"), msg=data_ok)
+
+            # Warnings when CS 3.5 omits prompt_language and duration (live CLI defaults zh / 15s)
+            warn_mut = json.loads(json.dumps(ok_mut))
+            warn_mut["shots"][0]["video"]["draft_params"] = {"camera_style": "silent_machine"}
+            warn_mut["shots"][0]["video"]["final_params"] = {"camera_style": "silent_machine"}
+            shotlist_path.write_text(json.dumps(warn_mut, indent=2), encoding="utf-8")
+            code_w, data_w, comb_w = self._run(camp)
+            self.assertEqual(code_w, 0, msg=f"Default-trap warnings must not fail exit code:\n{comb_w}")
+            warns = " ".join(data_w.get("warnings", []))
+            self.assertIn("prompt_language", warns, msg=data_w)
+            self.assertIn("15s", warns, msg=data_w)
+
+            # Hard CEL violations: CS 3.5 camera_style + style_prompt mutex, CS 3.0 invalid speedramp,
+            # draw_to_video missing image + start_image, kling_4_0_flash with end_image, cinematic_studio_image > 4 refs
+            bad_mut = json.loads(json.dumps(ok_mut))
+            bad_mut["shots"][0]["still"]["model"] = "cinematic_studio_image"
+            bad_mut["shots"][0]["still"]["references"] = [
+                "lb_traveler_hand",
+                "ref_bag_front",
+                "ref_sketch",
+                "ref_master_vid",
+                "lb_traveler_hand",
+            ]
+            bad_mut["shots"][0]["video"]["draft_params"]["style_prompt"] = "conflicting style"
+            bad_mut["shots"][1]["video"]["draft_params"]["speedramp"] = "custom"  # v2-only, invalid on 3_0
+            bad_mut["shots"][2]["video"]["model"] = "draw_to_video"
+            bad_mut["shots"][2]["video"]["is_workflow"] = False
+            bad_mut["shots"][2]["video"]["image_references"] = []
+            bad_mut["shots"][2]["video"]["start_image_from"] = "s03.still"
+            shotlist_path.write_text(json.dumps(bad_mut, indent=2), encoding="utf-8")
+
+            code_bad, data_bad, comb_bad = self._run(camp)
+            self.assertEqual(code_bad, 1, msg=f"Invalid camera workflow CEL must fail:\n{comb_bad}")
+            errs = " ".join(data_bad.get("errors", []))
+            self.assertIn("cinematic_studio_image", errs, msg=data_bad)
+            self.assertIn("style_prompt", errs, msg=data_bad)
+            self.assertIn("speedramp", errs, msg=data_bad)
+            self.assertIn("draw_to_video", errs, msg=data_bad)
+
+            # kling_4_0_flash with end_image must fail
+            flash_mut = json.loads(json.dumps(ok_mut))
+            flash_mut["shots"][2]["video"]["model"] = "kling_4_0_flash"
+            flash_mut["shots"][2]["video"]["is_workflow"] = False
+            flash_mut["shots"][2]["video"]["start_image_from"] = "s03.still"
+            flash_mut["shots"][2]["video"]["end_image_from"] = "s01.still"
+            flash_mut["shots"][2]["video"]["video_references"] = []
+            shotlist_path.write_text(json.dumps(flash_mut, indent=2), encoding="utf-8")
+
+            code_f, data_f, comb_f = self._run(camp)
+            self.assertEqual(code_f, 1, msg=f"kling_4_0_flash with end_image must fail:\n{comb_f}")
+            self.assertIn("kling_4_0_flash", " ".join(data_f.get("errors", [])), msg=data_f)
+
 
 if __name__ == "__main__":
     unittest.main()
