@@ -60,13 +60,13 @@ Higgsfield CLI pricing:
 
 | Model (`job_type`) | CLI Cost (approx.) | Benchmark Strength | Best Use Case |
 | :--- | ---: | :--- | :--- |
-| `soul_cinematic` / `text2image_soul_v2` | `0.12 cr.` | Specialized cinematic stills | Ultra-cheap `R2`–`R3` composition, lighting, and angle thumbnails |
+| `soul_cinematic` / `text2image_soul_v2` / `soul_location` / `soul_cast` | `0.12 cr.` | Specialized cinematic, location & casting stills | Ultra-cheap `R2`–`R3` lookbook, architectural, casting & lighting exploration (or trained `Soul ID` stills) |
 | `gpt_image_2_6` (standard) | `0.25 cr.` | Top-tier prompt adherence, geometry, mirrors, multi-ref edits | **Default `R2`–`R3` economy draft** and complex spatial/reflection staging |
 | `seedream_5_0_flash` | `0.50 cr.` | Fast clean realism | **Fast `R2`–`R3` photorealistic draft** (7× cheaper than `seedream_5_5`) |
 | `seedream_v5_lite` / `nano_banana_2_lite` / `flux_2` | `1.00 cr.` | Solid mid-budget realism | Low-cost Lookbook `A / B / C` exploration when `0.25–0.5 cr.` drifts |
 | `nano_banana_2_1` / `nano_banana_pro` | `1.50–2.00 cr.` | Top physical plausibility, lighting coherence & multi-ref blending | **Best value hero stills (`R3`)** blending cast + location + wardrobe refs |
 | `flux_3_image` | `2.00 cr.` | Benchmark leader for raw 35mm photographic skin, grain & non-plastic texture | **Hero editorial/35mm portraits & interiors** without heavy multi-ref edits |
-| `seedream_v5_pro` | `2.50 cr.` | Strong adherence to long structured prompts, orthographic prop/cast sheets & `%`-palette lock (`<= 10` refs, `2k`) | **Workhorse `R2B` Asset Bibles & `R3` scene keyframes** (30% cheaper than `seedream_5_5`, native ByteDance match for `seedance_2_5`) |
+| `seedream_v5_pro` / `kling_image_4_0` | `2.50 cr.` / live | Strong adherence to long structured prompts, orthographic prop/cast sheets & `%`-palette lock (`<= 10` refs, `2k`–`4k`) | **Workhorse `R2B` Asset Bibles & `R3` scene keyframes** (`seedream_v5_pro` is 30% cheaper than `5_5` and native ByteDance match for `seedance_2_5`) |
 | `gpt_image_2_6` (high quality) | `2.75 cr.` | Complex prompt logic, typography, strict single-item swaps | Hero frames needing exact multi-element control or mirror continuity |
 | `seedream_5_5` | `3.50 cr.` | Top commercial/fashion detail & fabric fidelity under close inspection | **Flagship `R3` macro/fashion close-ups** (wool, leather, knit, hero textures) |
 
@@ -91,6 +91,17 @@ Based on Artificial Analysis Video Arena (I2V/T2V Elo) and live CLI pricing
 | `seedance_2_5` (`--draft true` → `1080p` / `4k`) | `15 cr.` → **`80 cr.`** (`5s`); `18 cr.` → **`96 cr.`** (`6s` 2-shot = `48 cr./cut`); `140 cr.` `4k` | Up to 30 images / 50 refs (`omni_reference`) + `--draft_job_id` + free `--bitrate_mode high` | **Top-5 Elo (~1160)**: multi-shot narrative, exact draft-to-final latent lock & VFX | **Gold standard `R4 → R5` CLI path** when exact acting/timing must transfer 1:1 into native `1080p` (`--bitrate_mode high`); pair adjacent cuts as `6s` 2-shots (`3s + HARD CUT + 3s`) to halve per-cut cost |
 | `cinematic_studio_video_4_0` (`480p` / `720p` / `1080p`) | `15` / `35` / **`80 cr.`** | Up to 30 images / 50 refs (`omni_reference`) + free `--bitrate_mode high` *(no CLI `--draft_job_id`)* | Best multi-reference continuity + native diegetic foley + Web Cinema Studio presets | Direct native `1080p` (`--bitrate_mode high`) hero shots or Web Cinema Studio upgrades—avoid `480p` CLI drafts if you need 1:1 `R5` escalation |
 
+## Audio & Advisory Models (`R3`–`R5`)
+
+| Category | Model / Workflow (`job_type`) | Notes & Live Routing |
+| :--- | :--- | :--- |
+| **Voiceover (VO)** | `text2speech_v2` (`--variant elevenlabs\|seed_speech\|...`), `seed_audio` | Pair with `higgsfield voices list` (`--voice_id`, `--voice_type preset\|element`); check timing via `make qa-voice` |
+| **Multi-Speaker Dialogue** | `elevenlabs_v4` (`--dialogue`) | Multi-voice scenes; lock voice WAVs in `R3` before `intone` lip-sync |
+| **Voice Swap / Dubbing** | `voice_change`, `dubbing` *(workflows)* | Re-voice or dub locked clips (`--duration` is cost-only; `hf_guard.py` strips it on exec) |
+| **Music Score** | `sonilo_music` (economy), `elevenlabs_music_v2_5` (flagship) | Generate uncut beat-locked score separately; keep video clips diegetic-only |
+| **Foley / SFX** | `mirelo_text_to_audio` | Clean standalone diegetic sound layers |
+| **Advisory Pacing Read** | `brain_activity` (`--kind analysis`) | Optional post-cut virality/pacing read (run only when approved) |
+
 ## Quick Round-by-Round Defaults & Stack Presets
 
 - **`R2` Lookbook & `R3` Draft Stills:** Web `Unlimited` (`0 cr.`) first →
@@ -107,17 +118,12 @@ Based on Artificial Analysis Video Arena (I2V/T2V Elo) and live CLI pricing
   `--draft true` (`15 cr.` 5s / `18 cr.` 6s 2-shot)** whenever an `R4A`/`R4B`
   take needs guaranteed 1:1 latent escalation to native `1080p` via
   `--draft_job_id`.
-- **`R5` Final Master (`1080p`):** Follow [Mastering & Upscaling](mastering-and-upscaling.md).
-  Upgrade unlocked winners **natively at `1080p`**: Web `Unlimited` (`0 cr.`) if
-  eligible → `seedance_2_5 --draft_job_id <id> --resolution 1080p --bitrate_mode high`
-  (`80 cr.` 5s / `96 cr.` 6s 2-shot) for locked draft takes → `kling4_0`
-  (`18.75 cr.`, or `video-edit` `22.5 cr.`) / `wan3_0` (`17.5 cr.`) / `veo3_1`
-  (`16 cr.`) / `wan3_0_prime` (`30 cr.`) for high-value native `1080p` →
-  `cinematic_studio_video_4_0` (`1080p`, `--bitrate_mode high`, `80 cr.`) for
-  direct multi-ref hero shots. Never pixel-upscale `480p` drafts; reserve pixel
-  upscaling (`topaz_video` Starlight / SeedVR2 / `bytedance_video_upscale`)
-  strictly for clean `>= 720p` sources (`<= 2×`) after passing the 6-rule
-  Upscale Gate and a 1-shot `1:1` crop pilot.
+- **`R5` Final Master (`1080p`):** Follow the deterministic 5-path algorithm and
+  6-rule Upscale Gate in [Mastering & Upscaling](mastering-and-upscaling.md)
+  (Web `Unlimited` → `seedance_2_5 --draft_job_id --bitrate_mode high` → value
+  native `1080p` `kling4_0`/`wan3_0`/`veo3_1`/`wan3_0_prime` → motion-locked
+  `kling4_0 --mode video-edit` → direct `cinematic_studio_video_4_0`; never
+  pixel-upscale `480p` drafts).
 
 ### Two Proven 30s Production Stack Presets (Native `1080p`)
 

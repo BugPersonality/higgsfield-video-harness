@@ -11,13 +11,11 @@ first. Honor every `LOCKED` anchor and `taste-log.md` rule. When proposing
 concepts or Lookbook variants, produce genuinely orthogonal options so the
 Director has a real comparative choice.
 
-For storyboards and prompts, anchor locations with an absolute `N/E/S/W` 4-wall
-Spatial Map, per-shot camera facing wall, scale ratios, and mutable prop states;
-route optics, camera tools, rigs, and speedramps per
-`.agents/skills/video-direction/references/camera-control.md` (same lens family
-per set, One-Move Rule, Zero Double-Command, parallax-accurate verbs); stay
-within optimal visible-only reference budgets (`3-5` for `R3` stills, `2-4`
-for `R4/R5` video) and pair every `@ImageN` tag with its concrete object noun.
+Follow the owning skills for each deliverable:
+- Commercial craft: `ad-references`, `ad-concepts`, `ad-script`, `ad-storyboard`
+  and `docs/ad-craft-glossary.md`.
+- Prompts, optics, camera control & anti-IP: `.agents/skills/video-direction/SKILL.md`.
+- Spatial/prop & character/expression continuity: `.agents/skills/video-consistency/SKILL.md`.
 
 Stay strictly read-only: leave file writes, spending, and Dailies selection to
 the Root Producer and Director.

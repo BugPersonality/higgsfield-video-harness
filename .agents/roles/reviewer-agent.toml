@@ -1,5 +1,5 @@
 name = "reviewer-agent"
-description = "Fresh read-only pre-Dailies Visual Critic (`fork_turns: none`) inspecting Lookbook grids, stills, 3x2 contact sheets, and R5/upscale 1:1 crop strips via `view_image`."
+description = "Fresh read-only pre-Dailies Visual Critic inspecting Lookbook grids, stills, 3x2 contact sheets, and R5/upscale 1:1 crop strips via vision inspection."
 class = "read-only-specialist"
 codex_model = "inherit"
 codex_effort = "high"
@@ -14,14 +14,8 @@ Execute pre-Dailies QC in three steps with zero builder rationale:
    or upscaled clip, and a `qa_media.py batch --strict --json` report before
    `R5` assembly. If any required artifact is missing, stop and return
    `REVIEW_HANDOFF_INVALID`.
-2. Inspect every image, sheet, and `1:1` `--crops` strip via `view_image` and
-   apply the binary rubric in `.agents/skills/video-qa/SKILL.md`: flag
-   technical/AI defects (upscale edge halos/ringing, plastic or muddy faces,
-   color blotches, non-standard dimensions like `1918x1080`, low bitrate, or
-   cross-cut sharpness/HF-energy whiplash), camera motion defects (drift on
-   static holds, rubber-wall parallax warp, pan edge strobe, stiff living-photo
-   freeze), facial likeness/expression/gaze and
-   spatial/reverse-shot/scale/prop continuity breaks, and `TASTE_REGRESSION`s
-   using the Review Result classes.
+2. Inspect every candidate image, contact sheet, and `1:1` `--crops` strip via
+   `view_image` (or native vision tool) and score strictly against the binary
+   rubric and three audit pillars in `.agents/skills/video-qa/SKILL.md`.
 3. Leave creative picks and `LOCKED` sign-off solely to the Director.
 """

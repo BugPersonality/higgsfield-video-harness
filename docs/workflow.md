@@ -10,7 +10,12 @@ next-round credit approval.
 For JSON shapes and CLI flags, inspect the living fixtures and tools directly:
 [`campaigns/example-product-spot/`](../campaigns/example-product-spot),
 `scripts/check-brief.py`, `scripts/check-campaign.py`, and
-`scripts/hf_guard.py --help`.
+`scripts/hf_guard.py --help`. Load the owning skill when a round needs
+technical craft: [`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md),
+[`video-direction`](../.agents/skills/video-direction/SKILL.md),
+[`video-consistency`](../.agents/skills/video-consistency/SKILL.md),
+[`video-qa`](../.agents/skills/video-qa/SKILL.md), and
+[`video-assembly`](../.agents/skills/video-assembly/SKILL.md).
 
 ## The 6 Rounds
 
@@ -36,23 +41,18 @@ For JSON shapes and CLI flags, inspect the living fixtures and tools directly:
   Stop with **Dailies 1A** so the Director picks or blends a direction.
 - **R1B (Blueprint & Quote):** Run `ad-script` (`Time | Video | Audio`,
   read-aloud budget, mute test) → `ad-storyboard` (`Continuity Lock`,
-  `test_take_check`) → `style-bible.md`. Choose one explicit **Production &
-  Prompt Architecture** upfront based on genre and cap: **Commercial Hybrid**
-  (default 15–30s spots: short delta I2V on `wan3_0`/`kling4_0` + selective
-  `seedance_2_5` hero takes), **Cinema Spec** (full `R2A/R2B` typed Asset Bible
-  on `seedream_v5_pro` + structured prose specs + paired `6s` 2-shot `3s + HARD
-  CUT + 3s` `seedance_2_5` blocks), or **Ultra-Lean Stylized Multi-Shot**
-  ([case study](../.agents/skills/video-direction/references/seedance-spec-case-study.md):
-  `12–20s` packed `720p High` cuts). Dispatch `evidence-agent` to inspect live
-  schemas (`model get` / `workflow get` / `voices list`) and run live
-  `higgsfield generate cost` per round (using cost-affecting params or UUIDs
-  only—never pass private local file paths, which `generate cost` auto-uploads).
-  Write `shotlist.json` + initial `prompts/` (choosing each shot's camera tool
-  and optical family per
-  [Camera Control](../.agents/skills/video-direction/references/camera-control.md)
-  and its `R4 → R5` escalation path upfront per
-  [Mastering & Upscaling](../.agents/skills/higgsfield-cli/references/mastering-and-upscaling.md)
-  so drafts never dead-end in `480p` upscaling) and verify
+  `test_take_check`) → `style-bible.md`. Commit to one **Production & Prompt
+  Architecture** upfront (`Commercial Hybrid` default, `Cinema Spec`, or
+  optional `Ultra-Lean Stylized Multi-Shot` — see
+  [`video-direction`](../.agents/skills/video-direction/SKILL.md)), plan
+  spatial/cast plates (`R2A`/`R2B`) per
+  [`video-consistency`](../.agents/skills/video-consistency/SKILL.md), and
+  choose each shot's camera route and `R4 → R5` native mastering path per
+  [`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md) so drafts never
+  dead-end in `480p` upscaling. Dispatch `evidence-agent` to inspect live
+  schemas and run live `higgsfield generate cost` per round (using cost params
+  or uploaded UUIDs only—never private local file paths, which `generate cost`
+  auto-uploads). Write `shotlist.json` + initial `prompts/` and verify
   `make campaign-check CAMPAIGN=<slug>` (`R2 + R3 + R4 + R5 <= Campaign cap`).
 - **Dailies 1B:** Readable beat-by-beat story + exact round-by-round price list
   + approval ask for uploading local `media/references/` photos (if any) and
@@ -66,17 +66,18 @@ For JSON shapes and CLI flags, inspect the living fixtures and tools directly:
   already cover every hero object, character, and location (`lookbook: []`);
   upload those photos at the start of `R3` via `hf_guard.py upload --round R3`
   and save `references[].upload_id` in `shotlist.json`.
-- **R2A (Discovery & Master Lock):** Upload any approved local
-  `media/references/` photos needed for Lookbook generation via
-  `hf_guard.py upload --round R2` (`references[].upload_id`). Organize outputs
-  by entity type under `media/lookbook/{characters,locations,props}/`. Dispatch
-  parallel `worker-agent` lanes to generate 2–3 contrasting variants
-  (`--variant A`, `B`, `C`, `--version 1`) per `lookbook[]` entity (Web
-  `Unlimited` or `soul_location`/`soul_cast` `0.12 cr.` → hero `2k` lock on
-  `seedream_v5_pro`/`seedream_5_5`/`flux_3_image`) via
-  `hf_guard.py run --round R2 --round-cap <cap>`. Filter defects and
-  `TASTE_REGRESSION`s via fresh `reviewer-agent`, then build one labeled grid
-  with `make lookbook FILES="..." OUT=campaigns/<slug>/qc/lookbook.png LABELS="A,B,C"`.
+- **R2A (Discovery & Master Lock):** Upload approved local `media/references/`
+  photos needed for Lookbook generation via `hf_guard.py upload --round R2`
+  (`references[].upload_id`). Organize outputs by entity type under
+  `media/lookbook/{characters,locations,props}/`. Dispatch parallel
+  `worker-agent` lanes to generate 2–3 contrasting variants (`--variant A`, `B`,
+  `C`, `--version 1`) per `lookbook[]` entity (following
+  [`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md)'s Unlimited-first
+  ladder and [`video-consistency`](../.agents/skills/video-consistency/SKILL.md)'s
+  master plate standards) via `hf_guard.py run --round R2 --round-cap <cap>`.
+  Filter defects and `TASTE_REGRESSION`s via fresh `reviewer-agent`, then build
+  one labeled grid with
+  `make lookbook FILES="..." OUT=campaigns/<slug>/qc/lookbook.png LABELS="A,B,C"`.
 - **Dailies 2:** `qc/lookbook.png` + comparative picks + `R2B`/`R3` Cost Ticket.
   Upload chosen winners via `hf_guard.py upload --round R2`, record
   `approved_variant`, `approved_take`, and `approved_upload_id`, and set
@@ -84,16 +85,13 @@ For JSON shapes and CLI flags, inspect the living fixtures and tools directly:
 - **R2B (Asset Bible Gate — before `R3`, skip only on simple single-angle spots):**
   Whenever the storyboard uses reverse angles, mirrors, multi-angle sets,
   recurring props, or expressive/turning characters, expand locked `R2A`
-  Masters (`variants_requested: 1`) into typed canonical plates under
-  `media/lookbook/{characters,locations,props}/`—clean empty **Reverse Wall /
-  Multi-Angle / State** plates, **orthographic `#808080` neutral-gray Prop
-  plates** (`seedream_v5_pro` / `3d_jutsu_angles` / `nano_banana_2_shots` →
-  `make slice-grid`), and **Character Bible / Expression Calibration** plates
-  (or `Soul ID` / Kling Elements) per
-  [Locations, Buildings & Props](../.agents/skills/video-consistency/references/locations-and-props.md)
-  and
-  [Characters & Expressions](../.agents/skills/video-consistency/references/characters-and-expressions.md)—and
-  lock their UUIDs before staging `R3` keyframes.
+  Masters (`variants_requested: 1`) into only the triggered canonical plates
+  (Reverse Walls, multi-angle/state plates, orthographic `#808080` prop plates,
+  Character Bible / Expression Calibration plates, or optional `Soul ID` /
+  Kling Elements) per
+  [`video-consistency`](../.agents/skills/video-consistency/SKILL.md), slice
+  any angle sheets with `make slice-grid`, audit via `reviewer-agent`, upload
+  via `hf_guard.py upload --round R2`, and lock their UUIDs before `R3`.
 - *Done when:* every triggered `R2A` Master and `R2B` Bible plate is `LOCKED`
   with a verified `approved_upload_id` (or `R2` is skipped with `lookbook: []`)
   and Director approves `R3` `--round-cap`.
@@ -101,14 +99,16 @@ For JSON shapes and CLI flags, inspect the living fixtures and tools directly:
 ### R3 — Keyframe Stills & Still Animatic (`~30–50 cr.`, `0` video cr.)
 - **Craft:** If `R2` was skipped, upload approved local `media/references/` via
   `hf_guard.py upload --round R3` (`references[].upload_id`). Generate `s01..sN`
-  stills in parallel via `hf_guard.py run --round R3 --round-cap <cap>` bound to
-  `LOCKED` UUIDs, `Continuity Lock`, and `taste-log.md`. Generate enabled VO
-  (verify with `scripts/qa_media.py voice <wav> --window <sec> --json`; rewrite
-  copy and regenerate on overflow rather than speeding up with `atempo`) and
-  enabled rough music. Filter via fresh `reviewer-agent`, record
-  `still.selected_take` and audio `selected_file` in `shotlist.json`, build
-  `qc/stills_strip.png` (`make lookbook`), and render `media/exports/animatic.mp4`
-  via `make animatic CAMPAIGN=<slug>` (`0` video credits).
+  `2k`/`4k` stills in parallel via `hf_guard.py run --round R3 --round-cap <cap>`
+  bound to `LOCKED` UUIDs, `Continuity Lock`, `taste-log.md`, and visible-only
+  reference budgets. Generate enabled VO (verify via `make qa-voice` /
+  `scripts/qa_media.py voice <wav> --window <sec> --json`; rewrite copy and
+  regenerate on overflow instead of speeding up with `atempo`) and enabled
+  rough music. Filter via fresh `reviewer-agent`, record `still.selected_take`
+  and audio `selected_file` in `shotlist.json`, build `qc/stills_strip.png`
+  (`make lookbook`), and render `media/exports/animatic.mp4` via
+  `make animatic CAMPAIGN=<slug>` (`0` video credits; see
+  [`video-assembly`](../.agents/skills/video-assembly/SKILL.md)).
 - **Dailies 3:** `stills_strip.png` + `animatic.mp4` + `R4A` (or `R4` if zero
   shots carry `test_take_check`) Cost Ticket. Lock approved stills/audio
   (`status: "LOCKED"`) and upload locked stills via `hf_guard.py upload --round R3`.
@@ -117,23 +117,19 @@ For JSON shapes and CLI flags, inspect the living fixtures and tools directly:
   `--round-cap`.
 
 ### R4 — Motion Dailies (`~45–90 cr.`)
-- **Draft-to-Final & camera planning:** Plan camera tool routing per
-  [Camera Control](../.agents/skills/video-direction/references/camera-control.md)
-  (Motion Transfer, `3D Jutsu` previz, Start+End, Native Multi-Shot, Cinema
-  Studio `4.0`/`3.5`/`3.0`, or clean I2V) and `R5` escalation *before* shooting
-  `R4` (see
-  [Mastering & Upscaling](../.agents/skills/higgsfield-cli/references/mastering-and-upscaling.md)).
-  Prefer Web `Unlimited` (`0 cr.`) first, then `720p` economy drafts
-  (`seedance_2_0_mini`, `kling_4_0_flash`, `wan3_0`), or **`seedance_2_5`
-  `--draft true`** when an approved take must escalate 1:1 into native `1080p`
-  via `--draft_job_id` (CLI `cinematic_studio_video_4_0` omits `--draft_job_id`).
+- **Draft-to-final & camera planning:** Verify each shot's camera route
+  ([`video-direction`](../.agents/skills/video-direction/SKILL.md)), reference
+  bindings ([`video-consistency`](../.agents/skills/video-consistency/SKILL.md)),
+  and `R5` native escalation path
+  ([`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md)) *before*
+  shooting `R4` (Web `Unlimited` `0 cr.` first → economy `720p` drafts or
+  latent `--draft true` when 1:1 `R5` lock is required).
 - **R4A (Risk-First Pilot):** Shoot shots with `test_take_check != null` first
-  at draft settings (`720p` or `seedance_2_5 --draft true`) via `hf_guard.py
-  run --round R4A --round-cap <r4a_cap>`. Probe with `scripts/qa_media.py clip
-  <mp4> --sheet <png> --json` and inspect via fresh `reviewer-agent`. Stop with
-  **Dailies 4A** (pilot clip + `R4B` Cost Ticket). *(Skip `R4A` only when zero
-  shots carry `test_take_check` and Director approved batch `--round R4` on
-  Dailies 3.)*
+  at draft settings via `hf_guard.py run --round R4A --round-cap <r4a_cap>`.
+  Probe with `scripts/qa_media.py clip <mp4> --sheet <png> --json` and inspect
+  via fresh `reviewer-agent`. Stop with **Dailies 4A** (pilot clip + `R4B` Cost
+  Ticket). *(Skip `R4A` only when zero shots carry `test_take_check` and
+  Director approved batch `--round R4` on Dailies 3.)*
 - **R4B (Batch Draft & Cut):** Shoot remaining unlocked shots in parallel via
   `hf_guard.py run --round R4B --round-cap <r4b_cap>` (or `--round R4` when
   `R4A` was skipped). Probe each clip (`qa_media.py clip --sheet <png> --json`),
@@ -143,11 +139,9 @@ For JSON shapes and CLI flags, inspect the living fixtures and tools directly:
   `<= -1.0 dBTP`).
 - **Dailies 4B:** Playable `draft_cut.mp4` + **per-shot native `1080p` upgrade
   prices** for `R5` (never offer `480p → 1080p` pixel upscaling as a budget
-  shortcut; quote native `1080p` options such as Web `Unlimited`, `kling4_0`,
-  `wan3_0`, or `seedance_2_5 --draft_job_id`). Mark shots kept as-is (no `R5`
-  upgrade) `LOCKED`; keep shots scheduled for `R5` `1080p` upgrade unlocked
-  (`IN_REVIEW` or `ITERATING`, bumping `version` if prompt/parameters change) so
-  `hf_guard.py` permits `R5`.
+  shortcut). Mark shots kept as-is (no `R5` upgrade) `LOCKED`; keep shots
+  scheduled for `R5` `1080p` upgrade unlocked (`IN_REVIEW` or `ITERATING`,
+  bumping `version` if prompt/parameters change) so `hf_guard.py` permits `R5`.
 - *Done when:* pilot passes Dailies 4A (when applicable), Director approves cut
   rhythm in `draft_cut.mp4`, kept shots are `LOCKED`, upgrade targets stay
   unlocked, and Director approves `R5` `--round-cap`.
@@ -155,26 +149,18 @@ For JSON shapes and CLI flags, inspect the living fixtures and tools directly:
 ### R5 — Final Master (`1080p`, approved quote)
 - **Craft:** Upgrade **only** Director-approved unlocked shots to **native
   `1080p`** via `hf_guard.py run --round R5 --round-cap <r5_cap>` following the
-  5-step runbook in
-  [Mastering & Upscaling](../.agents/skills/higgsfield-cli/references/mastering-and-upscaling.md)
-  (Web `Unlimited`, `seedance_2_5 --draft_job_id --bitrate_mode high`,
-  `kling4_0` / `wan3_0` / `veo3_1` / `wan3_0_prime`, `kling4_0 --mode
-  video-edit` motion-locked rescue, or direct `cinematic_studio_video_4_0`
-  `--bitrate_mode high`). Never pixel-upscale `480p` drafts; pixel upscaling
-  is allowed only for clean `>= 720p` inputs (`<= 2×`) after passing all 6
-  Upscale Gate checks and a 1-shot `1:1` `--crops` pilot. Probe every upgraded
-  clip with **`qa_media.py clip <mp4> --sheet <sheet.png> --crops <crops.png>
-  --json`**, run **`qa_media.py batch <r5_clips...> --strict --json`** to audit
-  cross-shot resolution/FPS/`hf_edge_energy` consistency, filter via fresh
-  `reviewer-agent` (inspecting both `3x2` sheets and `1:1` native-pixel crops),
-  update `video.selected_take` in `shotlist.json`, and run **Post-Production
-  Finishing** before delivery: unify color/texture across mixed engines via
-  optional `LUT=<grade.cube> GRAIN=3..5` in `make assemble CAMPAIGN=<slug>` (or
-  grade exported `stems/` in DaVinci Resolve), layer clean diegetic foley +
-  uncut beat-locked music (zero baked AI score), composite any Remotion title
-  or endcard overlays last, and verify `make qa-render
-  FILE=campaigns/<slug>/media/exports/master.mp4` (plus optional
-  `brain_activity` virality analysis if approved).
+  mastering runbook and strict Upscale Gate in
+  [`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md) (never
+  pixel-upscale `480p` drafts). Probe every upgraded clip with
+  `qa_media.py clip <mp4> --sheet <sheet.png> --crops <crops.png> --json`, run
+  `qa_media.py batch <r5_clips...> --strict --json`, and filter via fresh
+  `reviewer-agent` against [`video-qa`](../.agents/skills/video-qa/SKILL.md)'s
+  binary rubric (inspecting both `3x2` sheets and `1:1` native-pixel crops).
+  Update `video.selected_take` in `shotlist.json`, assemble `master.mp4` +
+  `stems/` with optional finishing unification (`LUT`/`GRAIN` or Resolve) and
+  post overlays per
+  [`video-assembly`](../.agents/skills/video-assembly/SKILL.md), and verify
+  `make qa-render FILE=campaigns/<slug>/media/exports/master.mp4`.
 - **Final Dailies 5:** `master.mp4` + `stems/` + spend receipt
   (`make budget-status CAMPAIGN=<slug>`) + offer to graduate durable
   `taste-log.md` rules into `brands/<brand>/taste.md`. On sign-off, mark

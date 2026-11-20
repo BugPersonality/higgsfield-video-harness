@@ -85,7 +85,7 @@ If **any single row** hits Red Light, skip Path 5 and use Paths 1–4:
 ## 6. Post-Production Texture Unification
 
 - **Never stack AI upscalers:** two sequential enhancement passes compound halos and plastic skin.
-- **Unify mixed native engines in finishing:** when a cut blends two native engines (e.g. `cinematic_studio_video_4_0` + `kling4_0` or `wan3_0`), export unbaked `media/exports/stems/` and apply one shared subtle **35mm organic film grain** layer (plus light micro-contrast matching) in DaVinci Resolve so every cut reads as one camera.
+- **Unify mixed native engines in finishing:** when a cut blends two native engines (e.g. `cinematic_studio_video_4_0` + `kling4_0` or `wan3_0`), either apply a shared 3D LUT and subtle temporal 35mm film grain directly at `0 cr.` via `make assemble CAMPAIGN=<slug> LUT=<grade.cube> GRAIN=4` (`scripts/assemble.sh --lut <file.cube> --grain <1..20>`), or grade the exported unbaked `media/exports/stems/` in DaVinci Resolve (optionally expanding `1920×1080` clips via `topaz_hyperion_2_5` first) so every cut reads as one camera.
 - **Keep scaling lossless-intent:** `assemble.sh` applies `flags=lanczos` and warns on resolution/FPS mismatches; fix mismatches at the clip source before final delivery.
 
 *Done when:* every `R5` clip followed Paths 1–4 (or passed all 6 Upscale Gate checks + 1-shot pilot), `qa_media.py clip --crops` and `qa_media.py batch --strict` pass with zero errors, and fresh `reviewer-agent` passes both `3x2` sheets and `1:1` native crops via `view_image`.

@@ -346,6 +346,50 @@ class TestRepoChecks(unittest.TestCase):
                 msg=f"Expected anchor diagnostic, got:\n{combined}",
             )
 
+    def test_check_instructions_enforces_layering_description_budget_and_orphan_refs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_str:
+            tmp_root = Path(tmp_str)
+            shutil.copy2(REPO_ROOT / "AGENTS.md", tmp_root / "AGENTS.md")
+            for sub in (".agents", ".codex", "docs"):
+                shutil.copytree(REPO_ROOT / sub, tmp_root / sub)
+
+            # 1. Deep link in AGENTS.md bypassing owning SKILL.md must fail
+            agents_path = tmp_root / "AGENTS.md"
+            orig_agents = agents_path.read_text(encoding="utf-8")
+            agents_path.write_text(
+                orig_agents
+                + "\n- Bypass -> [Camera](.agents/skills/video-direction/references/camera-control.md)\n",
+                encoding="utf-8",
+            )
+            proc1 = self._run_py("check-instructions.py", str(tmp_root))
+            self.assertEqual(proc1.returncode, 1, msg=proc1.stdout + proc1.stderr)
+            self.assertIn("bypasses owning", proc1.stdout + proc1.stderr)
+            agents_path.write_text(orig_agents, encoding="utf-8")
+
+            # 2. Bloated always-loaded SKILL.md description (> 320 chars) must fail
+            vc_skill = tmp_root / ".agents" / "skills" / "video-consistency" / "SKILL.md"
+            orig_vc = vc_skill.read_text(encoding="utf-8")
+            bloated_desc = "X" * 340
+            vc_skill.write_text(
+                orig_vc.replace(
+                    'description: "Cross-shot',
+                    f'description: "{bloated_desc} Cross-shot',
+                    1,
+                ),
+                encoding="utf-8",
+            )
+            proc2 = self._run_py("check-instructions.py", str(tmp_root))
+            self.assertEqual(proc2.returncode, 1, msg=proc2.stdout + proc2.stderr)
+            self.assertIn("320 chars", proc2.stdout + proc2.stderr)
+            vc_skill.write_text(orig_vc, encoding="utf-8")
+
+            # 3. Unlinked orphan file under references/ must fail
+            orphan = tmp_root / ".agents" / "skills" / "video-consistency" / "references" / "orphan.md"
+            orphan.write_text("# Orphan\n", encoding="utf-8")
+            proc3 = self._run_py("check-instructions.py", str(tmp_root))
+            self.assertEqual(proc3.returncode, 1, msg=proc3.stdout + proc3.stderr)
+            self.assertIn("orphan reference doc", proc3.stdout + proc3.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

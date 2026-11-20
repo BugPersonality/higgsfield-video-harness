@@ -17,7 +17,53 @@ from pathlib import Path
 from typing import Any
 
 REQUIRED_ROLE_KEYS = ("name", "description", "class", "output_schema", "instructions")
+AGENTS_MD_MAX_LINES = 100
 DECISION_SKILL_MAX_LINES = 300
+SKILL_DESCRIPTION_MAX_CHARS = 320
+
+
+def _extract_relative_link_paths(md_path: Path, text: str, repo_root: Path) -> list[tuple[int, str, Path]]:
+    """Extract resolved local link targets from Markdown (ignoring fenced & inline code)."""
+    results: list[tuple[int, str, Path]] = []
+    in_fence = False
+    fence_char = ""
+    fence_len = 0
+
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        fm = _CHECK_DOCS.FENCE_RE.match(line)
+        if not in_fence and fm:
+            in_fence = True
+            fence_char = fm.group(1)[0]
+            fence_len = len(fm.group(1))
+            continue
+        if in_fence:
+            stripped = line.lstrip()
+            if (
+                stripped.startswith(fence_char * fence_len)
+                and stripped.strip(fence_char).strip() == ""
+            ):
+                in_fence = False
+            continue
+
+        scrubbed = _CHECK_DOCS._replace_inline_code(line)
+        for match in _CHECK_DOCS.LINK_RE.finditer(scrubbed):
+            target = _CHECK_DOCS._parse_link_target(match.group(1))
+            if not target:
+                continue
+            low = target.lower()
+            if any(low.startswith(scheme) for scheme in _CHECK_DOCS.SKIP_SCHEMES):
+                continue
+            path_part = target.split("#", 1)[0].split("?", 1)[0]
+            path_unquoted = urllib.parse.unquote(path_part)
+            if not path_unquoted:
+                dest = md_path.resolve()
+            elif path_unquoted.startswith("/"):
+                dest = (repo_root / path_unquoted.lstrip("/")).resolve()
+            else:
+                dest = (md_path.parent / path_unquoted).resolve()
+            results.append((lineno, target, dest))
+
+    return results
 
 
 def _load_check_docs():
@@ -264,6 +310,24 @@ def validate_instructions(repo_root: Path) -> dict[str, Any]:
     agents_md = repo_root / "AGENTS.md"
     if not agents_md.is_file() or not agents_md.read_text(encoding="utf-8").strip():
         errors.append("missing or empty required file: AGENTS.md")
+    else:
+        agents_text = agents_md.read_text(encoding="utf-8")
+        agents_lines = len(agents_text.splitlines())
+        if agents_lines > AGENTS_MD_MAX_LINES:
+            errors.append(
+                f"AGENTS.md has {agents_lines} lines (must be <= {AGENTS_MD_MAX_LINES} lines)"
+            )
+        skills_root_resolved = (repo_root / ".agents" / "skills").resolve()
+        for lineno, target, dest in _extract_relative_link_paths(agents_md, agents_text, repo_root):
+            try:
+                rel_parts = dest.relative_to(skills_root_resolved).parts
+            except ValueError:
+                continue
+            if len(rel_parts) >= 3 and rel_parts[1] == "references":
+                errors.append(
+                    f"AGENTS.md:{lineno}: deep link '{target}' bypasses owning "
+                    f"'.agents/skills/{rel_parts[0]}/SKILL.md'; route through SKILL.md instead"
+                )
 
     proj_toml = _load_toml(
         repo_root / ".agents" / "codex-project.toml",
@@ -409,6 +473,11 @@ def validate_instructions(repo_root: Path) -> dict[str, Any]:
             sdesc = fm.get("description")
             if not isinstance(sdesc, str) or not sdesc.strip():
                 errors.append(f"{rel_skill}: frontmatter 'description' must be non-empty")
+            elif len(sdesc.strip()) > SKILL_DESCRIPTION_MAX_CHARS:
+                errors.append(
+                    f"{rel_skill}: frontmatter 'description' has {len(sdesc.strip())} chars "
+                    f"(must be <= {SKILL_DESCRIPTION_MAX_CHARS} chars to keep always-loaded context lean)"
+                )
 
             # Resolve kind (top-level or nested under metadata)
             raw_kind = fm.get("kind")
@@ -487,6 +556,20 @@ def validate_instructions(repo_root: Path) -> dict[str, Any]:
                     if not found_m or not isinstance(m_val, str) or not m_val.strip():
                         errors.append(
                             f"{rel_dir}/agents/openai.yaml: model-invoked skill requires non-empty '{req_meta}'"
+                        )
+
+            # Every references/*.md file under a skill must be linked from its owning SKILL.md
+            refs_dir = sdir / "references"
+            if refs_dir.is_dir():
+                linked_targets = {
+                    dest
+                    for _, _, dest in _extract_relative_link_paths(skill_md, text, repo_root)
+                }
+                for ref_md in sorted(refs_dir.glob("*.md")):
+                    if ref_md.resolve() not in linked_targets:
+                        rel_ref = str(ref_md.relative_to(repo_root))
+                        errors.append(
+                            f"{rel_ref}: orphan reference doc is not linked from '{rel_skill}'"
                         )
 
     return {

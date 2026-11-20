@@ -1,18 +1,96 @@
 ---
 name: higgsfield-cli
-description: "Live Higgsfield CLI routing. Use when inspecting model, workflow, voice, or preset schemas, selecting lookbook, still, video, upscaling, or audio models, planning draft-to-final 1080p mastering, or running guarded jobs and uploads through hf_guard.py."
+description: "Live Higgsfield CLI, Web Unlimited, model selection, and R4->R5 mastering. Use when inspecting schemas or CEL rules, quoting or running guarded jobs/uploads via hf_guard.py, picking image/video/audio models, or planning native 1080p mastering and upscaling."
 ---
 
 # Higgsfield CLI
 
-**Live schema truth.** Query `higgsfield model get <id> --json`, `workflow get <id> --json`, `voices list`, `preset list <type>`, `account status`, and `generate cost` before trusting static notes—live schemas and CEL rules own valid parameters and limits. Never pass private local file paths to `generate cost` before upload approval (local paths auto-upload).
+Canonical owner of live Higgsfield schemas, credit-safe `hf_guard.py` execution,
+`0 cr.` Web Unlimited routing, model selection, `R4 → R5` native mastering, and
+Web UI vs. CLI boundaries.
 
-**Guarded spend, Unlimited-first & model routing.** Always follow the priority ladder and 2026 image/video benchmarks in [model selection & Web Unlimited routing](references/model-selection.md): check `higgsfield.ai` **Unlimited (`0 cr.`)** via the built-in browser agent first (pausing for the Director to solve any login/CAPTCHA manually, then resuming the same browser session), fall back to economy `720p` CLI drafts (`seedance_2_0_mini` `5 cr.`, `kling_4_0_flash` `7.5 cr.`, `wan3_0` `8.75 cr.`) or `seedance_2_5 --draft true` (`15 cr.`), and reserve native `1080p` finals for approved `R5` cuts. Route every paid CLI job through `python3 scripts/hf_guard.py preflight` / `run` and tracked uploads (including downloaded browser outputs) through `hf_guard.py upload --round <R>` (0 cr.), enforcing the dual cap and lock rules in [Workflow](../../../docs/workflow.md#budget--lock-invariants) (see `hf_guard.py --help` and [live workflow gotchas](references/live-workflows.md)).
+## Reference Map
 
-**Mastering & strict Upscale Gate (`R4` → `R5`).** Follow [Mastering & Upscaling](references/mastering-and-upscaling.md) before any `R5` upgrade or upscaler call: never pixel-upscale `480p` drafts into `1080p` masters. Graduate takes natively via Web `Unlimited` (`0 cr.`), `seedance_2_5 --draft true` → `--draft_job_id` + `--bitrate_mode high` (`0 cr.` bitrate surcharge), value native `1080p` (`kling4_0` `18.75 cr.`, `wan3_0` `17.5 cr.`, `veo3_1` `16 cr.`, `wan3_0_prime` `30 cr.`), or motion-locked native re-renders (`kling4_0 --mode video-edit` `22.5 cr.` / `depth_anything_video` `7.57 cr.`). Reserve pixel upscalers (`topaz_video` Starlight in Web UI, SeedVR2 7B, or conservative `bytedance_video_upscale`) strictly for clean `>= 720p` sources (`<= 2×`) after passing all 6 Upscale Gate rules and a 1-shot `1:1` `--crops` pilot.
+Load only the reference needed for the current decision:
 
-**Lookbook, spatial/cast packs, stills, and Soul identity (`R2`–`R3`).** Use `hf_guard.py run --command product-photoshoot --model gpt_image_2 --kind lookbook` for mode-enhanced brand shots (`product_shot`, `lifestyle_scene`, `closeup_product_with_person`, `hero_banner`, `ad_creative_pack`), issuing separate `--count 1` calls per `--variant A|B|C` with distinct `--out` paths. Use `soul_location` / `cinematic_studio_soul_location` and `soul_cast` / `cinematic_studio_soul_cast` (`0.12 cr.`) for fast `R2` architectural and casting lookbook exploration, then lock `2k`/`4k` masters and `R3` stills on `seedream_v5_pro` (`2.5 cr.`, workhorse bibles & `2k` keyframes), `nano_banana_2_1`, `seedream_5_5` (`3.5 cr.`, flagship fabric/macro close-ups), `flux_3_image`, `kling_image_4_0`, or `gpt_image_2_6`. For multi-angle rooms, buildings, character turnarounds, expression/wardrobe/skin/relight packs, and isolated props, route `nano_banana_2_shots` (1 ref → 3×3 sheet, crop before video), `3d_jutsu_angles` (`2.5 cr.`, `2k`, `<= 10` refs), `nano_banana_2_relight`, `nano_banana_2_skin_enhancer`, `nano_banana_2_ai_stylist`, `flux_kontext` (`1.5 cr.`, `<= 4` refs), and workflow `image_decompose` (`2 cr.`, `== 1` ref) per [Locations, Buildings & Props](../video-consistency/references/locations-and-props.md) and [Characters & Expressions](../video-consistency/references/characters-and-expressions.md). For recurring characters, `higgsfield soul-id create` trains custom Soul IDs (`5–20` images CLI / `20–80` Web; `--soul-2` / `--soul-cinematic`) paired with `text2image_soul_v2` / `soul_cinematic` (`0.12 cr.`, `<= 1` `image_references`) via `--custom_reference_id` (check `higgsfield soul-id --help`: current CLI lacks `soul-id cost`, so verify live cost support or train in Web if unquotable).
+| Need | Reference |
+| --- | --- |
+| `0 cr.` Web Unlimited browser protocol, image/video/audio benchmarks, round defaults & 30s stack presets | [`references/model-selection.md`](references/model-selection.md) |
+| `R4 → R5` deterministic 5-path mastering, 5-step verification runbook, 6-rule Upscale Gate & upscaler specs | [`references/mastering-and-upscaling.md`](references/mastering-and-upscaling.md) |
+| All live CLI CEL traps, parameter gotchas & copy-ready guarded `hf_guard.py` recipes | [`references/live-workflows.md`](references/live-workflows.md) |
 
-**Video, camera tools, performance transfer, talking lip-sync, spatial rescue, audio, and virality (`R3`–`R5`).** Use `seedance_2_5` (`--mode omni_reference`, `--draft true` → `--draft_job_id`, `--bitrate_mode high`, up to 30 images / 50 refs / `4k`, plus `--mode video_extension` and `6s` 2-shot `3s + HARD CUT + 3s` pairs at `18 cr.` draft → `96 cr.` `1080p high` = `48 cr./cut`) when `R4` motion must lock 1:1 into `R5` *(route consented real actors hitting `ip_detected` to Kling/Intone)*; `kling4_0` / `kling_4_0_flash` (`reference-to-video`, `video-edit`, up to 10 images + `kling_element_ids`, optional `--dynamic_range hdr`) for high-value native `1080p`, real-actor continuity, and surgical face/prop rescue; `kling_o3_image_reference` (`--multi_shots true --multi_prompt [...]`) for multi-cut cohesion inside one set; `kling3_0_motion_control` (`--workflow`, `10/15 cr.` 5s, `1` image + `1` driving video) or `hf_mult_motion_control` / `hf_mult_motion_control_flash` (Genjutsu, `>= 1` image + `1` video) for exact human acting, micro-expression, or camera-trajectory transfer; `cinematic_studio_video_3_5` (`--workflow`, `--camera_style`, `--duration 5 --prompt_language en`), `cinematic_studio_3_0` (`--workflow`, `--speedramp`, `--prompt_language en`), `draw_to_video` (`--workflow`, `== 1` sketch ref), and `reframe` (`--workflow`, post-ratio adaptation only) for specialized camera control per [Camera Control](../video-direction/references/camera-control.md); `intone` (`1–2` `character_images` + opt. `location_image` + `1–6` `audio_references`, `1080p`, `--bitrate_mode high`) for audio-driven talking & lip-sync; `hf_mult_replace_object` (Genjutsu) or `flux_3_video_edit` to swap a drifted prop inside a locked take; `cinematic_studio_video_4_0` (`--workflow`, `--mode omni_reference`, `--bitrate_mode high`, no CLI `--draft_job_id`) for direct native `1080p` hero shots; `wan3_0` / `wan3_0_prime` / `minimax_h3` / `veo3_1` / `flux_3_video` for single-subject or portrait takes; `marketing_studio_video` (`--workflow`) for UGC ads (check live `generate cost workflow` before quoting `--specific_mode from_storyboard`, whose live cost schema currently omits `storyboard_id`). For audio, pair `higgsfield voices list` (`--voice_id`, `--voice_type preset|element`) with `text2speech_v2` (`--variant elevenlabs|seed_speech|...`) or `seed_audio` for VO, `elevenlabs_v4` for multi-speaker `--dialogue`, `elevenlabs_music_v2_5` / `sonilo_music` for score, and `mirelo_text_to_audio` for SFX. Use `brain_activity` (`--kind analysis`) only as an optional advisory pacing read.
+## Core Rules
 
-**Web Cinema Studio 4.0 boundaries.** `Emotion Wheel`, `AI Cast`, `Face Swap`, `Lipsync Studio`, creating `kling_element_ids`, and interactive light placement exist only in the Web UI (`https://higgsfield.ai/cinema-studio`). Opaque preset UUIDs (`camera_model_id`, `camera_lens_id`, `light_id`, etc.) are absent from `preset list`: leave them unset (`Auto`) and describe optics/light in prose, or extract UUIDs from a web job via `higgsfield generate get <id> --json` into [`cinema-presets.example.json`](../../../docs/cinema-presets.example.json) shape.
+- **Live schema & cost truth:** Query `higgsfield model get <id> --json`,
+  `workflow get <id> --json`, `voices list`, `preset list <type>`, `account status`,
+  and `generate cost` before trusting static snapshots. Never pass private local
+  file paths to `generate cost` before upload approval (local paths auto-upload);
+  use cost-affecting flags or already-uploaded UUIDs only.
+- **Mandatory spend & upload guard:** Route every paid CLI job through
+  `python3 scripts/hf_guard.py preflight` / `run` and every tracked upload
+  (including downloaded Web Unlimited files) through `hf_guard.py upload --round <R>`
+  (`0 cr.`), honoring [Budget & Lock Invariants](../../../docs/workflow.md#budget--lock-invariants).
+  Check `python3 scripts/hf_guard.py --help` for flags.
+- **3-Tier Cost Ladder (Unlimited-first):**
+  1. **Priority 1 — Web `Unlimited` (`0 cr.`):** Check `higgsfield.ai` via browser
+     handoff first (pause cleanly for manual Director login/CAPTCHA, resume the
+     same browser session, ingest downloads via `hf_guard.py upload`).
+  2. **Priority 2 — Economy `720p` / Latent CLI Drafts:** Cheap stills
+     (`0.12–0.50 cr.`), `720p` video drafts, or `seedance_2_5 --draft true` when
+     1:1 latent escalation to `R5` is required.
+  3. **Priority 3 — Native `1080p` Finals (`R5`):** Never pixel-upscale `480p`
+     drafts into `1080p` masters. Graduate takes natively (`--bitrate_mode high`
+     where supported—`0 cr.` surcharge); reserve pixel upscalers strictly for
+     clean `>= 720p` inputs (`<= 2×`) passing all 6 Upscale Gate rules + 1-shot
+     `1:1` `--crops` pilot.
+
+## Stage Endpoint Index
+
+Use [`references/model-selection.md`](references/model-selection.md) for live
+costs/benchmarks and [`references/live-workflows.md`](references/live-workflows.md)
+for exact flags and CEL rules:
+
+- **`R2`–`R3` Lookbooks, Asset Bibles & Stills:** `product-photoshoot`
+  (`--model gpt_image_2`, modes: `product_shot`, `lifestyle_scene`,
+  `closeup_product_with_person`, `hero_banner`, `ad_creative_pack` — issue
+  separate `--count 1` calls per `--variant A|B|C` with distinct `--out` paths);
+  `soul_location` / `soul_cast` (`0.12 cr.`) for fast exploration;
+  `seedream_v5_pro`, `nano_banana_2_1`, `seedream_5_5`, `flux_3_image`,
+  `kling_image_4_0`, `gpt_image_2_6` for `2k`/`4k` locks; spatial/cast utilities
+  (`3d_jutsu_angles`, `nano_banana_2_shots`, `nano_banana_2_relight`,
+  `nano_banana_2_skin_enhancer`, `nano_banana_2_ai_stylist`, `flux_kontext`,
+  `outpaint`, `flux_2_pro_outpaint`, `image_background_remover`, wf
+  `image_decompose`) and `higgsfield soul-id create` (`--soul-2` /
+  `--soul-cinematic` → `text2image_soul_v2` / `soul_cinematic`).
+- **`R4`–`R5` Motion, Camera, Acting & Rescue:** `seedance_2_5` (`omni_reference`,
+  `--draft true` → `--draft_job_id`, `video_extension`, `6s` 2-shot pairs);
+  `kling4_0` / `kling_4_0_flash` (`reference-to-video`, `video-edit`,
+  `kling_element_ids`, `--dynamic_range hdr`); `kling_o3_image_reference` /
+  `kling_o3_flf`; `wan3_0` / `wan3_0_prime` / `veo3_1` / `flux_3_video` /
+  `minimax_h3`; camera workflows (`cinematic_studio_video_4_0`,
+  `cinematic_studio_video_3_5`, `cinematic_studio_3_0`, `draw_to_video`,
+  `reframe`, `marketing_studio_video`); performance/dialogue
+  (`kling3_0_motion_control`, `hf_mult_motion_control*`, `intone`); prop rescue
+  (`hf_mult_replace_object*`, `flux_3_video_edit`); depth/finishing
+  (`depth_anything_video`, `topaz_hyperion_2_5`, `video_deflicker`).
+- **`R3`–`R5` Audio & Advisory Analysis:** VO (`text2speech_v2` + `voices list`,
+  `seed_audio`), multi-speaker (`elevenlabs_v4`), voice swap/dubbing
+  (`voice_change`, `dubbing`), music (`elevenlabs_music_v2_5`, `sonilo_music`),
+  SFX (`mirelo_text_to_audio`), optional advisory pacing read
+  (`brain_activity --kind analysis`).
+
+## Web UI vs. CLI Boundaries (Canonical)
+
+- **Web-UI only (`https://higgsfield.ai/cinema-studio`):** `Unlimited (0 cr.)`
+  toggle, `Emotion Wheel`, `AI Cast`, `Face Swap`, `Lipsync Studio`, creating
+  Cinema Studio Elements or `kling_element_ids`, interactive light placement,
+  and quoting/running `topaz_video` (`alpha v2` CLI cost unsupported).
+- **Opaque Cinema Studio preset UUIDs** (`camera_model_id`, `camera_lens_id`,
+  `camera_aperture_id`, `light_id`, etc.) are absent from `preset list`: leave
+  unset (`Auto`) and describe optics/light in prose, or configure once in Web
+  and extract via `higgsfield generate get <id> --json` into
+  [`cinema-presets.example.json`](../../../docs/cinema-presets.example.json) shape.
+
+*Done when:* target models/workflows are verified against live schemas and
+`generate cost`, `make campaign-check` passes CEL rules, and every paid call or
+upload routes through `hf_guard.py` within approved caps.

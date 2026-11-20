@@ -9,31 +9,34 @@ fresh subagents.
 
 ## Roles & Ownership
 
-Four native Codex roles live in [`.agents/roles/`](../.agents/roles) (Multi-Agent
-V2 configured in [`.codex/config.toml`](../.codex/config.toml), 20-thread
-session ceiling; reserve slots for Visual Critic QC and recovery):
+Four reusable role definitions live in [`.agents/roles/`](../.agents/roles)
+(pre-wired for Codex Multi-Agent V2 in [`.codex/config.toml`](../.codex/config.toml)
+with a 20-thread session ceiling, and directly mappable in any subagent-capable
+agent harness; reserve thread slots for Visual Critic QC and recovery):
 
 | Role | Effort | Owns |
 | --- | --- | --- |
 | `evidence-agent` | `low` | Read-only live Higgsfield schemas, `generate cost`, account/workspace checks, `brands/` & photo discovery, `ffprobe`/`receipts.jsonl` reduction |
 | `specialist-agent` | `high` | Read-only contrasting concepts, 3-column scripts, continuity-locked storyboards, prompt architecture, anti-IP rewrites |
 | `worker-agent` | `medium` | Mutable leaf execution for one Lookbook entity, still, clip, audio stem, or assembly unit inside disjoint paths via `hf_guard.py`, `qa_media.py`, `assemble.sh` |
-| `reviewer-agent` | `high` | Fresh read-only pre-Dailies Visual Critic (`view_image`) filtering technical trash, continuity breaks, and `TASTE_REGRESSION`s |
+| `reviewer-agent` | `high` | Fresh read-only pre-Dailies Visual Critic (vision inspection) filtering technical defects, continuity breaks, and `TASTE_REGRESSION`s |
 
 - **Disjoint asset paths (no Git worktrees for binaries):** parallel workers
-  write strictly to assigned paths (`media/lookbook/<id>-*`, `media/stills/sNN-*`,
-  `media/shots/sNN-*`, `media/audio/*`, `media/exports/*`, `prompts/<id>_*`,
-  `qc/<id>-*`). Only the **Root Producer** edits `brief.md`, `taste-log.md`, and
-  `shotlist.json`. `hf_guard.py` serializes `receipts.jsonl` under `flock`.
-- **Freshness & reuse:** start every subagent with `fork_turns: "none"` (no
-  parent chat turns or builder rationales). Reuse a `worker-agent` only for
-  bounded repair inside its unchanged asset, writable paths, and `--round-cap`;
-  spawn a fresh actor when `version` bumps, scope changes, or independent QC runs.
-- **Codex tools:** inspect `lookbook.png`, stills, `3x2` contact sheets, and
-  `R5`/upscale `1:1` `--crops` strips via `view_image`; run `open <artifact>`
-  on macOS before posting Dailies when `Auto-open dailies: true`. Run all paid
-  campaign jobs through `hf_guard.py` on `higgsfield` CLI, keeping MCP
-  read-only.
+  write strictly to assigned paths (`media/lookbook/{characters,locations,props}/*`,
+  `media/stills/sNN-*`, `media/shots/sNN-*`, `media/audio/*`, `media/exports/*`,
+  `prompts/<id>_*`, `qc/<id>-*`). Only the **Root Producer** edits `brief.md`,
+  `taste-log.md`, and `shotlist.json`. `hf_guard.py` serializes `receipts.jsonl`
+  under `flock`.
+- **Freshness & reuse:** start every subagent with fresh history
+  (`fork_turns: "none"` where supported—no parent chat turns or builder
+  rationales). Reuse a `worker-agent` only for bounded repair inside its
+  unchanged asset, writable paths, and `--round-cap`; spawn a fresh actor when
+  `version` bumps, scope changes, or independent QC runs.
+- **Vision & tool boundaries:** inspect `lookbook.png`, stills, `3x2` contact
+  sheets, and `R5`/upscale `1:1` `--crops` strips via `view_image` (or your
+  harness's native image-reading tool); run `open <artifact>` on macOS before
+  posting Dailies when `Auto-open dailies: true`. Run all paid campaign jobs
+  through `hf_guard.py` on `higgsfield` CLI, keeping MCP read-only.
 
 ## Pre-Dailies Visual Critic
 
@@ -41,18 +44,16 @@ Before assembling any Dailies Packet for generated media (`R2`–`R5`), spawn a
 fresh read-only `reviewer-agent` (`fork_turns: "none"`) with primary inputs only
 (`brief.md`, `taste-log.md`, `shotlist.json`, `qa_media.py --json` reports,
 reference photos, and `lookbook.png`/stills/`3x2` contact sheets—plus `1:1`
-unscaled `--crops` strips for all `R5` masters and upscaled clips—via
-`view_image`)—zero builder rationale.
+unscaled `--crops` strips and `qa_media.py batch --strict --json` for `R5`
+masters and upscaled clips—via vision inspection)—zero builder rationale.
 
-- **Filter defects, leave taste to the Director:** reject obvious AI/technical
-  defects (including upscale halos/ringing, plastic or muddy faces, color
-  blotches, non-standard dimensions, and cut-to-cut sharpness whiplash on `1:1`
-  crops), continuity breaks, taste regressions, or policy/budget blocks using
-  the `#review-result` classes below. Leave creative picks and `LOCKED`
+- **Filter defects, leave taste to the Director:** score strictly with the
+  binary rubric in [`video-qa`](../.agents/skills/video-qa/SKILL.md) using the
+  `#review-result` defect classes below. Leave creative picks and `LOCKED`
   sign-off solely to the Director.
 - **Fail closed on missing proof:** return `REVIEW_HANDOFF_INVALID` whenever
-  required `qa_media.py` JSON, `taste-log.md`, contact sheets, or `R5` `1:1`
-  `--crops` strips are missing.
+  required `qa_media.py` JSON, `taste-log.md`, contact sheets, `R5` `1:1`
+  `--crops` strips, or `R5` `batch --strict` reports are missing.
 - **Honest escalation:** fix root causes inside `Max auto-retries/asset` and
   `--round-cap` (tighten anchors, adjust motion beats, sanitize IP phrasing).
   When retries or round cap exhaust, surface any surviving borderline `CONCERN`

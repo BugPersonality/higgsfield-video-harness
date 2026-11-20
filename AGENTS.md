@@ -9,16 +9,14 @@
   one compact **Dailies Packet** for taste feedback and next-round credit
   approval.
 - **Cheap proofs before expensive pixels (Unlimited-first).** Prioritize
-  `0 cr.` **Unlimited** generations on `higgsfield.ai` via the built-in browser
-  agent whenever available (pause for the Director to solve any login or
-  CAPTCHA manually in the browser pane, then resume the same browser session
-  and ingest downloads via `hf_guard.py upload`). When using CLI credits, prove
-  meaning before story, story and live costs before pixels, Lookbook `A / B / C`
-  before scenes, economy draft stills and a 0-video-credit Still Animatic
-  before motion, economy `720p` drafts (`seedance_2_0_mini` / `kling_4_0_flash` /
-  `wan3_0`) or `seedance_2_5 --draft true` before native `1080p` mastering
-  (never pixel-upscale `480p` drafts into `1080p` masters; verify `R5` / upscaled
-  clips at `1:1` pixel crops).
+  `0 cr.` **Unlimited** generations on `higgsfield.ai` via browser handoff
+  whenever available (pausing for the Director to complete any login or CAPTCHA
+  manually, then ingesting downloads via `hf_guard.py upload`). When using CLI
+  credits, prove meaning before story, story and live costs before pixels,
+  Lookbook `A / B / C` before scenes, draft stills and a 0-video-credit Still
+  Animatic before motion, and economy `720p` or latent drafts before native
+  `1080p` mastering (never pixel-upscale `480p` drafts; verify `R5` masters at
+  `1:1` pixel crops).
 - **Keep the Director boundary jargon-free.** Present visual artifacts, light,
   texture, pacing, `A / B / C` choices (or blends), and plain credit totals.
   Keep model slugs, CLI flags, prompt syntax, UUID wiring, codecs, and FFmpeg
@@ -32,7 +30,7 @@
   unlocking requires explicit Director approval and a Root Producer edit in
   `shotlist.json` (`LOCKED` → `ITERATING`).
 - **Internal QC filters noise; the Director judges taste.** Fresh read-only
-  `reviewer-agent` lanes (`fork_turns: "none"`, `view_image`) filter technical
+  `reviewer-agent` lanes (fresh context, vision inspection) filter technical
   defects, continuity breaks, and `TASTE_REGRESSION`s before Dailies; creative
   selection belongs solely to the Director.
 - **Live schemas, probed media, and receipts are truth.** Follow live
@@ -66,18 +64,19 @@
 
 ## Context Pointers
 
-Load a target only when its branch triggers:
+Load a target only when its branch triggers (route through the owning `SKILL.md`
+first; each skill links its deep `references/`):
 
 - Multi-shot video, commercial, or branded spot → [Workflow](docs/workflow.md) (`R0`–`R5`, Dailies Packet, Taste Memory, surgical re-rolls, budget & lock invariants).
-- Isolated single deliverable (schema check, harness edit, local QA/assembly, or one confirmed test asset after live `generate cost`) → execute directly without a campaign folder; escalate to [Workflow](docs/workflow.md) once it grows into coordinated shots or multi-round iteration.
-- Spawning subagents, parallel workers, Visual Critic (`view_image`), or retry/timeout recovery → [Delegation](docs/delegation.md).
+- Isolated single deliverable (schema check, harness edit, local QA/assembly, or one confirmed test asset after live `generate cost`) → execute directly without a campaign folder; escalate to [Workflow](docs/workflow.md) once shots or rounds coordinate.
+- Subagents, parallel workers, Visual Critic, or retry/timeout recovery → [Delegation](docs/delegation.md).
 - Meaning-only alignment or resolving a taste fork → [Grilling](docs/grilling.md).
 - Commercial craft vocabulary (`swap test`, `mute test`, `Continuity Lock`, `test-take check`) → [Ad Craft Glossary](docs/ad-craft-glossary.md).
-- Model benchmarks, draft-vs-final routing, or `0 cr.` Web Unlimited browser workflow → [Model Selection](.agents/skills/higgsfield-cli/references/model-selection.md).
-- `R4 → R5` mastering, latent draft escalation (`--draft_job_id`), video upscaling rules (when upscaling works vs. native `1080p`), or Topaz / ByteDance / Hyperion tool routing → [Mastering & Upscaling](.agents/skills/higgsfield-cli/references/mastering-and-upscaling.md).
-- Consistent locations, buildings, objects/props, multi-angle sets, reference-count budgets, or cross-scene spatial continuity → [Locations, Buildings & Props](.agents/skills/video-consistency/references/locations-and-props.md).
-- Camera control, optics (body/lens/focal length/aperture), Higgsfield camera tools (Cinema Studio 4.0/3.5/3.0, 3D Jutsu, Draw to Video, Genjutsu / Kling Motion Control, Reframe), rigs, speedramps, or in-camera transitions → [Camera Control](.agents/skills/video-direction/references/camera-control.md).
-- Consistent character faces, facial expressions/mimicry, Character Bibles, `Soul ID`, `Kling Elements`, `Intone` dialogue, `Motion Control` acting transfer, or real-actor routing → [Characters & Expressions](.agents/skills/video-consistency/references/characters-and-expressions.md).
+- Models, `0 cr.` Web Unlimited, live CLI/CEL gotchas, `hf_guard.py`, or `R4 → R5` mastering/upscaling → [`higgsfield-cli`](.agents/skills/higgsfield-cli/SKILL.md).
+- Prompt engineering, optics, camera control/rigs/speedramps, dialogue/audio, anti-IP, or prompt repairs → [`video-direction`](.agents/skills/video-direction/SKILL.md).
+- Cross-shot characters/expressions, locations/buildings/props, Asset Bibles, ref budgets, Soul ID, Motion Control, or Intone → [`video-consistency`](.agents/skills/video-consistency/SKILL.md).
+- `qa_media.py` probes, `1:1` crop strips, batch audits, lookbook grids, or pre-Dailies Visual Critic rubric → [`video-qa`](.agents/skills/video-qa/SKILL.md).
+- `R3` still animatics, VO timing, FPS-locked FFmpeg mastering, `-14 LUFS`, `LUT`/`GRAIN` finishing, stems, or Remotion boundary → [`video-assembly`](.agents/skills/video-assembly/SKILL.md).
+- User-invoked & commercial skills → [`.agents/skills`](.agents/skills): user-invoked `idea-refine`, `grilling`; commercial `ad-references`, `ad-concepts`, `ad-script`, `ad-storyboard`.
 - Editing `AGENTS.md`, docs, roles, or skills → [Writing For Agents](docs/writing-for-agents.md).
-- Craft & workflow skills → [`.agents/skills`](.agents/skills): user-invoked `idea-refine`, `grilling`; commercial `ad-references`, `ad-concepts`, `ad-script`, `ad-storyboard`; production `higgsfield-cli`, `video-direction`, `video-consistency`, `video-qa`, `video-assembly`.
 - Commands, flags, and schemas → inspect `make help`, `scripts/<tool> --help`, and `campaigns/example-product-spot/`; run `make check` before finishing harness edits.

@@ -1,16 +1,84 @@
 ---
 name: video-consistency
-description: "Cross-shot character, facial expression/mimicry, location, building, and prop continuity locking. Use when anchoring R2 Character Bibles and Asset Bibles (multi-angle cast, expression calibration plates, empty locations, buildings, reverse walls, neutral-gray props, scale/state plates), budgeting library vs. per-shot reference image counts, wiring approved_upload_id and references[] into R3 stills and R4/R5 omni_reference/multi-shot motion, driving acting via Motion Control (kling3_0_motion_control, hf_mult_motion_control) or Intone lip-sync, routing real actors past Seedance face filters, using Higgsfield spatial/face tools (soul_cast, soul_location, 3d_jutsu_angles, nano_banana_2_shots, nano_banana_2_relight, nano_banana_2_skin_enhancer, nano_banana_2_ai_stylist, image_decompose, outpaint, Genjutsu), slicing 3x3 angle grids, bridging frames, or training Soul IDs / Kling Elements."
+description: "Cross-shot character, expression, location, building, and prop continuity. Use when planning R2 Character/Asset Bibles, budgeting reference counts, wiring UUIDs into R3/R4/R5, slicing angle grids, using Motion Control/Intone/Soul ID, or routing real actors."
 ---
 
 # Video Consistency
 
-Run consistency as a strict **round-by-round pipeline** backed by two peer runbooks—[Locations, Buildings & Props](references/locations-and-props.md) and [Characters, Faces & Expressions](references/characters-and-expressions.md)—plus mechanical `make campaign-check` validation:
+Canonical owner of cross-shot **location, building, prop, character, and facial
+expression** continuity across `R1B`–`R5`, backed by mechanical validation in
+`make campaign-check`.
 
-1. **`R1B` — Spatial & Cast Triage:** Run [Fast Plate Triage](references/locations-and-props.md#1-fast-plate-triage-if--then) (locations/props) and [Fast Character & Performance Triage](references/characters-and-expressions.md#1-fast-character--performance-triage-if--then) (cast Tier 1–3, Expression Calibration, Performance Transfer, or `intone` dialogue). Write an absolute **`N / E / S / W` Spatial Map**, one verbatim **Immutable Identity Block** (for `R3` stills only), and per-shot `CAM` facing wall, `FRAMING` (`MCU` preferred for acting), `EXPRESSION (START → END)` delta, `GAZE ANCHOR`, and mutable `PROP STATE` in `storyboard.md` and `shotlist.json`, prefixing IDs per entity (`cast_<name>_*`, `loc_<set>_*`, `prop_<item>_*`). Run `make campaign-check CAMPAIGN=<slug>`.
-2. **`R2A` — Lock Empty Masters, Neutral Props & Cast Masters (Unlimited-First):** Check `higgsfield.ai` Web `Unlimited` (`0 cr.`) first, else `soul_location` / `soul_cast` (`0.12 cr.`) → hero `2k`/`4k` lock (`seedream_v5_pro` `2.5 cr.`, `flux_3_image`, `seedream_5_5`, `nano_banana_2_1`). Enforce **Empty Set Law** (zero people/clutter on location plates), **neutral `#808080` matte mid-gray + soft diffused `5000–5600K` light** on prop and cast plates (kills *Lighting Bake-In*), **`50–85mm` unretouched portraits** in a static relaxed pose (**Static Pose Rule**) without hero props covering the face, and `outpaint` / `flux_2_pro_outpaint` on mismatched client ratios. Lock winners (`status: "LOCKED"`, `approved_upload_id`).
-3. **`R2B` — Expand Only Triggered Plates & Optional ID Training (`variants_requested: 1`):** Strictly from locked `R2A` Master UUIDs, derive Reverse Walls and `3/4` + soft-profile (`60–80°`) cast angles (`3d_jutsu_angles` / `nano_banana_2_1`), angle sheets (`nano_banana_2_shots` → **`make slice-grid`** → upload winning standalone tiles; never feed raw grids to video), **Expression Calibration** plates (natural open-teeth smile + tense/speaking mouth) and full/half-body proportions, lighting/wardrobe/skin variants (`nano_banana_2_relight`, `nano_banana_2_ai_stylist`, `nano_banana_2_skin_enhancer`, `flux_kontext`), or clean prop cutouts (`image_background_remover` / `image_decompose`). For multi-outfit or 15+ scene heroes, train a **Soul ID** (`higgsfield soul-id create --name <Name> --soul-2|--soul-cinematic --image ...`; `5–20` CLI / `20–30` Web varied angles, natural expressions, and outfits) bound via `--custom_reference_id` on `text2image_soul_v2` / `soul_cinematic` (both cap `--image_references` at `1`), and/or create a **Kling Custom/Video Element** in Web UI (`1–4` angles or `3–8s` video+voice → `kling_element_ids`). *(Web UI only: Cinema Studio `AI Cast`, `Emotion Wheel`, `Face Swap`, and creating `kling_element_ids`.)*
-4. **`R3` — Stage `2k`/`4k` Keyframes (`3–5` Visible Refs; `1–2` Cast Plates):** Assemble set + cast + visible props in `2k`/`4k` stills using [Spatial Templates](references/locations-and-props.md#3-copy-ready-templates) and [Cast Templates](references/characters-and-expressions.md#3-copy-ready-templates). **Bake 40–60% of each shot's target expression** into the `R3` still (never leap from deadpan neutral to open laughter in 5s), render `WS` at `2k`/`4k` with close-up `R2A` face attached (*anti-Wide-Shot Face Collapse*), and prune all off-screen props, walls, and unused cast angles (**Visibility Pruning**). Lock & upload stills before any motion spend.
-5. **`R4 / R5` — Delta Motion, Acting Transfer & Surgical Rescue (`2–4` Visible Refs):** Bind `1` locked `R3` `--start_image` + `1–2` highest-risk canonical **`R2`** UUIDs (canonical face/expression + rotating prop or revealed wall) + optional `1` `--end_image`, pairing every `@ImageN` tag with its concrete noun. Strip facial-feature prose from video prompts once anchored (**Two-Details / Delta-Only Rule**), direct acting via **FACS anatomical micro-beats with timestamps** + explicit **Gaze Anchor** in `4–6s` modular clips, and never chain compressed `.last_frame` screenshots without canonical `R2` UUIDs (**Zero Photocopy Cascade**). Route **consented real actors** hitting `Seedance 2.0/2.5` real-face moderation (`ip_detected`) to `kling4_0`, `kling3_0_motion_control`, `soul-id`, or `intone`. Use `kling3_0_motion_control` (`1` still + `1` tripod driving clip, `10/15 cr.` 5s) or `hf_mult_motion_control` (Genjutsu) for exact human acting transfer, `intone` (`1–2` `character_images` + `1–6` `audio_references`) for audio-driven talking/lip-sync, native multi-shot (`kling_o3_image_reference --multi_shots true` / `kling4_0` / `seedance_2_5`) for 2–4 cuts inside one room, `--mode video_extension` or traversable `start+end` with 3D verbs ([camera grammar](../video-direction/references/prompt-patterns.md#camera-grammar-and-geometric-pairs)) for bridges, and `hf_mult_replace_object*` (prop rescue) or `kling4_0 --mode video-edit` / Web Face Swap (face rescue) to save golden takes.
+## Reference Map
 
-*Done when:* `make campaign-check` passes cleanly, every triggered `R2` Master / Reverse / Angle / Expression / State / Scale plate is `LOCKED` with verified UUIDs, every `R3` still (`3–5` refs) and `R4/R5` shot (`2–4` refs) binds only visible canonical anchors with explicit `@ImageN` roles, and `reviewer-agent` passes facial likeness, teeth/eye anatomy, spatial, reflection, scale, and prop-state continuity across adjacent cuts.
+Load the runbook matching the entity you are locking (or both for character-in-set
+scenes):
+
+| Need | Reference |
+| --- | --- |
+| Interiors, buildings, reverse walls, neutral `#808080` props, scale/state plates, `N/E/S/W` Spatial Map, `nano_banana_2_relight` 26-point cube & spatial diagnostics | [`references/locations-and-props.md`](references/locations-and-props.md) |
+| Character Bibles (Tier 1–3), *Identity ≠ Mimicry* law, Expression Calibration, `Soul ID` / Kling Elements, `Motion Control` driving-video specs, `Intone` lip-sync, real-actor routing & face diagnostics | [`references/characters-and-expressions.md`](references/characters-and-expressions.md) |
+
+## Cross-Cutting Continuity Laws
+
+- **Reference Budget Law (enforced by `check-campaign.py`):** Never confuse
+  library/training size with per-shot inputs—excess refs cause attention dilution,
+  pigment bleed, and stiff "living photo" motion:
+  - **`R3` Stills:** **`3–5` visible refs** (warns `> 6`), picking `1–2`
+    angle/expression-matched cast plates.
+  - **`R4` / `R5` Video:** **`2–4` visible refs** (max **`5`**, warns `> 5`):
+    `1` locked `R3` `--start_image` + `1–2` highest-risk canonical `R2` UUIDs +
+    optional `1` `--end_image`.
+  - **Visibility Pruning & Noun Pairing:** Omit all off-screen props, walls, and
+    unused angles, and always pair every `@ImageN` tag with its concrete noun
+    (`the kettle from @Image2`).
+- **Canonical Source Law (Zero Photocopy Cascade):** Never chain compressed
+  video screenshots (`.last_frame`) shot-over-shot without canonical `R2` Master
+  UUIDs in `--image_references`.
+- **Clean Neutral Masters & Grid Slicing:** Shoot `R2A` location masters empty
+  (**Empty Set Law**) and `R2A` prop/cast masters on flat `#808080` matte
+  mid-gray under soft diffused `5000–5600K` light (kills *Lighting Bake-In*),
+  with characters in a static relaxed `50–85mm` pose (**Static Pose Rule**).
+  Always slice `2x2`/`3x3` angle sheets (`nano_banana_2_shots`) via
+  `make slice-grid` before uploading standalone PNG tiles—never pass raw grids
+  to video models.
+
+## Round-by-Round Pipeline (`R1B` → `R5`)
+
+1. **`R1B` — Triage & Spatial/Cast Blueprint (`0 cr.`):** Run Fast Triage in
+   both runbooks. Write an absolute `N / E / S / W` Spatial Map, one verbatim
+   `Immutable Identity Block` (for `R3` stills only), and per-shot `CAM` facing
+   wall, `FRAMING` (`MCU` preferred for acting), `EXPRESSION (START → END)`,
+   `GAZE ANCHOR`, and mutable `PROP STATE` in `storyboard.md` / `shotlist.json`,
+   prefixing IDs (`cast_<name>_*`, `loc_<set>_*`, `bldg_<name>_*`, `prop_<item>_*`).
+   Verify `make campaign-check`.
+2. **`R2A` — Lock Masters (Unlimited-First):** Generate `A / B / C` Masters under
+   `media/lookbook/{characters,locations,props}/`, filter via `reviewer-agent`,
+   normalize mismatched client ratios via `outpaint` / `flux_2_pro_outpaint`,
+   and lock `approved_upload_id`s.
+3. **`R2B` — Expand Only Triggered Plates (`variants_requested: 1`):** Derive
+   Reverse Walls, `3/4` + soft-profile (`60–80°`) cast angles, Expression
+   Calibration plates (natural open-teeth smile + speaking mouth), body/scale/state
+   plates, or relight/stylist/skin/cutout variants strictly from locked `R2A`
+   Master UUIDs. Train `Soul ID` or Web Kling Elements only for Tier 3
+   multi-outfit / 15+ scene heroes.
+4. **`R3` — Stage `2k`/`4k` Keyframes:** Assemble set + cast + visible props
+   (`3–5` refs), **bake 40–60% of the shot's target expression** into the still,
+   render `WS` at `2k`/`4k` with close-up `R2A` face attached (*anti-Wide-Shot
+   Face Collapse*), and lock/upload stills before spending video credits.
+5. **`R4` / `R5` — Delta Motion, Acting Transfer & Surgical Rescue:** Strip
+   static appearance and facial-feature prose from video prompts (**Two-Details
+   Rule**), direct acting via timed FACS micro-beats + Gaze Anchor in `4–6s`
+   clips (or native multi-shot inside one room), route consented real actors
+   hitting `Seedance` moderation to `kling4_0` / `kling3_0_motion_control` /
+   `soul-id` / `intone`, use `kling3_0_motion_control` / `hf_mult_motion_control*`
+   for exact performance transfer and `intone` for audio-first lip-sync, and
+   rescue single drifted props (`hf_mult_replace_object*`) or softened mid-clip
+   faces (`kling4_0 --mode video-edit` / Web Face Swap) instead of discarding
+   golden takes.
+
+*Done when:* `make campaign-check` passes cleanly, every triggered `R2A`/`R2B`
+plate is `LOCKED` with verified UUIDs, every `R3` (`3–5` refs) and `R4`/`R5`
+(`2–4` refs, max `5`) shot binds only visible canonical anchors with `@ImageN`
+nouns, and `reviewer-agent` passes facial, spatial, reflection, scale, and
+prop-state continuity across cuts.

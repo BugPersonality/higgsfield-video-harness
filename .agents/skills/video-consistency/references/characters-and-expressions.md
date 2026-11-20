@@ -29,7 +29,7 @@ Execute in strict round order. Never invent recurring cast identities directly i
 1. Run Section 1 Triage per recurring character and declare `R2A` Master (`variants_requested: 3`) and triggered `R2B` derived plates (`variants_requested: 1`) in `shotlist.json` using per-character ID prefixes (`cast_<name>_front`, `cast_<name>_3q`, `cast_<name>_profile`, `cast_<name>_body`, `cast_<name>_smile`, `cast_<name>_tense`).
 2. Write one **Immutable Identity Block** in `style-bible.md` / `shotlist.json` (`continuity_lock.space_cast_axis`) for `R3` image prompts only (exact age, face shape, skin features, eye color, hair geometry—zero synonym drift across stills).
 3. Tag every character shot in `storyboard.md` with **`FRAMING`** (prefer `MCU` chest-up for acting/dialogue; flag `WS` face-pixel risk and `ECU` drift risk), **`EXPRESSION (START → END)`** (limited single-clip delta), and **`GAZE ANCHOR`** (exact off-camera or object focus—never leave unspecified).
-4. Run `make campaign-check CAMPAIGN=<slug>` to verify hard CEL caps and optimal ref budgets (`3–5` stills, `2–4` video).
+4. Run `make campaign-check CAMPAIGN=<slug>` to verify hard CEL caps and optimal ref budgets (`3–5` max `6` stills, `2–4` max `5` video).
 - *Done when:* `make campaign-check` passes cleanly, every recurring character has a declared Tier 1–3 plate plan, and every acting shot specifies framing, expression delta, and gaze anchor.
 
 ### Step B — `R2A` Master Identity Lock (Unlimited-First)
@@ -85,7 +85,7 @@ FRAMING: MCU chest-up (50mm) | EXPRESSION: restrained concern (45% baked in R3) 
 ### B. `shotlist.json` Wiring (`R2A/R2B` Character Bible → `R3` → `R4/R5` + `intone` / `motion_control`)
 ```json
 "references": [
-  { "id": "cast_elena_3q_tile", "kind": "character_angle", "local_path": "media/lookbook/tiles/cast_elena_r0_c2.png", "upload_id": "<uuid>" },
+  { "id": "cast_elena_3q_tile", "kind": "character_angle", "local_path": "media/lookbook/characters/tiles/cast_elena_r0_c2.png", "upload_id": "<uuid>" },
   { "id": "act_s04_driver", "kind": "driving_video", "local_path": "media/references/elena_acting_s04.mp4", "upload_id": "<video_uuid>" },
   { "id": "vo_s05_line", "kind": "audio", "local_path": "media/audio/s05_elena_line.wav", "upload_id": "<audio_uuid>" }
 ],
@@ -159,7 +159,7 @@ Never confuse **Library / Training Count** (one-time asset creation) with **Per-
 | `3d_jutsu_angles` / `nano_banana_2_shots` | From `1` locked `R2A` Master | `<= 10` / **exact `1`** | **`1`** locked Master | `nano_banana_2_shots` takes no `--prompt`; always `make slice-grid` before video |
 | **Video (`R4`/`R5`)** | | | | |
 | `kling4_0` / `kling_4_0_flash` (`reference-to-video`) | Bible or Kling Element | `<= 10` imgs (`<= 15` total) | **2–4** (`start` + `1–2` face/element + opt. `end`) | Top value native `1080p` (`18.75 cr.`) & consented real-actor face routing |
-| `seedance_2_5` / `cinematic_studio_video_4_0` (`omni_reference`) | `4–6` Character Bible | `<= 30` imgs (`<= 50` media) | **2–5** (`start` + `1–2` face + set/prop) | `--draft true` → `--draft_job_id` locks exact acting 1:1; **real faces may trigger `ip_detected`** |
+| `seedance_2_5` / `cinematic_studio_video_4_0` (`omni_reference`) | `4–6` Character Bible | `<= 30` imgs (`<= 50` media) | **2–4** (max 5: `start` + `1–2` face + set/prop) | `--draft true` → `--draft_job_id` locks exact acting 1:1; **real faces may trigger `ip_detected`** |
 | `intone` (Higgsfield Intone) | `1–2` portraits | `1–2` `character_images` (or exact `2` `image_references`) + `1–6` `audio_references` | **`1–2` face + `1` location + `1` audio** | Dedicated talking/acting lip-sync (`<= 30s`, `1080p`, `--bitrate_mode high`) |
 | `kling3_0_motion_control` *(workflow)* | `1` still + `1` driving clip | **Exact `1`** image + **exact `1`** video | **`1` still + `1` driving video** | `10 cr.` (`std`) / `15 cr.` (`pro`) for 5s; `--background_source input_image\|input_video` |
 | `hf_mult_motion_control` / `hf_mult_motion_control_flash` (Genjutsu) | `1+` still + `1` driving clip | **`>= 1`** image + **exact `1`** video | **`1–2` stills + `1` driving video** | Video-to-video character swap / motion transfer (`480p`–`1080p`) |

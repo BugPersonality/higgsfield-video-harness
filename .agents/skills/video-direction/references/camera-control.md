@@ -42,15 +42,18 @@ Evaluate each shot top-to-bottom and take the **first matching branch**:
 
 Keep all shots inside one location within **one coherent lens family** (`24–35mm` for wide/medium coverage, `50–85mm` for close-ups); unmotivated jumps from `14mm` to `85mm` break spatial realism.
 
-### A. Focal Length × Motion × Risk
+### A. Focal Length × Diagonal FOV × Motion × Risk
 
-| Focal Length | Optical & Psychological Effect | Best Camera Moves | Failure Risk |
-| :--- | :--- | :--- | :--- |
-| **Ultra-Wide (`8–14mm`)** | Exaggerated foreground scale, edge distortion, frantic energy / claustrophobia | `FPV Drone`, `Snorricam`, `Crash Zoom`, aggressive POV tracking | Corner wall bending; avoid on calm human portraits |
-| **Wide (`18–24mm`)** | Strong 3D parallax, readable architecture, grand scale | `Dolly In/Out`, `Truck`, `Crane Up/Down`, `Helicopter` | Tilted horizon if `horizon level` is omitted |
-| **Classic Cinema (`35mm`)** | Natural human field of view, grounded presence in room | `Slow Dolly`, `Lateral Track`, `Handheld` (`intimate_observer`), `Static` | **Lowest artifact risk**—default workhorse for AI video |
-| **Standard (`50mm`)** | Undistorted faces, gentle background compression | `Slow Push-In`, `Locked-off Tripod`, `45–90° Arc` | Default for dialogue, OTS, and tabletop product shots |
-| **Telephoto (`75–85mm+`)** | Flat compressed background, strong subject isolation & emotional intimacy | `Locked-off Tripod`, micro-`Dolly In`, very slow `Arc` | **High warp risk on fast pans/orbits** (shallow DOF + compression tears background) |
+On multi-shot / photochemical engines (`seedance_2_5`), pairing camera height with explicit **diagonal FOV degrees** (`84° / 47° / 29° / 18°`) locks optical perspective and compression far more reliably than vague labels (`wide`, `close-up`):
+
+| Focal Length | Diagonal FOV (35mm FF) | Optical & Psychological Effect | Best Camera Moves | Failure Risk |
+| :--- | :--- | :--- | :--- | :--- |
+| **Ultra-Wide (`8–14mm`)** | `114°–140°` | Exaggerated foreground scale, edge distortion, frantic energy / claustrophobia | `FPV Drone`, `Snorricam`, `Crash Zoom`, aggressive POV tracking | Corner wall bending; avoid on calm human portraits |
+| **Wide (`18–24mm`)** | **`~84°`** (`24mm`) | Strong 3D parallax, readable geography, immersive action inside the space | `Dolly In/Out`, `Truck`, `Crane Up/Down`, dynamic handheld | Tilted horizon if `horizon level` is omitted |
+| **Classic Cinema (`35mm`)** | `~63°` | Natural human field of view, grounded presence in room | `Slow Dolly`, `Lateral Track`, `Handheld` (`intimate_observer`), `Static` | **Lowest artifact risk**—default workhorse for AI video |
+| **Standard (`50mm`)** | **`~47°`** | Undistorted faces, gentle compression, physical blocking & unbroken one-takes | `Slow Push-In`, `Locked-off Tripod`, `45–90° Arc`, continuous handheld | Default for dialogue, two-shots, OTS, and tabletop product shots |
+| **Short Tele (`75–85mm`)** | **`~29°`** (`85mm`) | Tight detail / tactile inserts (hands, props, eyes) with strong subject isolation | `Locked-off Tripod`, reactive handheld inserts, micro-`Dolly In` | **High warp risk on fast pans/orbits** (shallow DOF + compression tears background) |
+| **Telephoto ECU (`135mm`)** | **`~18°`** | Intense frontal extreme close-up (forehead/chin near frame edges) & window-glass POV compression | Held reactive handheld, subtle breathing sway, deliberate focus slip | Extreme shake magnification; keep subject movement small |
 
 ### B. Aperture (`f/`-Stop) as Stability Lever
 
@@ -116,15 +119,15 @@ Use only when `style_prompt` is omitted (CEL mutually exclusive):
 
 - **Speed Contrast Law:** Never pair a sprinting/explosive subject with fast multi-axis camera travel over a high-frequency background. Contrast states: stationary subject + expressive camera, OR dynamic subject (counted mechanical steps, `1–2` beats per 5s) + locked tripod or pace-matched tracking.
 - **Gaze Anchor & Horizon Lock:** Include an explicit **Gaze Anchor** on every non-UGC human shot (`eyes focused down on the clasp, never looking at the camera`) so camera motion never triggers vlog-style lens stare. Add `tripod fixed, horizon level` on pans, tilts, trucks, and pedestals.
-- **Optimal Video Reference Budget (`2–4` Visible Refs):** Exceeding `5–6` image references freezes optical flow into a stiff "living photo" and bleeds pigments. Bind `1` `R3` `--start_image` + `1–2` highest-risk canonical `R2` refs + optional `1` `--end_image`, and pre-lock a **Reverse Wall plate** (`3d_jutsu_angles`) for any OTS, 180° reverse, or mirror shot ([Locations, Buildings & Props](../../video-consistency/references/locations-and-props.md)).
-- **Camera-First Engine Selection** (full prompt calibration in [Model Prompting](model-prompting.md)):
-  - **`seedance_2_5`** (`30–60w` single-shot I2V; structured sections for `6s` 2-shot pairs): Best CLI workflow for 1:1 draft-to-final camera lock (`--draft true` → `--draft_job_id --bitrate_mode high`), paired `3s + HARD CUT + 3s` scenes (`48 cr./cut`), `3D Jutsu` `@Video1` tracking, and `video_extension` (`forward`/`backward`).
-  - **`cinematic_studio_video_4_0`** (`40–75w`): Best Web Director's Panel presets, up to 30s single takes, and native diegetic foley (`--bitrate_mode high`).
-  - **`kling4_0` / `kling_o3_image_reference`** (`60–90w`): Best value native `1080p` (`18.75 cr.`), action physics, native `--multi_shots true`, and `video-edit` motion-locked rescues (`22.5 cr.`).
-  - **`veo3_1`** (`40–75w`): Top atmospheric light, natural shallow DOF, and smooth single-subject cinema glides (CLI: `start_image` only).
-  - **`wan3_0` / `wan3_0_prime`** (`50–80w`): Top natural fabric/water/light physics on calm shots (CEL: never mix `start_image`/`end_image` with `image_references`; verify FPS—may output `30fps`).
-  - **`minimax_h3`** (`45–75w`): Strong facial likeness retention on calm pushes (strict One-Move Rule + Gaze Anchor).
-  - **`flux_3_video`** (`40–70w`): Crisp editorial color grade on calm fashion/product takes (CEL: images and `video_references` are mutually exclusive).
+- **Optimal Video Reference Budget (`2–4` Visible Refs, max `5`):** Exceeding `5` image references freezes optical flow into a stiff "living photo" and bleeds pigments. Bind `1` `R3` `--start_image` + `1–2` highest-risk canonical `R2` refs + optional `1` `--end_image`, and pre-lock a **Reverse Wall plate** (`3d_jutsu_angles`) for any OTS, 180° reverse, or mirror shot ([Locations, Buildings & Props](../../video-consistency/references/locations-and-props.md)).
+- **Camera-First Engine Strengths** *(word sweet spots in [Model Prompting](model-prompting.md); pricing & CEL traps in [Model Selection](../../higgsfield-cli/references/model-selection.md) and [Live Workflows](../../higgsfield-cli/references/live-workflows.md))*:
+  - **`seedance_2_5`:** 1:1 draft-to-final camera lock (`--draft true` → `--draft_job_id --bitrate_mode high`), paired `3s + HARD CUT + 3s` blocks, `3D Jutsu` `@Video1` tracking, and `video_extension` (`forward`/`backward`).
+  - **`cinematic_studio_video_4_0`:** Web Director's Panel presets, up to 30s single takes, and native diegetic foley (`--bitrate_mode high`).
+  - **`kling4_0` / `kling_o3_image_reference`:** High-value native `1080p`, action physics, native `--multi_shots true`, and `video-edit` motion-locked rescues.
+  - **`veo3_1`:** Atmospheric light, natural shallow DOF, and smooth single-subject cinema glides.
+  - **`wan3_0` / `wan3_0_prime`:** Natural fabric/water/light physics on calm single-frame takes *(verify FPS—may output `30fps`)*.
+  - **`minimax_h3`:** Facial likeness retention on calm pushes (strict One-Move Rule + Gaze Anchor).
+  - **`flux_3_video`:** Crisp editorial color grade on calm fashion/product takes.
 - **Cheap Trajectory Validation & Full-Clip Review:** Validate camera path first on Web `Unlimited` (`0 cr.`) or cheap `720p` / `--draft true` runs. Inspect the **entire clip** (start, middle, end—check frame edges for wobble/shimmer, not just Frame 1). Generate 1–2s handles when pacing allows so post assembly can trim weak tails. Change **One Variable Per Re-roll** on retries.
 
 ## 6. Camera Failure Diagnostics

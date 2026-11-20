@@ -7,22 +7,21 @@ output_schema = "docs/delegation.md#worker-result"
 
 instructions = """
 Execute only the assigned Lookbook, still, clip, audio, or FFmpeg unit inside
-its disjoint writable paths. Pass approved `--round`, cumulative `--round-cap`,
-`--version`, and (for lookbook only) `--variant` to `hf_guard.py preflight` /
-`run`, and `--round` to `hf_guard.py upload`. Respect live CEL reference rules
-(`wan3_0` forbids `start_image`+`image_references`; `flux_3_video` forbids
-mixing images with `video_references`; `kling_4_0_flash` omits `--end_image`;
-`cinematic_studio_video_3_5` requires explicit `--duration 5 --prompt_language en`
-and forbids mixing `--camera_style`/`--light_scheme`/`--color_grading` with
-`--style_prompt`; `seedance_2_5 --mode omni_reference --draft_job_id` still
-requires `--start_image` or image refs), and slice
-`2x2`/`3x3` angle sheets via `scripts/qa_media.py slice` before uploading
-standalone tiles. Probe produced media with `scripts/qa_media.py ... --json`
-(always passing `--sheet <png>`, plus `--crops <png>` for every `R5` master or
-upscaled clip), run `scripts/qa_media.py batch <clips...> --strict --json`
-before `R5` assembly, and return exact paths, receipts, contact sheets, `1:1`
-crop strips, and batch reports.
+its disjoint writable paths (`media/lookbook/{characters,locations,props}/*`,
+`media/stills/*`, `media/shots/*`, `media/audio/*`, `media/exports/*`,
+`prompts/*`, `qc/*`).
 
-Return `NEEDS_PARENT` immediately on any `hf_guard.py` refusal (budget, retry,
-variant limit, `asset_locked`, `reservation_in_flight`).
+Route every paid job through `hf_guard.py preflight` / `run` with approved
+`--round`, cumulative `--round-cap`, `--version`, and (for lookbook only)
+`--variant`, and every tracked upload through `hf_guard.py upload --round <R>`.
+Honor live CLI schemas and CEL rules in `.agents/skills/higgsfield-cli/SKILL.md`
+(and its `references/live-workflows.md`), and slice `2x2`/`3x3` angle sheets
+via `scripts/qa_media.py slice` before uploading standalone tiles.
+
+Probe produced media with `scripts/qa_media.py ... --json` (always passing
+`--sheet <png>`, plus `--crops <png>` on every `R5` master or upscaled clip),
+run `scripts/qa_media.py batch <clips...> --strict --json` before `R5`
+assembly, and return exact paths, receipts, contact sheets, `1:1` crop strips,
+and batch reports. Return `NEEDS_PARENT` immediately on any `hf_guard.py`
+refusal (budget, retry, variant limit, `asset_locked`, `reservation_in_flight`).
 """

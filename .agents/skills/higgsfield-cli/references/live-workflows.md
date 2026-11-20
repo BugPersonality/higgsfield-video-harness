@@ -52,7 +52,9 @@ for live flags and schemas.
    `--specific_mode`.
 6. **Guard boundary & per-variant `product-photoshoot`:** pass `hf_guard.py`
    flags before `--` and only model/workflow params after `--` (never duplicate
-   `generate create`, `--wait`, or `--json`). For `product-photoshoot`, run
+   `generate create`, `--wait`, or `--json`). For `product-photoshoot`
+   (`--model gpt_image_2`; modes: `product_shot`, `lifestyle_scene`,
+   `closeup_product_with_person`, `hero_banner`, `ad_creative_pack`), run
    separate `--count 1` calls per `--variant A|B|C` with distinct `--out` paths
    so every variant is saved.
 7. **Spatial, outpaint, relight, decomposition & prop-rescue CEL traps:**
@@ -131,147 +133,92 @@ for live flags and schemas.
 
 ## Minimal Guarded Recipes
 
+### Discovery & Tracked Uploads (`0 cr.`)
+
 ```bash
-# Free read-only schema & cost quote (0 cr.; never pass private local file paths)
+# Free read-only schema & cost quote (never pass private local file paths)
 higgsfield model get seedance_2_5 --json
 higgsfield generate cost seedance_2_5 --mode omni_reference --draft true --duration 5 --prompt "test" --start_image <uploaded_uuid> --json
 higgsfield generate cost kling4_0 --mode reference-to-video --resolution 1080p --duration 5 --prompt "test" --start_image <uploaded_uuid> --json
 
-# Tracked upload (0 cr.; --round R2 for Lookbook, R3 for skipped-R2 photos or locked stills)
+# Tracked upload (--round R2 for Lookbook, R3 for skipped-R2 photos or locked stills)
 python3 scripts/hf_guard.py upload --campaign campaigns/<slug> \
   --file campaigns/<slug>/media/references/hero.jpg --ref-id ref_hero --round R2
+```
 
-# R2 Lookbook per-variant product-photoshoot (repeat for --variant B, C)
+### R2 Lookbook & Asset Bible Expansion
+
+Organize Lookbook outputs under `media/lookbook/{characters,locations,props}/`
+(matching `make campaign-init`):
+
+```bash
+# R2A Lookbook per-variant product-photoshoot (repeat for --variant B, C)
 python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --shot lb_product_hero --kind lookbook --round R2 --round-cap 35 \
   --variant A --version 1 --command product-photoshoot --model gpt_image_2 \
-  --out campaigns/<slug>/media/lookbook/lb_product_hero-v1-A.png -- \
+  --out campaigns/<slug>/media/lookbook/props/lb_product_hero-v1-A.png -- \
   --mode lifestyle_scene --count 1 --image <ref_uuid> \
   --prompt "Cool misty morning limestone bench, matte brushed texture"
 
-# R2 Lookbook world/cast still (gpt_image_2_6)
+# R2A Cast Lookbook (gpt_image_2_6 or 0.12 cr. soul_cast)
 python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
-  --shot lb_traveler --kind lookbook --round R2 --round-cap 35 \
+  --shot cast_traveler --kind lookbook --round R2 --round-cap 35 \
   --variant A --version 1 --model gpt_image_2_6 \
   --prompt-file campaigns/<slug>/prompts/lb_traveler_v1.txt \
-  --out campaigns/<slug>/media/lookbook/lb_traveler-v1-A.png -- --aspect_ratio 16:9
+  --out campaigns/<slug>/media/lookbook/characters/cast_traveler-v1-A.png -- --aspect_ratio 16:9
 
-# R2 Location / Angle / Relight / Decompose recipes (Asset Bible expansion)
-python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
-  --shot lb_room_master --kind lookbook --round R2 --round-cap 35 \
-  --variant A --version 1 --model soul_location \
-  --prompt-file campaigns/<slug>/prompts/lb_room_v1.txt \
-  --out campaigns/<slug>/media/lookbook/lb_room_master-v1-A.png -- --aspect_ratio 16:9
-
-python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
-  --shot lb_room_reverse --kind lookbook --round R2 --round-cap 35 \
-  --variant A --version 1 --model 3d_jutsu_angles \
-  --prompt-file campaigns/<slug>/prompts/lb_room_reverse_v1.txt \
-  --out campaigns/<slug>/media/lookbook/lb_room_reverse-v1-A.png -- \
-  --aspect_ratio 16:9 --resolution 2k --image_references <room_master_uuid>
-
-python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
-  --shot lb_room_night --kind lookbook --round R2 --round-cap 35 \
-  --variant A --version 1 --model nano_banana_2_relight \
-  --out campaigns/<slug>/media/lookbook/lb_room_night-v1-A.png -- \
-  --image_references <room_master_uuid> --light_source fml \
-  --light_quality soft --color "#f5b87a" --brightness 35
-
-# R2 Outpaint mismatched client photo / mint 3x3 angle sheet & slice clean 2K tiles
-python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
-  --shot lb_room_wide --kind lookbook --round R2 --round-cap 35 \
-  --variant A --version 1 --model outpaint \
-  --out campaigns/<slug>/media/lookbook/lb_room_wide-v1-A.png -- \
-  --aspect_ratio 16:9 --image_references <client_photo_uuid>
-
-python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
-  --shot lb_room_sheet --kind lookbook --round R2 --round-cap 35 \
-  --variant A --version 1 --model nano_banana_2_shots \
-  --out campaigns/<slug>/media/lookbook/lb_room_sheet-v1-A.png -- \
-  --aspect_ratio 16:9 --image_references <room_master_uuid>
-# Slice 3x3 sheet into clean standalone tiles before uploading winners via hf_guard.py upload:
-make slice-grid FILE=campaigns/<slug>/media/lookbook/lb_room_sheet-v1-A.png \
-  OUT_DIR=campaigns/<slug>/media/lookbook/tiles ROWS=3 COLS=3 TRIM=4 PREFIX=loc_room
-
-python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
-  --shot lb_prop_clean --kind lookbook --round R2 --round-cap 35 \
-  --variant A --version 1 --model image_decompose --workflow \
-  --out campaigns/<slug>/media/lookbook/lb_prop_clean-v1-A.png -- \
-  --mode granular --image_references <cluttered_photo_uuid>
-
-# R4/R5 Continuous same-set extension (Seedance 2.5 video_extension)
-python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
-  --shot s03 --kind video --round R4B --round-cap 40 --version 1 \
-  --model seedance_2_5 --prompt-file campaigns/<slug>/prompts/s03_ext_v1.txt \
-  --out campaigns/<slug>/media/shots/s03-draft-v1.mp4 -- \
-  --mode video_extension --extension_mode forward --resolution 720p --duration 5 \
-  --video_references <s02_job_id> --image_references <canonical_prop_uuid>
-
-# R4/R5 Surgical prop rescue inside an approved clip (Genjutsu / Genjutsu Lite)
-python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
-  --shot s02 --kind video --round R5 --round-cap 100 --version 2 \
-  --model hf_mult_replace_object \
-  --prompt-file campaigns/<slug>/prompts/s02_prop_fix_v2.txt \
-  --out campaigns/<slug>/media/shots/s02-1080p-v2.mp4 -- \
-  --resolution 1080p --video_references <locked_clip_job_id> \
-  --image_references <canonical_prop_uuid>
-
-# R4/R5 Camera-style / speedramp / motion-transfer / post-reframe workflows
-python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
-  --shot s04 --kind video --round R4B --round-cap 60 --version 1 \
-  --model cinematic_studio_video_3_5 --workflow \
-  --prompt-file campaigns/<slug>/prompts/s04_video_v1.txt \
-  --out campaigns/<slug>/media/shots/s04-draft-v1.mp4 -- \
-  --resolution 720p --duration 5 --aspect_ratio 16:9 --prompt_language en \
-  --camera_style intimate_observer --light_scheme window \
-  --start_image <s04_still_uuid>
-
-python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
-  --shot s05 --kind video --round R4B --round-cap 60 --version 1 \
-  --model cinematic_studio_3_0 --workflow \
-  --prompt-file campaigns/<slug>/prompts/s05_video_v1.txt \
-  --out campaigns/<slug>/media/shots/s05-draft-v1.mp4 -- \
-  --resolution 720p --duration 5 --aspect_ratio 16:9 --prompt_language en \
-  --speedramp fast_to_slowmo --start_image <s05_still_uuid>
-
-python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
-  --shot s06 --kind video --round R4B --round-cap 60 --version 1 \
-  --model hf_mult_motion_control \
-  --prompt-file campaigns/<slug>/prompts/s06_motion_v1.txt \
-  --out campaigns/<slug>/media/shots/s06-draft-v1.mp4 -- \
-  --resolution 720p --video_references <previz_or_ref_video_uuid> \
-  --image_references <s06_still_uuid> --image_references <canonical_prop_uuid>
-
-python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
-  --shot s04 --kind video --round R5 --round-cap 120 --version 2 \
-  --model reframe --workflow \
-  --out campaigns/<slug>/media/shots/s04-9x16-v2.mp4 -- \
-  --resolution 1080p --aspect_ratio 9:16 --video_references <locked_16x9_job_id>
-
-# R2 Cast Lookbook (0.12 cr.) & R4/R5 Acting Transfer (Kling 3.0 Motion Control workflow, 10/15 cr. 5s)
 python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --shot cast_lead_front --kind lookbook --round R2 --round-cap 35 \
   --variant A --version 1 --model soul_cast \
   --prompt-file campaigns/<slug>/prompts/cast_lead_v1.txt \
-  --out campaigns/<slug>/media/lookbook/cast_lead-v1-A.png -- --aspect_ratio 16:9
+  --out campaigns/<slug>/media/lookbook/characters/cast_lead-v1-A.png -- --aspect_ratio 16:9
 
-# No --prompt on CLI kling3_0_motion_control; --duration is cost-only and stripped automatically on exec by hf_guard.py
+# R2A Location Master (0.12 cr. soul_location) & R2B Angle / Relight / Outpaint / Decompose
 python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
-  --shot s04 --kind video --round R4B --round-cap 40 --version 1 \
-  --model kling3_0_motion_control --workflow \
-  --out campaigns/<slug>/media/shots/s04-motion-v1.mp4 -- \
-  --duration 5 --mode pro --background_source input_image \
-  --image_references <s04_still_uuid> --video_references <actor_driver_uuid>
+  --shot loc_room_master --kind lookbook --round R2 --round-cap 35 \
+  --variant A --version 1 --model soul_location \
+  --prompt-file campaigns/<slug>/prompts/lb_room_v1.txt \
+  --out campaigns/<slug>/media/lookbook/locations/loc_room_master-v1-A.png -- --aspect_ratio 16:9
 
-# R4/R5 Audio-driven talking & lip-sync (Higgsfield Intone, 1-2 character_images + 1-6 audio_references)
 python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
-  --shot s05 --kind video --round R5 --round-cap 100 --version 1 \
-  --model intone --prompt-file campaigns/<slug>/prompts/s05_intone_v1.txt \
-  --out campaigns/<slug>/media/shots/s05-intone-1080p-v1.mp4 -- \
-  --aspect_ratio 16:9 --resolution 1080p --bitrate_mode high \
-  --character_images <cast_front_uuid> --character_images <cast_smile_uuid> \
-  --location_image <loc_master_uuid> --audio_references <vo_line_uuid>
+  --shot loc_room_reverse --kind lookbook --round R2 --round-cap 35 \
+  --variant A --version 1 --model 3d_jutsu_angles \
+  --prompt-file campaigns/<slug>/prompts/lb_room_reverse_v1.txt \
+  --out campaigns/<slug>/media/lookbook/locations/loc_room_reverse-v1-A.png -- \
+  --aspect_ratio 16:9 --resolution 2k --image_references <room_master_uuid>
 
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot loc_room_night --kind lookbook --round R2 --round-cap 35 \
+  --variant A --version 1 --model nano_banana_2_relight \
+  --out campaigns/<slug>/media/lookbook/locations/loc_room_night-v1-A.png -- \
+  --image_references <room_master_uuid> --light_source fml \
+  --light_quality soft --color "#f5b87a" --brightness 35
+
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot loc_room_wide --kind lookbook --round R2 --round-cap 35 \
+  --variant A --version 1 --model outpaint \
+  --out campaigns/<slug>/media/lookbook/locations/loc_room_wide-v1-A.png -- \
+  --aspect_ratio 16:9 --image_references <client_photo_uuid>
+
+# Mint 3x3 angle sheet & slice clean standalone tiles before uploading winners
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot loc_room_sheet --kind lookbook --round R2 --round-cap 35 \
+  --variant A --version 1 --model nano_banana_2_shots \
+  --out campaigns/<slug>/media/lookbook/locations/loc_room_sheet-v1-A.png -- \
+  --aspect_ratio 16:9 --image_references <room_master_uuid>
+make slice-grid FILE=campaigns/<slug>/media/lookbook/locations/loc_room_sheet-v1-A.png \
+  OUT_DIR=campaigns/<slug>/media/lookbook/locations/tiles ROWS=3 COLS=3 TRIM=4 PREFIX=loc_room
+
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot prop_clean --kind lookbook --round R2 --round-cap 35 \
+  --variant A --version 1 --model image_decompose --workflow \
+  --out campaigns/<slug>/media/lookbook/props/prop_clean-v1-A.png -- \
+  --mode granular --image_references <cluttered_photo_uuid>
+```
+
+### R3 Keyframe Stills & Audio
+
+```bash
 # R3 Keyframe still (surgical v2 re-roll uses cumulative round_spent + delta_cap)
 python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --shot s02 --kind still --round R3 --round-cap 50 --version 2 \
@@ -286,6 +233,22 @@ python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --out campaigns/<slug>/media/stills/s02-v3-4k.png -- \
   --resolution 4k --image_references <s02_still_uuid>
 
+# R3 Audio: VO (`higgsfield voices list`) and score
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot vo01 --kind audio --round R3 --round-cap 50 \
+  --model text2speech_v2 --out campaigns/<slug>/media/audio/vo01-v1.wav -- \
+  --variant elevenlabs --voice_id <voice_id> --voice_type preset \
+  --prompt "Nord Ah-tel-yay. Built to carry real weight."
+
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot music01 --kind audio --round R3 --round-cap 50 \
+  --model elevenlabs_music_v2_5 --out campaigns/<slug>/media/audio/music-v1.mp3 -- \
+  --prompt "Sparse warm solo cello and felt piano, 15 seconds, no drums" --duration 15
+```
+
+### R4 / R5 Video, Camera, Acting & Prop Rescue
+
+```bash
 # R4A Motion Pilot -> R5 Native 1080p Final (Seedance 2.5 latent escalation, preserves exact draft motion)
 python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --shot s02 --kind video --round R4A --round-cap 20 --version 1 \
@@ -325,20 +288,13 @@ python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --out campaigns/<slug>/media/shots/s05-1080p-v1.mp4 -- \
   --resolution 1080p --duration 5 --aspect_ratio 16:9 --start_image <s05_still_uuid>
 
-# R5 Motion-Locked Native 1080p Rescue (re-render a golden 480p take natively instead of upscaling; 22.5 cr.)
+# R4/R5 Continuous same-set extension (Seedance 2.5 video_extension)
 python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
-  --shot s03 --kind video --round R5 --round-cap 100 --version 1 \
-  --model kling4_0 --prompt-file campaigns/<slug>/prompts/s03_video_v1.txt \
-  --out campaigns/<slug>/media/shots/s03-1080p-v1.mp4 -- \
-  --mode video-edit --resolution 1080p --duration 5 --aspect_ratio 16:9 \
-  --video_references <draft_job_id> --image_references <s03_still_uuid> --image_references <ref_uuid>
-
-# R5 Depth-Map Extraction for Motion-Guided Native Re-Render (7.57 cr.)
-python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
-  --shot s03 --kind video --round R5 --round-cap 100 --version 2 \
-  --model depth_anything_video \
-  --out campaigns/<slug>/media/shots/s03-depth-720p.mp4 -- \
-  --colormap grayscale --variant VDA-Large --resolution 720p --video_references <draft_job_id>
+  --shot s03 --kind video --round R4B --round-cap 40 --version 1 \
+  --model seedance_2_5 --prompt-file campaigns/<slug>/prompts/s03_ext_v1.txt \
+  --out campaigns/<slug>/media/shots/s03-draft-v1.mp4 -- \
+  --mode video_extension --extension_mode forward --resolution 720p --duration 5 \
+  --video_references <s02_job_id> --image_references <canonical_prop_uuid>
 
 # R5 Direct Native 1080p Hero (Cinema Studio 4.0, always --bitrate_mode high)
 python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
@@ -349,6 +305,78 @@ python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --mode omni_reference --resolution 1080p --bitrate_mode high --duration 5 \
   --aspect_ratio 16:9 --start_image <s04_still_uuid> --image_references <ref_uuid>
 
+# R4/R5 Camera-style / speedramp / post-reframe workflows
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s04 --kind video --round R4B --round-cap 60 --version 1 \
+  --model cinematic_studio_video_3_5 --workflow \
+  --prompt-file campaigns/<slug>/prompts/s04_video_v1.txt \
+  --out campaigns/<slug>/media/shots/s04-draft-v1.mp4 -- \
+  --resolution 720p --duration 5 --aspect_ratio 16:9 --prompt_language en \
+  --camera_style intimate_observer --light_scheme window \
+  --start_image <s04_still_uuid>
+
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s05 --kind video --round R4B --round-cap 60 --version 1 \
+  --model cinematic_studio_3_0 --workflow \
+  --prompt-file campaigns/<slug>/prompts/s05_video_v1.txt \
+  --out campaigns/<slug>/media/shots/s05-draft-v1.mp4 -- \
+  --resolution 720p --duration 5 --aspect_ratio 16:9 --prompt_language en \
+  --speedramp fast_to_slowmo --start_image <s05_still_uuid>
+
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s04 --kind video --round R5 --round-cap 120 --version 2 \
+  --model reframe --workflow \
+  --out campaigns/<slug>/media/shots/s04-9x16-v2.mp4 -- \
+  --resolution 1080p --aspect_ratio 9:16 --video_references <locked_16x9_job_id>
+
+# R4/R5 Acting & Camera Transfer (Kling 3.0 Motion Control workflow & Genjutsu)
+# No --prompt on CLI kling3_0_motion_control; --duration is cost-only and stripped automatically on exec by hf_guard.py
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s04 --kind video --round R4B --round-cap 40 --version 1 \
+  --model kling3_0_motion_control --workflow \
+  --out campaigns/<slug>/media/shots/s04-motion-v1.mp4 -- \
+  --duration 5 --mode pro --background_source input_image \
+  --image_references <s04_still_uuid> --video_references <actor_driver_uuid>
+
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s06 --kind video --round R4B --round-cap 60 --version 1 \
+  --model hf_mult_motion_control \
+  --prompt-file campaigns/<slug>/prompts/s06_motion_v1.txt \
+  --out campaigns/<slug>/media/shots/s06-draft-v1.mp4 -- \
+  --resolution 720p --video_references <previz_or_ref_video_uuid> \
+  --image_references <s06_still_uuid> --image_references <canonical_prop_uuid>
+
+# R4/R5 Audio-driven talking & lip-sync (Higgsfield Intone, 1-2 character_images + 1-6 audio_references)
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s05 --kind video --round R5 --round-cap 100 --version 1 \
+  --model intone --prompt-file campaigns/<slug>/prompts/s05_intone_v1.txt \
+  --out campaigns/<slug>/media/shots/s05-intone-1080p-v1.mp4 -- \
+  --aspect_ratio 16:9 --resolution 1080p --bitrate_mode high \
+  --character_images <cast_front_uuid> --character_images <cast_smile_uuid> \
+  --location_image <loc_master_uuid> --audio_references <vo_line_uuid>
+
+# R5 Surgical Rescues: Prop swap (Genjutsu), Motion-Locked Native 1080p Rescue (Kling video-edit), & Depth Pass
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s02 --kind video --round R5 --round-cap 100 --version 2 \
+  --model hf_mult_replace_object \
+  --prompt-file campaigns/<slug>/prompts/s02_prop_fix_v2.txt \
+  --out campaigns/<slug>/media/shots/s02-1080p-v2.mp4 -- \
+  --resolution 1080p --video_references <locked_clip_job_id> \
+  --image_references <canonical_prop_uuid>
+
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s03 --kind video --round R5 --round-cap 100 --version 1 \
+  --model kling4_0 --prompt-file campaigns/<slug>/prompts/s03_video_v1.txt \
+  --out campaigns/<slug>/media/shots/s03-1080p-v1.mp4 -- \
+  --mode video-edit --resolution 1080p --duration 5 --aspect_ratio 16:9 \
+  --video_references <draft_job_id> --image_references <s03_still_uuid> --image_references <ref_uuid>
+
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s03 --kind video --round R5 --round-cap 100 --version 2 \
+  --model depth_anything_video \
+  --out campaigns/<slug>/media/shots/s03-depth-720p.mp4 -- \
+  --colormap grayscale --variant VDA-Large --resolution 720p --video_references <draft_job_id>
+
 # R5 Selective Pixel Upscale Pilot (ONLY clean >=720p source, <=2x, matched --fps, job UUID, 1-shot 1:1 crop check first)
 python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --shot s06 --kind video --round R5 --round-cap 100 --version 1 \
@@ -356,23 +384,14 @@ python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --out campaigns/<slug>/media/shots/s06-1080p-pilot.mp4 -- \
   --model_version standard --preset aigc --resolution 1080p --fps 24 \
   --video_references <clean_720p_job_id>
+```
 
-# R5 Pre-Assembly QA: per-clip 1:1 crops + cross-shot batch audit (0 cr.)
+### R5 Pre-Assembly QA (`0 cr.`)
+
+```bash
 python3 scripts/qa_media.py clip campaigns/<slug>/media/shots/s02-1080p-v1.mp4 \
   --sheet campaigns/<slug>/qc/s02_r5_sheet.png \
   --crops campaigns/<slug>/qc/s02_r5_crops.png --json
 python3 scripts/qa_media.py batch campaigns/<slug>/media/shots/s01-1080p-v1.mp4 \
   campaigns/<slug>/media/shots/s02-1080p-v1.mp4 --strict --json
-
-# R3 Audio: VO (`higgsfield voices list`) and score
-python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
-  --shot vo01 --kind audio --round R3 --round-cap 50 \
-  --model text2speech_v2 --out campaigns/<slug>/media/audio/vo01-v1.wav -- \
-  --variant elevenlabs --voice_id <voice_id> --voice_type preset \
-  --prompt "Nord Ah-tel-yay. Built to carry real weight."
-
-python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
-  --shot music01 --kind audio --round R3 --round-cap 50 \
-  --model elevenlabs_music_v2_5 --out campaigns/<slug>/media/audio/music-v1.mp3 -- \
-  --prompt "Sparse warm solo cello and felt piano, 15 seconds, no drums" --duration 15
 ```

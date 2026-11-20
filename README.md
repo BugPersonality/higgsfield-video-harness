@@ -39,7 +39,7 @@ Generating a single AI clip is easy. Directing a coherent **multi-shot commercia
 - **Cumulative Taste Memory (`taste-log.md` → `brands/<brand>/taste.md`):** Every plain-English reaction you give is distilled into structured rules (`Approved / LOCKED`, `More of`, `Change / Steer`, `Never`) that follow every prompt and reviewer—and graduate into reusable brand profiles for future campaigns.
 - **Automated Technical QA & Visual Critic (`scripts/qa_media.py` + `reviewer-agent`):** Automatically catches black gaps, frozen tails, static clips, low bitrates, non-standard dimensions (`1918×1080`), sharpness spikes (`hf_edge_energy`), and overflowing voiceover windows (`100ms` RMS), builds `3x2` contact sheets, unscaled `1:1` native crop strips (`--crops`), and labeled `A / B / C` lookbook grids, and runs an isolated read-only Vision reviewer to strip defects before Dailies reach you.
 - **Broadcast-Ready FFmpeg Mastering & Stems (`scripts/assemble.sh`):** FPS-locked re-encoded cuts with `lanczos` scaling (no concat freezes or A/V desync), two-pass `-14 LUFS` (`<= -1.0 dBTP`) loudness normalization, and unbaked `media/exports/stems/` (`video_only.mp4`, `diegetic.wav`, `vo.wav`, `music.wav`) ready for NLE finishing or optional Remotion graphics.
-- **Zero Third-Party Python Packages:** Runs on pure **Python 3.11+ stdlib**, **FFmpeg/ffprobe**, and **ShellCheck**, backed by 71 offline unit and integration tests (`make check`).
+- **Zero Third-Party Python Packages:** Runs on pure **Python 3.11+ stdlib**, **FFmpeg/ffprobe**, and **ShellCheck**, backed by a comprehensive offline unit and integration test suite (`make check`).
 
 ---
 
@@ -105,7 +105,7 @@ git clone https://github.com/Dankosik/higgsfield-video-harness.git
 cd higgsfield-video-harness
 
 # Runs instruction sync, doc link checks, ShellCheck, mock spend guard,
-# synthetic FFmpeg QA/assembly, and 71 unit/integration tests offline (0 credits)
+# synthetic FFmpeg QA/assembly, and the full offline test suite (0 credits)
 make check
 ```
 
@@ -182,7 +182,7 @@ The harness does not hardcode one model for every job. It checks **live Higgsfie
 
 | Category | Economy Drafts / Fast Options (CLI) | Native `1080p` / Flagship Options (CLI) |
 | --- | --- | --- |
-| **Lookbook & Stills (`R2`–`R3`)** | `soul_cinematic`, `gpt_image_2_6` (std), `seedream_5_0_flash`, `flux_2`, `product-photoshoot` | `nano_banana_2_1`, `nano_banana_pro`, `flux_3_image`, `gpt_image_2_6` (high), `seedream_5_5`, Soul-2 IDs (`text2image_soul_v2`) |
+| **Lookbook & Stills (`R2`–`R3`)** | `soul_cinematic`, `soul_location`, `soul_cast`, `gpt_image_2_6` (std), `seedream_5_0_flash`, `flux_2`, `product-photoshoot` | `seedream_v5_pro`, `nano_banana_2_1`, `nano_banana_pro`, `flux_3_image`, `kling_image_4_0`, `gpt_image_2_6` (high), `seedream_5_5`, Soul-2 IDs (`text2image_soul_v2`) |
 | **Video Motion (`R4`–`R5`)** | `seedance_2_0_mini` (`720p`), `kling_4_0_flash` (`720p`), `wan3_0` (`720p`), `seedance_2_5` (`--draft true`) | `kling4_0` (`1080p` / `video-edit`), `wan3_0` / `wan3_0_prime` (`1080p`), `veo3_1`, `flux_3_video`, `seedance_2_5` (`--draft_job_id`, `--bitrate_mode high`), `cinematic_studio_video_4_0` (`omni_reference`, `--bitrate_mode high`) |
 | **Audio: Voice, Music & SFX (`R3`–`R5`)** | VO: `text2speech_v2` (`elevenlabs`, `seed_speech`), `seed_audio` · Music: `sonilo_music` | Multi-speaker dialogue: `elevenlabs_v4` · Score & SFX: `elevenlabs_music_v2_5`, `mirelo_text_to_audio` |
 
@@ -217,24 +217,25 @@ Run `make help` at any time to list every target:
 
 | Command | Purpose |
 | --- | --- |
-| `make check` | Run all offline checks (`check-instructions`, `docs-check`, `shellcheck`, 71 unit/integration tests, example campaign validation) |
+| `make check` | Run all offline checks (`check-instructions`, `docs-check`, `shellcheck`, unit/integration tests, example campaign validation) |
 | `make campaign-init SLUG=<name> [BRAND=<brand>]` | Scaffold a new dated campaign folder with `brief.md`, `taste-log.md`, and gitignored `media/` folders |
 | `make brief-check CAMPAIGN=<slug>` | Verify `brief.md` structure, budget policy, and zero technical jargon or unresolved requester questions |
 | `make campaign-check CAMPAIGN=<slug>` | Validate `brief.md` + `taste-log.md` + `shotlist.json` invariants and verify planned spend `<= Campaign cap` |
 | `make budget-status CAMPAIGN=<slug>` | Show spent vs. remaining `Campaign cap`, active reservations, and per-round spend from `receipts.jsonl` |
 | `make lookbook FILES="a.png b.png" OUT=<out.png>` | Stitch images into a labeled `A / B / C` Lookbook or `stills_strip.png` Dailies board |
+| `make slice-grid FILE=<sheet.png> OUT_DIR=<dir>` | Split a `2x2` or `3x3` multi-angle sheet (`nano_banana_2_shots`) into standalone PNG tiles before upload |
 | `make animatic CAMPAIGN=<slug>` | Build a `0`-video-credit playable `animatic.mp4` from approved stills + VO + rough music |
 | `make qa-clip FILE=<mp4> [SHEET=<png>] [CROPS=<png>]` | Probe resolution, FPS, bitrate, `hf_edge_energy`, black gaps, frozen tails, and generate a `3x2` contact sheet + `1:1` native crop strip |
 | `make qa-batch FILES="a.mp4 b.mp4" [STRICT=1]` | Audit cross-shot resolution, FPS, non-multiple-of-4 rounding, and `hf_edge_energy` sharpness outliers across `R5` clips before assembly |
 | `make qa-voice FILE=<wav> WINDOW=<sec>` | Check active speech bounds (`100ms` RMS) against the shot window so VO never overflows |
-| `make assemble CAMPAIGN=<slug>` | Assemble selected takes into `-14 LUFS` `master.mp4` (or `draft_cut.mp4`) plus unbaked `stems/` |
+| `make assemble CAMPAIGN=<slug> [LUT=<.cube>] [GRAIN=4]` | Assemble selected takes into `-14 LUFS` `master.mp4` (or `draft_cut.mp4`) with optional shared LUT/grain finishing plus unbaked `stems/` |
 | `make qa-render FILE=<mp4> [SHEET=<png>] [CROPS=<png>]` | Validate final render loudness (`-14 LUFS ± 1.0 LU`, `<= -1.0 dBTP`), black/frozen frames, sheet, and `1:1` crop strip |
 
 Core mechanical scripts under [`scripts/`](scripts):
 
 - [`scripts/hf_guard.py`](scripts/hf_guard.py) — dual-cap budget guard, lock enforcer, `flock`-serialized receipt ledger, and timeout/download recovery wrapper around `higgsfield` CLI.
-- [`scripts/qa_media.py`](scripts/qa_media.py) — deterministic FFmpeg/ffprobe clip, voice, render QA, `3x2` contact-sheet generator, and labeled `A / B / C` Lookbook builder (stdlib-only pixel font).
-- [`scripts/assemble.sh`](scripts/assemble.sh) — FPS-locked FFmpeg still-animatic and final-master assembler with two-pass `loudnorm` and clean stem exports.
+- [`scripts/qa_media.py`](scripts/qa_media.py) — deterministic FFmpeg/ffprobe clip, batch, voice, and render QA, `3x2` contact sheets, `1:1` native crop strips, `2x2`/`3x3` grid slicing, and labeled `A / B / C` Lookbook grids (stdlib-only pixel font).
+- [`scripts/assemble.sh`](scripts/assemble.sh) — FPS-locked FFmpeg still-animatic and final-master assembler with two-pass `loudnorm`, optional shared 3D LUT + temporal 35mm grain finishing, and clean stem exports.
 
 ---
 

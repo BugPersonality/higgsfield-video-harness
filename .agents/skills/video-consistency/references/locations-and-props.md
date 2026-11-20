@@ -8,7 +8,7 @@ Run this triage during `R1B` before planning `R2` credits so simple 1-angle spot
 
 | IF the storyboard / brief contains… | THEN require this plate / tier | Tool / Path |
 | :--- | :--- | :--- |
-| **Single-angle room or exterior** (camera stays on one side, no mirror) | **Tier 1:** 1 Empty Master Wide (`24–28mm`) only — skip Reverse Wall | `soul_location` (`0.12 cr.`) → Web `Unlimited` / `seedream_5_5` / `nano_banana_2_1` |
+| **Single-angle room or exterior** (camera stays on one side, no mirror) | **Tier 1:** 1 Empty Master Wide (`24–28mm`) only — skip Reverse Wall | `soul_location` (`0.12 cr.`) → Web `Unlimited` / `seedream_v5_pro` / `seedream_5_5` / `nano_banana_2_1` |
 | **Reverse shots, OTS dialogue, 180° coverage, or mirror/glass reflections** | **Tier 1+:** Empty Master Wide **+ Reverse Wall (`~120–180°`)** | Lock Master (`R2A`) → derive Reverse Wall (`R2B`) via `3d_jutsu_angles` or `nano_banana_2_1` |
 | **4+ camera angles or corner trucks/orbits inside one room** | **Tier 2:** Master + Reverse + **Corner (`45–90°`) / Isometric Plan** (or 3×3 sheet → sliced tiles) | `nano_banana_2_shots` → `make slice-grid` (`qa_media.py slice`) → upload winning tiles |
 | **Same set across time-of-day, weather, or persistent prop state (2+ shots)** | **State Plate** derived from the locked Master (never re-roll from scratch) | `nano_banana_2_relight` (lighting) or `flux_kontext` / `nano_banana_2_1` (state) |
@@ -24,7 +24,7 @@ Execute in strict round order. Never invent new walls, scales, or props inside `
 1. Write an absolute **4-Wall Spatial Map (`N / E / S / W`)** plus fixed key-light source and prop scale ratios inside `storyboard.md` and `shotlist.json` (`continuity_lock`).
 2. Tag every shot in `storyboard.md` with **`CAM`** (position + facing wall), **`EYELINE`**, and mutable **`PROP STATE`**.
 3. Run Section 1 Triage and declare all needed `R2A` Masters (`variants_requested: 3`) and `R2B` derived plates (`variants_requested: 1`) in `shotlist.json` using per-entity ID prefixes (`loc_<set>_*`, `bldg_<name>_*`, `prop_<item>_*`).
-4. Run `make campaign-check CAMPAIGN=<slug>` to verify hard CEL limits, optimal ref budgets (`3–5` stills, `2–4` video), and `Campaign cap`.
+4. Run `make campaign-check CAMPAIGN=<slug>` to verify hard CEL limits, optimal ref budgets (`3–5` max `6` stills, `2–4` max `5` video), and `Campaign cap`.
 - *Done when:* `make campaign-check` passes with zero errors, every multi-angle/reverse/mirror set has a planned Reverse Wall, and every shot declares only visible refs.
 
 ### Step B — `R2A` Master Taste Lock (Unlimited-First)
@@ -76,7 +76,7 @@ CAM: near South door facing North-West (35mm) | EYELINE: screen-left toward West
 ### B. `shotlist.json` Wiring (`R2A` Master + `R2B` Derived + Cropped Tile → `R3` → `R4/R5`)
 ```json
 "references": [
-  { "id": "loc_apt_corner_tile", "kind": "location_angle", "local_path": "media/lookbook/tiles/loc_apt_r0_c1.png", "upload_id": "<uuid>" },
+  { "id": "loc_apt_corner_tile", "kind": "location_angle", "local_path": "media/lookbook/locations/tiles/loc_apt_r0_c1.png", "upload_id": "<uuid>" },
   { "id": "prop_kettle_scale", "kind": "prop_scale", "local_path": "media/references/kettle_in_hand.jpg", "upload_id": "<uuid>" }
 ],
 "lookbook": [
@@ -126,7 +126,7 @@ Exceeding optimal counts triggers **attention dilution**, **attribute bleed**, a
 | `3d_jutsu_angles` | `<= 10` | **1–3** | Dedicated 3D angle re-projection at `2k` (`2.5 cr.`) |
 | `nano_banana_2_shots` / `outpaint` / `flux_2_pro_outpaint` / `image_background_remover` / `image_decompose` | **Exactly `1`** | **1** | Accept **no `--prompt`**; quote `generate cost` only with an uploaded UUID |
 | **Video (`R4`/`R5`)** | | | |
-| `seedance_2_5` / `cinematic_studio_video_4_0` (`omni_reference`) | `<= 30` imgs (`<= 50` media) | **2–5** (`start` + 1–3 refs + opt. `end`) | `> 5–6` images cause bleed & stiff motion; pass `--bitrate_mode high` at `1080p` |
+| `seedance_2_5` / `cinematic_studio_video_4_0` (`omni_reference`) | `<= 30` imgs (`<= 50` media) | **2–4** (max 5: `start` + 1–3 refs + opt. `end`) | `> 5` images trigger bleed & stiff motion; pass `--bitrate_mode high` at `1080p` |
 | `kling4_0` / `kling_4_0_flash` (`reference-to-video`) | `<= 10` imgs (`<= 15` w/ video+elements) | **2–4** (`start` + 1–2 refs/elements + opt. `end`) | Native `1080p`/`4k`, strong physics & `kling_element_ids` |
 | `flux_3_video` | `<= 10` imgs | **1–3** | **CEL:** cannot mix image inputs with `video_references` |
 | `wan3_0` / `wan3_0_prime` | `start`+`end` **OR** `image_references` | **1–2** (`start` or `start+end`) | **CEL:** `start`/`end` and `image_references` are mutually exclusive—bake continuity in `R3` |
