@@ -8,10 +8,15 @@
   (`R0`–`R5`): agents own 100% of technical craft inside a round, then stop with
   one compact **Dailies Packet** for taste feedback and next-round credit
   approval.
-- **Cheap proofs before expensive pixels.** Prove meaning before story, story
-  and live costs before pixels, Lookbook `A / B / C` before scenes, stills and a
-  0-video-credit Still Animatic before motion, risky pilot shots at draft cost
-  before batch video, and `1080p` mastering only on approved cuts.
+- **Cheap proofs before expensive pixels (Unlimited-first).** Prioritize
+  `0 cr.` **Unlimited** generations on `higgsfield.ai` via the built-in browser
+  agent whenever available (pause for the Director to solve any login or
+  CAPTCHA manually in the browser pane, then resume the same browser session
+  and ingest downloads via `hf_guard.py upload`). When using CLI credits, prove
+  meaning before story, story and live costs before pixels, Lookbook `A / B / C`
+  before scenes, economy draft stills and a 0-video-credit Still Animatic
+  before motion, economy draft video (`seedance_2_0_mini` / `wan3_0`) before
+  flagship pilots, and `1080p` mastering only on approved cuts.
 - **Keep the Director boundary jargon-free.** Present visual artifacts, light,
   texture, pacing, `A / B / C` choices (or blends), and plain credit totals.
   Keep model slugs, CLI flags, prompt syntax, UUID wiring, codecs, and FFmpeg
@@ -66,6 +71,7 @@ Load a target only when its branch triggers:
 - Spawning subagents, parallel workers, Visual Critic (`view_image`), or retry/timeout recovery → [Delegation](docs/delegation.md).
 - Meaning-only alignment or resolving a taste fork → [Grilling](docs/grilling.md).
 - Commercial craft vocabulary (`swap test`, `mute test`, `Continuity Lock`, `test-take check`) → [Ad Craft Glossary](docs/ad-craft-glossary.md).
+- Model benchmarks, draft-vs-final routing, or `0 cr.` Web Unlimited browser workflow → [Model Selection](.agents/skills/higgsfield-cli/references/model-selection.md).
 - Editing `AGENTS.md`, docs, roles, or skills → [Writing For Agents](docs/writing-for-agents.md).
 - Craft & workflow skills → [`.agents/skills`](.agents/skills): user-invoked `idea-refine`, `grilling`; commercial `ad-references`, `ad-concepts`, `ad-script`, `ad-storyboard`; production `higgsfield-cli`, `video-direction`, `video-consistency`, `video-qa`, `video-assembly`.
 - Commands, flags, and schemas → inspect `make help`, `scripts/<tool> --help`, and `campaigns/example-product-spot/`; run `make check` before finishing harness edits.
