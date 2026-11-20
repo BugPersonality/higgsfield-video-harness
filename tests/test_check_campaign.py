@@ -465,6 +465,64 @@ class TestCheckCampaign(unittest.TestCase):
             self.assertIn("flux_kontext", err_text, msg=data_e)
             self.assertIn("kling4_0", err_text, msg=data_e)
 
+    def test_enforces_character_soul_motion_control_and_intone_cel_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            camp = _copy_campaign_fixture(Path(tmp))
+            shotlist_path = camp / "shotlist.json"
+            base = json.loads(shotlist_path.read_text(encoding="utf-8"))
+            base["references"].extend(
+                [
+                    {"id": "ref_driver_vid", "kind": "driving_video", "local_path": "media/references/act.mp4", "upload_id": None},
+                    {"id": "ref_voice_line", "kind": "audio", "local_path": "media/audio/line.wav", "upload_id": None},
+                ]
+            )
+
+            # Valid config: text2image_soul_v2 (1 ref), kling3_0_motion_control (workflow, 1 img + 1 vid), intone (1 char + 1 aud)
+            ok_mut = json.loads(json.dumps(base))
+            ok_mut["shots"][0]["still"]["model"] = "text2image_soul_v2"
+            ok_mut["shots"][0]["still"]["references"] = ["lb_traveler_hand"]
+            ok_mut["shots"][1]["video"]["model"] = "kling3_0_motion_control"
+            ok_mut["shots"][1]["video"]["is_workflow"] = True
+            ok_mut["shots"][1]["video"]["prompt_file"] = None
+            ok_mut["shots"][1]["video"]["start_image_from"] = None
+            ok_mut["shots"][1]["video"]["end_image_from"] = None
+            ok_mut["shots"][1]["video"]["image_references"] = ["lb_traveler_hand"]
+            ok_mut["shots"][1]["video"]["video_references"] = ["ref_driver_vid"]
+            ok_mut["shots"][2]["video"]["model"] = "intone"
+            ok_mut["shots"][2]["video"]["is_workflow"] = False
+            ok_mut["shots"][2]["video"]["start_image_from"] = None
+            ok_mut["shots"][2]["video"]["end_image_from"] = None
+            ok_mut["shots"][2]["video"]["image_references"] = []
+            ok_mut["shots"][2]["video"]["character_images"] = ["lb_traveler_hand"]
+            ok_mut["shots"][2]["video"]["audio_references"] = ["ref_voice_line"]
+            ok_mut["shots"][2]["video"]["final_params"]["bitrate_mode"] = "high"
+            shotlist_path.write_text(json.dumps(ok_mut, indent=2), encoding="utf-8")
+
+            code_ok, data_ok, comb_ok = self._run(camp)
+            self.assertEqual(code_ok, 0, msg=f"Valid character/motion/intone config must pass:\n{comb_ok}")
+            self.assertTrue(data_ok.get("ok"), msg=data_ok)
+
+            # Invalid config: soul_v2 >1 ref + style_id, kling3_0_motion_control non-workflow & missing video & start_image, intone missing audio & conflicting refs
+            bad_mut = json.loads(json.dumps(ok_mut))
+            bad_mut["shots"][0]["still"]["references"] = ["lb_traveler_hand", "ref_bag_front"]
+            bad_mut["shots"][0]["still"]["style_id"] = "style-uuid"
+            bad_mut["shots"][1]["video"]["is_workflow"] = False
+            bad_mut["shots"][1]["video"]["start_image_from"] = "s02.still"
+            bad_mut["shots"][1]["video"]["video_references"] = []
+            bad_mut["shots"][2]["video"]["image_references"] = ["lb_traveler_hand", "ref_bag_front"]
+            bad_mut["shots"][2]["video"]["audio_references"] = []
+            shotlist_path.write_text(json.dumps(bad_mut, indent=2), encoding="utf-8")
+
+            code_bad, data_bad, comb_bad = self._run(camp)
+            self.assertEqual(code_bad, 1, msg=f"Invalid character/motion/intone CEL config must fail:\n{comb_bad}")
+            self.assertFalse(data_bad.get("ok", True))
+            errs = " ".join(data_bad.get("errors", []))
+            self.assertIn("text2image_soul_v2", errs, msg=data_bad)
+            self.assertIn("style_id", errs, msg=data_bad)
+            self.assertIn("kling3_0_motion_control", errs, msg=data_bad)
+            self.assertIn("start_image/end_image", errs, msg=data_bad)
+            self.assertIn("intone", errs, msg=data_bad)
+
 
 if __name__ == "__main__":
     unittest.main()

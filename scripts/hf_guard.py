@@ -819,6 +819,61 @@ def _filter_workflow_cost_args(
     return filtered
 
 
+def _filter_workflow_exec_args(
+    cli_args: list[str], workflow_schema: dict[str, Any]
+) -> list[str]:
+    """Strip cost-only workflow params (in cost_params but absent from params) before execution."""
+    cost_params = workflow_schema.get("cost_params")
+    exec_params = workflow_schema.get("params")
+    if not isinstance(cost_params, list) or not isinstance(exec_params, list):
+        return list(cli_args)
+    exec_names = {
+        str(p["name"]).strip().replace("-", "_")
+        for p in exec_params
+        if isinstance(p, dict) and isinstance(p.get("name"), str) and p["name"].strip()
+    }
+    cost_only_names = {
+        str(p["name"]).strip().replace("-", "_")
+        for p in cost_params
+        if isinstance(p, dict) and isinstance(p.get("name"), str) and p["name"].strip()
+    } - exec_names
+    if not cost_only_names:
+        return list(cli_args)
+    bool_names = {"json", "no_color"} | {
+        str(p["name"]).strip().replace("-", "_")
+        for p in (*exec_params, *cost_params)
+        if isinstance(p, dict)
+        and isinstance(p.get("name"), str)
+        and str(p.get("type") or "").startswith("boolean")
+    }
+    filtered: list[str] = []
+    idx = 0
+    total = len(cli_args)
+    while idx < total:
+        tok = cli_args[idx]
+        if not tok.startswith("--") or tok == "--":
+            filtered.append(tok)
+            idx += 1
+            continue
+        if "=" in tok:
+            name = tok[2:].split("=", 1)[0].replace("-", "_")
+            if name not in cost_only_names:
+                filtered.append(tok)
+            idx += 1
+            continue
+        name = tok[2:].replace("-", "_")
+        has_value = idx + 1 < total and (
+            name not in bool_names
+            or cli_args[idx + 1].lower() in ("true", "false", "1", "0")
+        )
+        if name not in cost_only_names:
+            filtered.append(tok)
+            if has_value:
+                filtered.append(cli_args[idx + 1])
+        idx += 2 if has_value else 1
+    return filtered
+
+
 def _build_cost_cmd(
     hf_bin: str,
     hf_command: str,
@@ -2087,8 +2142,13 @@ def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
         exec_cmd = _build_wait_cmd(hf_bin, hf_command, resumed_job_id, args.wait_timeout)
         exec_rc, exec_out, exec_err, exec_json = _run_cli(exec_cmd)
     else:
+        exec_cli_args = cli_args
+        if hf_command == "generate" and args.workflow and cli_args:
+            wf_rc, _, _, wf_json = _run_cli([hf_bin, "workflow", "get", model, "--json"])
+            if wf_rc == 0 and isinstance(wf_json, dict):
+                exec_cli_args = _filter_workflow_exec_args(cli_args, wf_json)
         exec_cmd = _build_exec_cmd(
-            hf_bin, hf_command, model, args.workflow, cli_args, args.wait_timeout
+            hf_bin, hf_command, model, args.workflow, exec_cli_args, args.wait_timeout
         )
         exec_rc, exec_out, exec_err, exec_json = _run_cli(exec_cmd)
 

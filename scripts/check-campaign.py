@@ -20,6 +20,8 @@ VALID_ASSET_STATUS_SET = frozenset(VALID_ASSET_STATUSES)
 VALID_LOOKBOOK_KINDS = frozenset({"character", "object", "location"})
 VALID_CS4_MODES = frozenset({"t2v", "omni_reference", "video_edit", "video_extension"})
 STILL_HARD_REF_CAPS = {
+    "text2image_soul_v2": 1,
+    "soul_cinematic": 1,
     "flux_kontext": 4,
     "seedream_5_5": 10,
     "kling_image_4_0": 10,
@@ -522,6 +524,13 @@ def _validate_shotlist(
                         f"shotlist.json (shot {sid}.still): {still_ref_count} image references "
                         "exceeds optimal R3 still budget (3-5, max 6); prune off-screen refs to prevent attention dilution"
                     )
+                if s_model == "text2image_soul_v2" and still_ref_count > 0:
+                    s_params = still.get("params") if isinstance(still.get("params"), dict) else {}
+                    if still.get("style_id") or s_params.get("style_id"):
+                        errors.append(
+                            f"shotlist.json (shot {sid}.still): 'text2image_soul_v2' live CEL forbids "
+                            "combining 'style_id' with image references"
+                        )
 
         video = shot.get("video")
         if not isinstance(video, dict):
@@ -563,10 +572,86 @@ def _validate_shotlist(
             _check_ref_id_list(
                 video.get("image_references"), f"shot {sid}.video.image_references"
             )
+            _check_ref_id_list(
+                video.get("character_images"), f"shot {sid}.video.character_images"
+            )
+            _check_ref_id_list(
+                video.get("video_references"), f"shot {sid}.video.video_references"
+            )
+            _check_ref_id_list(
+                video.get("audio_references"), f"shot {sid}.video.audio_references"
+            )
+            loc_img = video.get("location_image")
+            if loc_img is not None:
+                if not isinstance(loc_img, str) or not loc_img.strip():
+                    errors.append(
+                        f"shotlist.json (shot {sid}.video.location_image): invalid reference {loc_img!r}"
+                    )
+                elif loc_img.strip() not in all_ref_ids:
+                    errors.append(
+                        f"shotlist.json (shot {sid}.video.location_image): references undeclared reference/lookbook id '{loc_img.strip()}'"
+                    )
             v_model = video.get("model")
             draft_params = video.get("draft_params") if isinstance(video.get("draft_params"), dict) else {}
             final_params = video.get("final_params") if isinstance(video.get("final_params"), dict) else {}
-            if v_model in ("cinematic_studio_video_4_0", "seedance_2_5"):
+            if v_model == "kling3_0_motion_control":
+                if video.get("is_workflow") is not True:
+                    errors.append(
+                        f"shotlist.json (shot {sid}.video): model 'kling3_0_motion_control' "
+                        "requires 'is_workflow': true"
+                    )
+                if video.get("prompt_file"):
+                    warnings.append(
+                        f"shotlist.json (shot {sid}.video): 'kling3_0_motion_control' live CLI "
+                        "accepts no '--prompt' flag; omit prompt_file or use hf_mult_motion_control"
+                    )
+                mc_imgs = len(video["image_references"]) if isinstance(video.get("image_references"), list) else 0
+                mc_vids = len(video["video_references"]) if isinstance(video.get("video_references"), list) else 0
+                if mc_imgs != 1:
+                    errors.append(
+                        f"shotlist.json (shot {sid}.video): 'kling3_0_motion_control' live CEL requires "
+                        f"exactly 1 image_references entry (got {mc_imgs})"
+                    )
+                if mc_vids != 1:
+                    errors.append(
+                        f"shotlist.json (shot {sid}.video): 'kling3_0_motion_control' live CEL requires "
+                        f"exactly 1 video_references entry (got {mc_vids})"
+                    )
+            elif v_model in ("hf_mult_motion_control", "hf_mult_motion_control_flash"):
+                mc_imgs = len(video["image_references"]) if isinstance(video.get("image_references"), list) else 0
+                mc_vids = len(video["video_references"]) if isinstance(video.get("video_references"), list) else 0
+                if mc_imgs < 1:
+                    errors.append(
+                        f"shotlist.json (shot {sid}.video): '{v_model}' live CEL requires "
+                        "at least 1 image_references entry"
+                    )
+                if mc_vids != 1:
+                    errors.append(
+                        f"shotlist.json (shot {sid}.video): '{v_model}' live CEL requires "
+                        f"exactly 1 video_references entry (got {mc_vids})"
+                    )
+            elif v_model == "intone":
+                in_imgs = len(video["image_references"]) if isinstance(video.get("image_references"), list) else 0
+                in_chars = len(video["character_images"]) if isinstance(video.get("character_images"), list) else 0
+                in_loc = video.get("location_image") is not None
+                in_aud = len(video["audio_references"]) if isinstance(video.get("audio_references"), list) else 0
+                if in_imgs > 0:
+                    if in_imgs != 2 or in_chars > 0 or in_loc:
+                        errors.append(
+                            f"shotlist.json (shot {sid}.video): 'intone' live CEL requires image_references "
+                            "to have exactly 2 entries (character, location) with neither character_images nor location_image"
+                        )
+                elif not (1 <= in_chars <= 2):
+                    errors.append(
+                        f"shotlist.json (shot {sid}.video): 'intone' live CEL requires "
+                        f"1-2 character_images (or exactly 2 image_references), got {in_chars}"
+                    )
+                if not (1 <= in_aud <= 6):
+                    errors.append(
+                        f"shotlist.json (shot {sid}.video): 'intone' live CEL requires "
+                        f"1-6 audio_references, got {in_aud}"
+                    )
+            if v_model in ("cinematic_studio_video_4_0", "seedance_2_5", "intone"):
                 final_res = str(final_params.get("resolution") or "").lower()
                 if final_res in ("1080p", "4k") and final_params.get("bitrate_mode") != "high":
                     warnings.append(
@@ -592,6 +677,21 @@ def _validate_shotlist(
                 end_src = shot.get("end_image_from")
             has_start = start_src is not None
             has_end = end_src is not None
+            if v_model in (
+                "kling3_0_motion_control",
+                "hf_mult_motion_control",
+                "hf_mult_motion_control_flash",
+                "intone",
+            ) and (has_start or has_end):
+                errors.append(
+                    f"shotlist.json (shot {sid}.video): '{v_model}' live CLI does not accept "
+                    "start_image/end_image; pass stills via image_references (or character_images for intone)"
+                )
+            if v_model == "kling_o3_flf" and has_end and not has_start:
+                errors.append(
+                    f"shotlist.json (shot {sid}.video): 'kling_o3_flf' live CEL requires "
+                    "start_image whenever end_image is set"
+                )
             total_video_imgs = video_ref_count + (1 if has_start else 0) + (1 if has_end else 0)
             if v_model in VIDEO_HARD_IMG_CAPS and total_video_imgs > VIDEO_HARD_IMG_CAPS[v_model]:
                 errors.append(
@@ -616,7 +716,7 @@ def _validate_shotlist(
             ):
                 warnings.append(
                     f"shotlist.json (shot {sid}.video): bridging from '{start_src.strip()}' without "
-                    "canonical R2 image_references risks photocopy cascade drift; include original locked prop/location IDs"
+                    "canonical R2 character/prop/location image_references risks photocopy cascade drift; include original locked IDs"
                 )
 
         shot_audio = shot.get("audio")

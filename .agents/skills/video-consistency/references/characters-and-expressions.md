@@ -1,0 +1,200 @@
+# Characters, Faces & Facial Expressions Continuity Runbook
+
+Executable protocol for locking **character identity, facial structure, natural mimicry, and cross-scene continuity** across `R1B`–`R5` in Higgsfield and modern DiT video models. Verify live schemas and prices via `higgsfield model get <id> --json`, `workflow get <id> --json`, and `generate cost` before quoting; validate reference budgets and live CEL caps offline via `make campaign-check CAMPAIGN=<slug>`.
+
+**Core Law — Identity ≠ Biomechanical Mimicry:** Static neutral portraits capture resting bone structure, skin, and hair, but contain **zero data** on how a specific person's face deforms in motion (smile width, visible teeth/gums, eye crinkles, smirk asymmetry, jaw hinge). Driving strong emotions from a single neutral photo forces the model to hallucinate generic expressions and alien teeth. Lock characters across three separate layers: (1) **Biometric Identity Anchor** (multi-angle bible / Soul ID / Element), (2) **Expression Calibration** (real smile/speaking plates or 3–8s video element), and (3) **Performance Driver** (`R3`-baked expression + micro-delta, driving video, or audio driver).
+
+## 1. Fast Character & Performance Triage (`IF / THEN`)
+
+Run this triage during `R1B` before planning `R2` credits so simple cameos do not over-spend and high-acting or real-actor spots never rely on fragile single-photo prompts:
+
+| IF the brief / storyboard contains… | THEN require this tier / path | Tool / Route |
+| :--- | :--- | :--- |
+| **Calm single-angle cameo** (1–2 shots, no head turns or wide smiles) | **Tier 1:** `1` locked `R2A` Master Portrait only → bake pose/light in `R3` still | Web `Unlimited` (`0 cr.`) → `soul_cast` (`0.12 cr.`) → `flux_3_image` / `seedream_5_5` / `nano_banana_2_1` |
+| **Multi-angle hero, head turns, dialogue, or 3–15 shots** (invented or consented real actor) | **Tier 2:** **4–6 plate Character Bible** (Front + `3/4` + Soft Profile `60–80°` + Full/Half-Body + **1–2 Expression Calibration** plates) | Lock `R2A` Master → derive angles (`3d_jutsu_angles` / `nano_banana_2_shots` → `make slice-grid`) + Expression plates (`nano_banana_2_1`) → `kling4_0` / `seedance_2_5` |
+| **Recurring hero across many outfits, lighting setups, or 15+ scenes** | **Tier 3:** Train **Higgsfield Soul ID** (`R3` stills) + **Kling Custom/Video Element** (`R4/R5` video) *(or external low-noise rank-64 LoRA)* | `higgsfield soul-id create` (`5–20` CLI / `20–30` Web) → `text2image_soul_v2` / `soul_cinematic`; Kling Web Element (`1–4` photos or `3–8s` video+voice) → `--kling_element_ids` |
+| **Multi-character shot** (2+ recurring people in one frame) | **Isolated Masters + Spatial Separation:** separate `cast_a_*` / `cast_b_*` bibles (never a group master), strong wardrobe/hair contrast, explicit `screen-left`/`screen-right` `@ImageN` binding | Stage `R3` still with isolated masters → prefer 2-shot + OTS / `kling_o3_image_reference --multi_shots true` over crowding 3+ faces in one frame |
+| **Big single-clip emotional arc** (e.g., neutral → big laugh or shock in 5s) | **Start + End Frame Bracketing:** lock *both* opening and peak-expression `R3` stills (anchored to `R2B` Expression plate) | `--start_image` + `--end_image` on `kling4_0` / `seedance_2_5` / `kling_o3_flf` / `wan3_0` |
+| **Exact human acting, specific micro-expressions, timing, or choreography** | **Performance Transfer:** shoot `3–10s` actor driving video on tripod → map onto locked `R3` still | `kling3_0_motion_control` (`10/15 cr.` 5s, workflow, no CLI `--prompt`) or `hf_mult_motion_control` / `hf_mult_motion_control_flash` (Genjutsu, accepts `--prompt`); Web `Matches Image` for acting vs `Matches Video` for dance *(external: Runway Act-Two / Wan Animate / LivePortrait)* |
+| **Direct talking-head, monologue, presenter, or lip-sync dialogue** | **Audio-First Performance:** lock final voice WAV in `R3` *before* animating (`--voice_id` / Kling Video Element voice) | `intone` (`1–2` `character_images` + opt. `location_image` + `1–6` `audio_references`, inline `[smirks]`/`[laughs]`/`[pauses]`, up to `30s`) or native `kling4_0` / `seedance_2_5` / `kling_o3_image_reference --multi_shots` *(voice swap/dubbing: `voice_change` / `dubbing` workflows)* |
+| **Consented real human actor hitting `Seedance 2.0/2.5` face-moderation blocks (`ip_detected`)** | **Real-Actor Route:** bypass Seedance real-face pre-scan cleanly via compliant character engines | Route directly to `kling4_0` (`reference-to-video` / `kling_element_ids`), `kling3_0_motion_control`, `soul-id`, or `intone` *(for synthetic photoreal cast on Seedance, originate master on `seedream_5_5`)* |
+| **Same locked face needs a new lighting mood, outfit, or non-plastic skin** | **Targeted `R2B`/`R3` Transform** on locked Master UUID (never re-roll identity from scratch) | `nano_banana_2_relight` (light), `nano_banana_2_ai_stylist` (wardrobe), `nano_banana_2_skin_enhancer` (skin pores/texture) |
+| **Great acting take where the face drifts slightly mid-clip (`R4`/`R5`)** | **Surgical Face Rescue:** keep motion/acting, re-anchor face to canonical `R2` Master | `kling4_0 --mode video-edit` (`22.5 cr.`, `video_references` + `R2` portrait) or Higgsfield Web **Face Swap** *(never discard golden acting before testing rescue)* |
+
+## 2. Round-by-Round Execution Protocol
+
+Execute in strict round order. Never invent recurring cast identities directly inside `R4/R5` text-to-video prompts.
+
+### Step A — `R1B` Cast Blueprint & Performance Tagging (`0 cr.`)
+1. Run Section 1 Triage per recurring character and declare `R2A` Master (`variants_requested: 3`) and triggered `R2B` derived plates (`variants_requested: 1`) in `shotlist.json` using per-character ID prefixes (`cast_<name>_front`, `cast_<name>_3q`, `cast_<name>_profile`, `cast_<name>_body`, `cast_<name>_smile`, `cast_<name>_tense`).
+2. Write one **Immutable Identity Block** in `style-bible.md` / `shotlist.json` (`continuity_lock.space_cast_axis`) for `R3` image prompts only (exact age, face shape, skin features, eye color, hair geometry—zero synonym drift across stills).
+3. Tag every character shot in `storyboard.md` with **`FRAMING`** (prefer `MCU` chest-up for acting/dialogue; flag `WS` face-pixel risk and `ECU` drift risk), **`EXPRESSION (START → END)`** (limited single-clip delta), and **`GAZE ANCHOR`** (exact off-camera or object focus—never leave unspecified).
+4. Run `make campaign-check CAMPAIGN=<slug>` to verify hard CEL caps and optimal ref budgets (`3–5` stills, `2–4` video).
+- *Done when:* `make campaign-check` passes cleanly, every recurring character has a declared Tier 1–3 plate plan, and every acting shot specifies framing, expression delta, and gaze anchor.
+
+### Step B — `R2A` Master Identity Lock (Unlimited-First)
+1. Follow [Model Selection](../../higgsfield-cli/references/model-selection.md): check **`higgsfield.ai` Web `Unlimited` (`0 cr.`)** first, else `soul_cast` / `cinematic_studio_soul_cast` (`0.12 cr.`) for fast `A / B / C` casting search → hero `2k`/`4k` Master lock (`flux_3_image` for raw 35mm skin/pores, `seedream_5_5` for commercial realism & ByteDance ecosystem compatibility, or `nano_banana_2_1`).
+2. Enforce Section 4 photo standards on the Master Portrait: `50–85mm` portrait optics (zero wide-angle selfie distortion), soft diffused `5000–5600K` light, clean `#808080` matte mid-gray or neutral backdrop, natural unretouched skin, static relaxed pose (**Static Pose Rule**), clear eyes/jawline, and zero hero products covering the face.
+3. Filter via fresh `reviewer-agent`, ship `Dailies 2`, upload approved winner via `hf_guard.py upload --round R2`, and set `status: "LOCKED"` + `approved_upload_id` in `shotlist.json`.
+- *Done when:* every lead character's `R2A` Master Portrait is `LOCKED` with a verified `approved_upload_id` and clean neutral lighting.
+
+### Step C — `R2B` Character Bible Expansion & Optional ID Training
+1. Derive ONLY plates triggered by Section 1 Triage strictly from the **locked `R2A` Master UUID** (`variants_requested: 1`):
+   - `3/4` view and soft profile (`60–80°`) → `3d_jutsu_angles` (`2.5 cr.`, `2k`) or `nano_banana_2_1` (`2k`/`4k`), or mint a full multi-angle pack via `nano_banana_2_shots` → **`make slice-grid FILE=<sheet.png> OUT_DIR=<dir> ROWS=3 COLS=3 TRIM=4 PREFIX=cast_<name>`** → inspect via `view_image` → upload winning standalone PNG tiles (never feed raw grids to video).
+   - **Full/Half-Body proportion plate** and **1–2 Expression Calibration plates** (natural open-teeth smile + serious/speaking mouth) → `nano_banana_2_1` / `seedream_5_5` anchored to `R2A` Master.
+   - **Wardrobe or lighting variants** on the locked face → `nano_banana_2_ai_stylist` (outfit swap) / `nano_banana_2_relight` (lighting shift) / `nano_banana_2_skin_enhancer` (restore fine skin texture).
+2. **Tier 3 Training (only for multi-outfit or 15+ scene heroes):**
+   - **Higgsfield Soul ID:** collect `10–15` (CLI hard range `5–20`) or `20–30` (Web UI range `20–80`) varied photos of the exact same person across angles, natural expressions (35% neutral, 25% smiles, 25% serious/speaking, 15% varied framing including `>= 1` full-body), and varied outfits/backgrounds (so clothes do not bake into facial weights). Run `higgsfield soul-id create --name <Name> --soul-2|--soul-cinematic --image ...` (or train in Web UI; verify cost first as CLI lacks `soul-id cost`).
+   - **Kling Custom / Video Element (Web UI only):** create from `1–4` clean multi-angle photos (front, 3/4, profile, full-body) OR a `3–8s` speaking/turning video clip (binds face + mimicry + voice into one persistent `kling_element_ids` handle).
+3. Inspect all derived plates against the `R2A` Master via `reviewer-agent`, upload winners via `hf_guard.py upload --round R2`, and register UUIDs in `shotlist.json`.
+- *Done when:* every triggered angle, body-proportion, and expression plate (or Soul ID / Kling Element) is QA-verified, uploaded, and registered in `shotlist.json`.
+
+### Step D — `R3` Keyframe Assembly (`2k`/`4k` Stills — Bake Light & Baseline Expression)
+1. Stage every shot as a `2k`/`4k` still (`nano_banana_2_1`, `seedream_5_5`, `flux_3_image`, `gpt_image_2_6`, or `text2image_soul_v2` / `soul_cinematic` with `--custom_reference_id`) before spending any video credits.
+2. Bind **3–5 visible-only refs total**, selecting only **`1–2` character plates** that match the shot's camera angle and expression (e.g., `cast_front` + `cast_smile` for a smiling `MCU`; `cast_3q` + `cast_body` for a wide walking shot). Prune unused angles/outfits (**Visibility Pruning**).
+3. **Bake 40–60% of the shot's target emotion into the `R3` still:** if the clip requires wide laughter, tears, or anger, stage a soft smile, parted lips, or furrowed tension in the starting frame so the video engine evolves an existing expression rather than inventing open teeth/mouth geometry from stone-dead neutral.
+4. **Anti-Wide-Shot Face Collapse:** render wide shots (`WS`) at `2k`/`4k` with the close-up `R2A` Master Portrait attached so the small face retains crisp eye/nose/mouth landmark pixels.
+5. Audit via `reviewer-agent` (check likeness against `R2A` Master, teeth/eyes cleanliness, matched skin lighting, correct gaze), ship `Dailies 3` + `animatic.mp4`, lock approved stills, and upload via `hf_guard.py upload --round R3`.
+- *Done when:* every shot proves facial likeness, scene-matched skin light, natural expression start-state, and clean eye/mouth anatomy in `LOCKED` `R3` stills before any video spend.
+
+### Step E — `R4 / R5` Delta Motion, Acting Transfer & Surgical Face Rescue
+1. Bind **2–4 visible-only images** per standard video shot: `1` locked `R3` `--start_image` + **`1–2` canonical `R2` face/expression UUIDs** (especially on head turns, `MCU`/`CU`, or transitions) + optional `1` locked `R3` `--end_image`. Honor hard CEL rules (`wan3_0` / `wan3_0_prime` forbid mixing `start_image` with `image_references`; `flux_3_video` forbids mixing images with `video_references`; `intone` forbids mixing 2-item `image_references` with `character_images`/`location_image`).
+2. **Zero Photocopy Cascade (Canonical Source Law):** never chain compressed video screenshots (`s01.last_frame` → `s02` → `s03`) without canonical `R2` portrait UUIDs. For new scenes/cuts, always start from a fresh `R3` still anchored to `R2` Masters; for continuous same-scene bridges via `.last_frame`, always include the original `R2` face UUID in `--image_references`.
+3. Select the performance engine by acting requirement:
+   - **Standard directed acting (4–6s modular clips):** `kling4_0` (`reference-to-video`, `1080p`, optional `--kling_element_ids`) or `seedance_2_5` (`omni_reference`, `--draft true` → `--draft_job_id` + `--bitrate_mode high` to lock exact draft micro-expressions 1:1 into `1080p`). Use `minimax_h3` / `wan3_0_prime` for calm portrait micro-detail.
+   - **2–4 cuts / shot-reverse-shot dialogue in one room:** native multi-shot (`kling_o3_image_reference --multi_shots true --multi_prompt [...]`, `kling4_0`, or `seedance_2_5`) so both faces stay inside one shared latent space.
+   - **Interactive emotion control (Web UI):** Cinema Studio 4.0 **AI Cast / Elements** + **Emotion Wheel** (`@character_name` + 1 of 8 core emotions: *Hope, Anger, Joy, Trust, Fear, Surprise, Sadness, Disgust*).
+   - **Exact human performance transfer (Driving Video):** `kling3_0_motion_control` (workflow, `1` image + `1` video, **no CLI `--prompt`**, `--background_source input_image|input_video`, pass `--duration <sec>` for `hf_guard.py` cost quoting which strips it before execution; in Web choose `Matches Image` for cinematic dialogue/acting vs `Matches Video` for strict choreography) or `hf_mult_motion_control` / `hf_mult_motion_control_flash` (Genjutsu, `>= 1` image + `1` video + optional `--prompt`).
+   - **Audio-First talking & lip-sync:** lock the character's single persistent voice in `R3` (`--voice_id` via `text2speech_v2` / `elevenlabs_v4` / `seed_audio`, or `voice_change` / `dubbing` workflows) *before* animating `intone` (`1–2` `character_images` + optional `location_image` + `1–6` `audio_references` + inline `[smirks]`/`[laughs]`/`[pauses]` cues, `1080p`, `--bitrate_mode high`, up to `30s`) or shooting lip-sync driving video.
+   - **Big expression arcs (`Start + End` bracketing):** if one 5s shot must swing from neutral to wide laughter/shock, stage *both* `sNN_start.png` and `sNN_end.png` (anchored to `R2B` Expression Calibration) in `R3` and bracket via `--start_image` + `--end_image` (`kling4_0`, `seedance_2_5`, `kling_o3_flf`, `wan3_0`).
+4. **Video Prompt Discipline — Delta-Only + Two-Details Rule + FACS Timestamps:** once the face is anchored visually via `start_image` / `@ImageN` / Element, **strip facial-feature descriptions** (eye color, nose bridge, jawline, skin tone) from the video prompt—repeating appearance in text triggers cross-attention drift and stiffens motion. Name the role (`the woman from @Image1`), keep at most `1–2` silhouette/wardrobe anchors, write **FACS anatomical micro-movements with timestamps** (never *"screams wildly"* or *"acts natural"*), and specify a concrete **Gaze Anchor**.
+5. **Surgical Face Rescue & Face-Focused `1:1` QA:** if a take nails acting rhythm and camera motion but the face softens or drifts mid-clip, rescue it with `kling4_0 --mode video-edit` (`--video_references <take_job_id> --image_references <r2_master_uuid>`) or Higgsfield Web **Face Swap** before discarding the take. On character close-ups (`R5`), run `qa_media.py clip <mp4> --sheet <sheet.png> --crops <crops.png> --crop-focus center|left|right --json` targeted directly onto the actor's frame zone so `reviewer-agent` inspects eyes, teeth, and pores at true `1:1` native pixels.
+- *Done when:* `3x2` contact sheets and face-targeted `R5` `1:1` `--crops` strips pass `reviewer-agent` on start, mid, and end frames with identical bone structure, clean teeth/eyelids, natural blinking, matched voice continuity, and zero cross-shot aging or morphing.
+
+## 3. Copy-Ready Templates
+
+### A. Cast Continuity Block & Per-Shot Performance Tag (`style-bible.md` & `storyboard.md`)
+```text
+Immutable Identity Block (R3 Stills ONLY — copy verbatim, zero synonyms):
+cast_elena: Woman in her early 30s, oval face with soft angular jawline, muted hazel eyes, faint scatter of natural freckles across the nose bridge, dark chestnut shoulder-length wavy hair parted slightly left, unretouched matte natural skin.
+
+Per-Shot Performance Tag (add to every character shot in storyboard.md):
+FRAMING: MCU chest-up (50mm) | EXPRESSION: restrained concern (45% baked in R3) -> subtle wry relief | GAZE: screen-left toward colleague, never into lens | DRIVER: kling4_0 reference-to-video (or driving video ref_act_s02.mp4)
+```
+
+### B. `shotlist.json` Wiring (`R2A/R2B` Character Bible → `R3` → `R4/R5` + `intone` / `motion_control`)
+```json
+"references": [
+  { "id": "cast_elena_3q_tile", "kind": "character_angle", "local_path": "media/lookbook/tiles/cast_elena_r0_c2.png", "upload_id": "<uuid>" },
+  { "id": "act_s04_driver", "kind": "driving_video", "local_path": "media/references/elena_acting_s04.mp4", "upload_id": "<video_uuid>" },
+  { "id": "vo_s05_line", "kind": "audio", "local_path": "media/audio/s05_elena_line.wav", "upload_id": "<audio_uuid>" }
+],
+"lookbook": [
+  { "id": "cast_elena_front", "kind": "character", "variants_requested": 3, "status": "LOCKED", "approved_variant": "A", "approved_upload_id": "<front_uuid>", "estimated_credits": 6.0 },
+  { "id": "cast_elena_smile", "kind": "character", "variants_requested": 1, "status": "LOCKED", "approved_variant": "A", "approved_upload_id": "<smile_uuid>", "estimated_credits": 2.0 },
+  { "id": "cast_elena_body", "kind": "character", "variants_requested": 1, "status": "LOCKED", "approved_variant": "A", "approved_upload_id": "<body_uuid>", "estimated_credits": 2.0 }
+],
+"shots": [
+  {
+    "id": "s02",
+    "still": { "model": "nano_banana_2_1", "references": ["loc_cafe_master", "cast_elena_front", "cast_elena_smile"] },
+    "video": { "model": "kling4_0", "mode": "reference-to-video", "start_image_from": "s02.still", "image_references": ["cast_elena_front", "cast_elena_3q_tile"] }
+  },
+  {
+    "id": "s04",
+    "video": { "model": "kling3_0_motion_control", "is_workflow": true, "image_references": ["s04_still_ref"], "video_references": ["act_s04_driver"] }
+  },
+  {
+    "id": "s05",
+    "video": { "model": "intone", "character_images": ["cast_elena_front", "cast_elena_smile"], "location_image": "loc_cafe_master", "audio_references": ["vo_s05_line"] }
+  }
+]
+```
+
+### C. Fill-in-the-Blank Prompt Skeletons
+- **`R2A` Neutral Master Portrait:** `Unretouched 85mm cinema casting portrait, chest-up straight-on framing of <Immutable Identity Block>, wearing a plain charcoal crewneck t-shirt against a clean 50% neutral matte mid-gray (#808080) studio backdrop. Relaxed neutral resting expression, calm eyes looking slightly past camera, shoulders squared and still. Soft diffused 5400K studio softbox light with gentle even fill, fine natural skin pores, zero harsh shadows, zero beauty retouching, zero jewelry or glasses.`
+- **`R2B` Expression Calibration Plate (from locked `R2A` Master):** `Exact same person from Image 1, identical facial bone structure, hair, lighting (soft diffused 5400K), and neutral #808080 studio backdrop, 85mm chest-up framing. Natural candid warm smile showing natural teeth cleanly, soft genuine crinkles at the outer eye corners, relaxed raised cheeks. Unretouched skin texture.` *(Repeat with `serious furrowed brow, lips slightly parted mid-sentence` for dialogue spots.)*
+- **`R3` Keyframe Still with Baked 40–60% Expression (`2k`/`4k`):** `50mm medium close-up inside the <location> from Image 1. The <character> from Image 2 (<Immutable Identity Block>, matching smile geometry from Image 3) sits turned 3/4 toward screen-left, wearing <wardrobe>, eyes focused off-camera left. Hold a restrained half-formed <target expression> (corners of lips softly lifted / inner brows slightly drawn). Match skin lighting strictly to the <4-part motivated light from Image 1>, natural matte skin pores, 35mm film grain.`
+- **`R4/R5` Delta-Only FACS Micro-Expression Video Prompt (`omni_reference` / `reference-to-video`):** `Locked-off static tripod MCU starting from the opening frame; preserve the exact face and identity from @Image2 (and 3/4 profile from @Image3). 0-2s: Her eyes stay fixed off-camera left, jaw tightens slightly, inner brows draw together as she exhales softly through her nose. 2-5s: Tension releases from her brow and the corners of her lips lift into a brief restrained asymmetric smile with one natural blink. Audio: Quiet indoor room tone, soft breath exhale. NO MUSIC. NO BACKGROUND SCORE. Native diegetic sound only.`
+- **`intone` Audio-Driven Dialogue Prompt:** `Medium close-up chest-up framing, locked-off tripod, soft 5200K window light from camera-left. The speaker listens attentively, maintains steady conversational eye contact, delivers the spoken line naturally [pauses] with subtle brow movement [smirks] and realistic blinking while shoulders move gently with breath.`
+- **Genjutsu (`hf_mult_motion_control*`) & Kling Web Performance Transfer:** *(Keep text minimal—let the driving video own 100% of facial timing; note that CLI `kling3_0_motion_control` accepts **no `--prompt`**)* `Preserve the exact character identity, wardrobe, and lighting from @Image1 while transferring the exact facial micro-expressions, head tilt, gaze timing, and lip movement from @Video1. Natural matte skin texture, stable camera.`
+
+## 4. Canonical Input Standards & Cross-Scene Laws
+
+### Character Bible Input Standards (Photos)
+- **4–6 Plate Pack:** (1) Front neutral chest-up (`50–85mm`), (2) `3/4` view, (3) Soft profile `60–80°` (avoid dead-dark strict 90° silhouettes), (4) Half-body or full-body proportion plate, (5–6) Expression Calibration plates (natural teeth smile + serious/speaking mouth).
+- **Optics & Light:** Portrait focal length **`50–85mm`** (close-up `24mm` phone selfies warp nose/skull geometry); soft color-neutral **`5000–5600K`** light (prevents *Lighting Bake-In*); neutral **`#808080`** or clean plain backdrop; **`>= 1024px`** short side; unretouched natural pores (airbrushed skin erases biometric landmarks).
+- **Biometric Hygiene, Hair, Glasses & Client Selfies:** Single person only; zero sunglasses, heavy bangs over eyes, hands covering mouth, hats (unless permanent costume), or cropped forehead/chin; **Static Pose Rule** on the Master (avoid mid-run/mid-scream stills that inject unwanted momentum). Clear prescription glasses hold cleanly only if worn identically across *every* angle plate (avoid lens glare); tied-back or clearly parted hair resists cross-cut drift better than loose wind-blown hair; name distinctive scars/moles/tattoos in the `R3` Immutable Identity Block. Never pass vertical `9:16` client phone selfies directly as `--start_image` for a `16:9` shot—bind them strictly as `--image_references` to stage a native `16:9` `R3` still (or `outpaint` first).
+- **Training vs. Scene Wardrobe:** For **Soul ID / LoRA** training datasets (`10–30` photos), vary outfits, backgrounds, angles, and expressions (~35% neutral, ~25% smiles, ~25% serious/speaking, ~15% varied framing including `>= 1` full-body) so clothing never bakes into identity weights. For **zero-shot `R2` Bibles**, keep 1 clean neutral portrait + 1 scene-wardrobe body plate.
+
+### Driving Video Capture Standards (Motion Control / Performance Transfer)
+- **Tripod & Backdrop:** Locked-off tripod (zero handheld shake) against a solid, contrasting uncluttered background so landmarks track cleanly.
+- **Framing Match:** Match driving video scale to the character still (`CU/MCU` driving video → `CU/MCU` still for dialogue/lip-sync; `3/4` half-body with visible hands → `3/4` still for gesture transfer). Never map full-body dance onto a head-and-shoulders crop.
+- **Head Angle & Light:** Keep head rotations inside **`±45–60°`** (extreme >90° whip-turns break eyelid/mouth tracking); use soft diffused front-side light aligned with the target scene; avoid blown-out forehead/nose highlights; keep clips **`3–10s`**.
+- **Orientation Mode (Kling Web UI):** Select **`Matches Image`** for dialogue, acting, and cinematic camera stability; select **`Matches Video`** only for strict dance/athletic choreography.
+
+### Cross-Scene Production Laws
+- **Multi-Character Separation (Anti-Identity Bleed):** When 2+ recurring people share a frame, maintain completely separate `R2` masters (`cast_a_*`, `cast_b_*`—never a shared group master), give them distinct wardrobe/hair silhouette contrast, bind explicit `screen-left` / `screen-right` positions paired with `@ImageN` nouns, and prefer 2-shot + OTS or native multi-shot over crowding 3+ faces into one wide frame.
+- **Voice Continuity (`Audio-First` Dialogue):** Lock one persistent `--voice_id` (`text2speech_v2` / `elevenlabs_v4` / `seed_audio`), Kling Web `3–8s` Video Element voice, or `voice_change` / `dubbing` workflow across all speaking shots—and finalize dialogue WAV timing in `R3` *before* animating `intone` or shooting lip-sync driving video.
+- **`MCU` Golden Framing & Anti-Wide-Shot Collapse:** Medium close-up (`MCU`, chest-up) yields the sharpest facial stability for acting and dialogue (`ECU` magnifies 2px drift; `WS` starves the face of landmark pixels). Never push in from `WS` to `CU` inside one 5s clip—render `WS` stills at `2k`/`4k` with the close-up `R2A` Master attached and cut cleanly to `MCU`.
+- **Short Modular Takes (`4–6s`) or Native Multi-Shot:** Keep individual acting clips `4–6s` so temporal drift cannot compound; for 2–4 cuts inside one room, use native multi-shot (`kling_o3_image_reference --multi_shots true` / `kling4_0` / `seedance_2_5`) to share one latent identity across cuts. Use `--start_image` + `--end_image` bracketing (`kling4_0`, `seedance_2_5`, `kling_o3_flf`) whenever one clip must span a large expression shift.
+- **Two-Details / Delta-Only Video Prompt Rule:** Never restate nose, eye, or skin features in `R4/R5` video prompts when the face is already supplied via `start_image` / `image_references` / Element; keep `<= 2` silhouette/wardrobe anchors plus anatomical FACS motion delta and Gaze Anchor.
+- **External Serialized Pipeline Note (20+ scenes / local ComfyUI):** Train a **rank-64 image-only LoRA** (`15–30` diverse expression photos, never video frames, plus `1–3×` generic class regularization images so the face can deform freely), and in dual-expert video architectures (`Wan 2.2+` / `Wan Animate`) apply the character LoRA **strictly to the low-noise (identity) expert** so it never freezes high-noise motion.
+
+## 5. Image Count Budgets & Higgsfield Tool Routing
+
+Never confuse **Library / Training Count** (one-time asset creation) with **Per-Shot Input Count** (passing `> 5` photos into one video generation triggers **attention dilution**, facial averaging, and stiff "living photo" motion).
+
+### Live Higgsfield Limits vs. Optimal Count
+
+| Stage / Model (`job_type`) | Library / Training Count | Hard CLI Limit (CEL) | **Per-Shot Optimal Count** | Key Constraint |
+| :--- | :--- | :--- | :--- | :--- |
+| **Identity Training (`R2B`)** | | | | |
+| `higgsfield soul-id create` | **CLI: `10–15`** (`5–20`)<br>**Web: `20–30`** (`20–80`) | `5–20` `--image` (CLI) | `1` `--custom_reference_id` | Trains **image** layer (`text2image_soul_v2` / `soul_cinematic`); vary outfits/expressions |
+| Kling Custom / Video Element *(Web UI)* | **`3–4` angles** (`1–4`) OR **`3–8s` video** | Bind via `kling_element_ids` | `1–2` elements per shot | Video Element locks face + mimicry + voice; creation is Web UI only |
+| **Stills (`R2`/`R3`)** | | | | |
+| `text2image_soul_v2` / `soul_cinematic` | Uses trained `Soul ID` | `<= 1` `image_references` | `1` `custom_reference_id` (+ `0–1` ref) | `text2image_soul_v2` forbids pairing `--style_id` with `--image_references` (`0.12 cr.`) |
+| `nano_banana_2_1` / `seedream_5_5` / `kling_image_4_0` | `4–6` Character Bible | `<= 14` / `<= 10` / `<= 10` | **3–5 total** (**1–2** character plates) | Pick angle-matched face + expression plate; render `2k`/`4k` |
+| `3d_jutsu_angles` / `nano_banana_2_shots` | From `1` locked `R2A` Master | `<= 10` / **exact `1`** | **`1`** locked Master | `nano_banana_2_shots` takes no `--prompt`; always `make slice-grid` before video |
+| **Video (`R4`/`R5`)** | | | | |
+| `kling4_0` / `kling_4_0_flash` (`reference-to-video`) | Bible or Kling Element | `<= 10` imgs (`<= 15` total) | **2–4** (`start` + `1–2` face/element + opt. `end`) | Top value native `1080p` (`18.75 cr.`) & consented real-actor face routing |
+| `seedance_2_5` / `cinematic_studio_video_4_0` (`omni_reference`) | `4–6` Character Bible | `<= 30` imgs (`<= 50` media) | **2–5** (`start` + `1–2` face + set/prop) | `--draft true` → `--draft_job_id` locks exact acting 1:1; **real faces may trigger `ip_detected`** |
+| `intone` (Higgsfield Intone) | `1–2` portraits | `1–2` `character_images` (or exact `2` `image_references`) + `1–6` `audio_references` | **`1–2` face + `1` location + `1` audio** | Dedicated talking/acting lip-sync (`<= 30s`, `1080p`, `--bitrate_mode high`) |
+| `kling3_0_motion_control` *(workflow)* | `1` still + `1` driving clip | **Exact `1`** image + **exact `1`** video | **`1` still + `1` driving video** | `10 cr.` (`std`) / `15 cr.` (`pro`) for 5s; `--background_source input_image\|input_video` |
+| `hf_mult_motion_control` / `hf_mult_motion_control_flash` (Genjutsu) | `1+` still + `1` driving clip | **`>= 1`** image + **exact `1`** video | **`1–2` stills + `1` driving video** | Video-to-video character swap / motion transfer (`480p`–`1080p`) |
+| `wan3_0` / `wan3_0_prime` / `minimax_h3` | Bake in `R3` still | `wan3_0`: `start`+`end` **XOR** `image_references` | **`1`** (`start_image`) | Best for calm tactile portraits when identity is 100% locked in `R3` |
+| `veo3_1` / Runway Gen-4 *(ext.)* | `3–4` Bible | Veo CLI: `1` (Ingredients: `3`); Gen-4: `3` | **`1`** (CLI) / **`2–3`** (Ingredients) | Clean `R3` I2V keeps camera fluid; never rely on T2V for recurring faces |
+
+### Tool-by-Job Quick Lookup
+
+| Job | Tool (`job_type`) | Live Cost\* | Notes |
+| :--- | :--- | :--- | :--- |
+| Fast `R2` casting lookbook | `soul_cast` / `cinematic_studio_soul_cast` | `0.12 cr.` | Cheap `A / B / C` cast search before hero lock |
+| Hero `R2A` photoreal portrait | `flux_3_image` / `seedream_5_5` / `nano_banana_2_1` | `1.5–3.5 cr.` | `flux_3_image` for raw skin; `seedream_5_5` for Seedance compatibility |
+| Derive `3/4` & profile angles | `3d_jutsu_angles` (`2k`) / `nano_banana_2_shots` | `2.5 cr.` / live | Always `make slice-grid` on `nano_banana_2_shots` before video |
+| Relight / skin / wardrobe on locked face | `nano_banana_2_relight` / `nano_banana_2_skin_enhancer` / `nano_banana_2_ai_stylist` | live quote | `ai_stylist` requires `outfit_preset_ids` or `user_outfit_ids`; `skin_enhancer` requires `preset_id` |
+| Train persistent image identity | `higgsfield soul-id create --soul-2\|--soul-cinematic` | check Web\* | `5–20` images CLI (`20–80` Web); binds via `--custom_reference_id` (`0.12 cr.` stills) |
+| Direct talking & lip-sync acting | `intone` | live quote | `1–2` `character_images`, opt. `location_image`, `1–6` `audio_references`, inline `[smirks]`/`[pauses]` |
+| Transfer real actor micro-expressions | `kling3_0_motion_control` (wf) / `hf_mult_motion_control` | `10/15 cr.` / live | Driving video `3–10s` on tripod, matched framing, `±45–60°` head turns |
+| Multi-cut dialogue inside 1 room | `kling_o3_image_reference --multi_shots true` / `kling_o3_flf` | `6.25–10 cr.` (5s) | Shared latent holds faces across cuts (`kling_o3_flf` adds `start`+`end` bracketing) |
+| UGC character+product video transfer | `marketing_studio_v2_reference2video` *(workflow)* | `~62.8 cr.` (5s) | Takes `character_image` + `input_video` + optional `product_image` (`--duration` cost-only) |
+| Consistent voice swap / dubbing | `voice_change` / `dubbing` *(workflows)* | live quote | Re-voice or dub a video clip (`--duration` cost-only; `hf_guard.py` strips it on exec) |
+| Rescue drifted face in golden take | `kling4_0 --mode video-edit` / Web Face Swap | `22.5 cr.` / Web | Bind locked clip (`video_references`) + canonical `R2` portrait (`image_references`) |
+
+*\*Web UI vs. CLI boundary: Cinema Studio 4.0 **AI Cast**, **Emotion Wheel**, **Face Swap**, **Lipsync Studio**, and creating **Kling Elements** (`kling_element_ids`) are Web UI features (`higgsfield.ai`); CLI binds pre-existing `kling_element_ids`, trained `Soul ID`s (`--custom_reference_id`), or uploaded `--image_references` / `--video_references` / `--audio_references` UUIDs. Verify `soul-id` cost in Web before running `soul-id create` (CLI currently lacks `soul-id cost`).*
+
+## 6. Face & Expression Failure Diagnostics
+
+| Observed Symptom | Root Cause | Exact Fix |
+| :--- | :--- | :--- |
+| **Face morphs into a stranger during head turn** | Character Bible only had a frontal portrait | Derive locked `3/4` + soft profile (`60–80°`) via `3d_jutsu_angles` / `nano_banana_2_1` and bind `1` in `image_references` (or create a 3–4 angle Kling Element) |
+| **Alien / multi-row / distorted teeth on smile or laugh** | Big delta from stone-neutral `R3` frame + zero smile reference | Add a natural-teeth **Expression Calibration** plate in `R2B`, bake `40–60%` of the smile into `R3` still, and narrow motion prompt to subtle micro-expansion |
+| **Face freezes stiff ("living photo") or averages out** | Reference overload (`> 5` photos) OR facial features re-described in video prompt | Prune to `2–4` visible refs (`start` + `1–2` canonical face refs), strip face-feature text from the video prompt (**Two-Details Rule**), keep delta motion only |
+| **Character ages, blurs, or drifts by Shot 4–5** | Photocopy cascade (chaining `.last_frame` video screenshots) | Stage each new scene's `R3` still from original `LOCKED` `R2` Masters; always pair any `.last_frame` bridge with canonical `R2` portrait UUIDs |
+| **Face turns muddy or unrecognizable in wide shot (`WS`)** | Too few landmark pixels on face (*Wide-Shot Face Collapse*) | Render `R3` still at `2k`/`4k` with close-up `R2A` Master attached; cut to `MCU` instead of pushing `WS → CU` in one clip |
+| **Skin carries wrong shadow or neon tint across scenes** | Reference portrait had harsh directional or colored lighting (*Lighting Bake-In*) | Re-shoot/regenerate `R2A` Master in soft diffused `5000–5600K` light on `#808080`, or neutralize via `nano_banana_2_relight` |
+| **Character stares awkwardly into the camera lens** | Vlog/interview training prior with unspecified eyeline | Add an explicit **Gaze Anchor** (`eyes fixed off-camera left on the doorway, never looking at the lens`) in both `R3` and `R4/R5` |
+| **Erratic eyelid twitching or grotesque expression snap** | Abstract prompt (`acts natural`, `micro-expressions`, `screams in rage`) or shaky driving video | Switch to motivated **FACS anatomical beats** with timestamps (`0-2s / 2-5s`), or feed a tripod-locked `3–10s` driving video via `kling3_0_motion_control` |
+| **`Seedance 2.0/2.5` rejects real actor portrait (`ip_detected`)** | ByteDance automated real-face pre-scan filter | Route consented real actors to `kling4_0` (`reference-to-video` / `kling_element_ids`), `kling3_0_motion_control`, `soul-id`, or `intone`; originate synthetic cast on `seedream_5_5` |
+| **Two characters swap or blend faces in the same shot** | Shared group reference OR weak spatial/wardrobe separation | Isolate `cast_a_*` / `cast_b_*` masters, differentiate hair/wardrobe silhouettes, bind explicit `screen-left`/`screen-right` `@ImageN` roles, or split into OTS / multi-shot |
+| **One great acting take drifts slightly in mid-clip face likeness** | Temporal diffusion drift during fast movement | Rescue surgically via `kling4_0 --mode video-edit` (clip + canonical `R2A` Master UUID) or Higgsfield Web **Face Swap** instead of discarding the performance |

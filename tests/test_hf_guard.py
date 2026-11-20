@@ -48,6 +48,25 @@ MOCK_HF_SCRIPT = textwrap.dedent(
         sys.exit(0)
 
     if args[:2] == ["workflow", "get"]:
+        if args[2] == "kling3_0_motion_control":
+            print(
+                json.dumps(
+                    {
+                        "job_type": "kling3_0_motion_control",
+                        "cost_params": [
+                            {"name": "duration", "type": "number", "required": True},
+                            {"name": "mode", "type": "string", "required": False},
+                        ],
+                        "params": [
+                            {"name": "background_source", "type": "string"},
+                            {"name": "image_references", "type": "array"},
+                            {"name": "mode", "type": "string"},
+                            {"name": "video_references", "type": "array"},
+                        ],
+                    }
+                )
+            )
+            sys.exit(0)
         print(
             json.dumps(
                 {
@@ -59,6 +78,10 @@ MOCK_HF_SCRIPT = textwrap.dedent(
                         {"name": "video_references", "type": "array"},
                     ],
                     "params": [
+                        {"name": "duration", "type": "integer"},
+                        {"name": "mode", "type": "string"},
+                        {"name": "resolution", "type": "string"},
+                        {"name": "video_references", "type": "array"},
                         {"name": "aspect_ratio", "type": "string"},
                         {"name": "prompt", "type": "string"},
                         {"name": "start_image", "type": "object|null"},
@@ -1142,6 +1165,68 @@ class TestHfGuard(unittest.TestCase):
             self.assertIn("--mode", wf_cost_calls[0])
             self.assertIn("--resolution", wf_cost_calls[0])
             self.assertIn("1080p", wf_cost_calls[0])
+
+    def test_workflow_run_strips_cost_only_params_like_motion_control_duration(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            camp = tmp / "camp"
+            _write_brief(camp, campaign_cap=100, max_retries=2)
+            mock_bin, env, log_path, _ = self._setup_env(tmp)
+            env["MOCK_HF_COST"] = "15"
+            out_file = camp / "media" / "shots" / "s04-motion-v1.mp4"
+
+            rc, data, err = self._run_guard(
+                [
+                    "run",
+                    "--campaign",
+                    str(camp),
+                    "--shot",
+                    "s04",
+                    "--kind",
+                    "video",
+                    "--round",
+                    "R4B",
+                    "--round-cap",
+                    "25",
+                    "--model",
+                    "kling3_0_motion_control",
+                    "--workflow",
+                    "--out",
+                    str(out_file),
+                    "--higgsfield-bin",
+                    str(mock_bin),
+                    "--",
+                    "--duration",
+                    "5",
+                    "--mode",
+                    "pro",
+                    "--background_source",
+                    "input_image",
+                    "--image_references",
+                    "00000000-0000-4000-8000-000000000001",
+                    "--video_references",
+                    "00000000-0000-4000-8000-000000000002",
+                ],
+                env,
+            )
+            self.assertEqual(rc, 0, msg=f"err={err}\ndata={data}")
+            self.assertTrue(data["ok"])
+            calls = self._read_mock_calls(log_path)
+            cost_calls = [
+                c for c in calls if c[:4] == ["generate", "cost", "workflow", "kling3_0_motion_control"]
+            ]
+            exec_calls = [
+                c for c in calls if c[:3] == ["generate", "workflow", "kling3_0_motion_control"]
+            ]
+            self.assertEqual(len(cost_calls), 1, msg=calls)
+            self.assertEqual(len(exec_calls), 1, msg=calls)
+            self.assertIn("--duration", cost_calls[0])
+            self.assertIn("5", cost_calls[0])
+            self.assertNotIn("--background_source", cost_calls[0])
+            self.assertNotIn("--duration", exec_calls[0])
+            self.assertIn("--background_source", exec_calls[0])
+            self.assertIn("--image_references", exec_calls[0])
+            self.assertIn("--video_references", exec_calls[0])
 
     def test_rejected_cli_failure_without_job_id_does_not_consume_budget_or_retries(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_str:

@@ -77,6 +77,34 @@ for live flags and schemas.
      and **`>= 1`** `--image_references`.
    - Creating Cinema Studio Elements or `kling_element_ids` is Web-UI only; CLI
      accepts pre-existing `kling_element_ids` or uploaded `--image_references` UUIDs.
+8. **Character, expression, Motion Control & Intone CEL traps:**
+   - `text2image_soul_v2` and `soul_cinematic` (`0.12 cr.`) both cap
+     `--image_references` at `<= 1`; `text2image_soul_v2` also forbids combining
+     `--style_id` with `--image_references`. `higgsfield soul-id create` accepts
+     `5–20` `--image` inputs in CLI (`20–80` in Web UI) and has no `soul-id cost`
+     subcommand yet—verify cost in Web before running.
+   - `kling3_0_motion_control` is a **`--workflow`** (`10 cr.` `std` / `15 cr.`
+     `pro` for 5s) accepting **no `--prompt`**, requiring **exact `1`**
+     `--image_references` and **exact `1`** `--video_references`, plus
+     `--background_source input_image|input_video`. Its `cost_params` require
+     `--duration <sec>` while execution `params` omit it—pass `--duration`
+     after `--` in `hf_guard.py` (which sends it to `generate cost workflow`
+     and strips cost-only params before `generate workflow`—same for
+     `voice_change`, `dubbing`, and `marketing_studio_v2_reference2video`).
+   - `hf_mult_motion_control` (Genjutsu) and `hf_mult_motion_control_flash`
+     (Genjutsu Lite) require **`>= 1`** `--image_references` and **exact `1`**
+     `--video_references` (`480p|720p|1080p`), accept optional `--prompt`, and
+     validate ref counts even during `generate cost` (quote with uploaded UUIDs).
+   - `intone` (Higgsfield Intone) validates ref counts even during
+     `generate cost` (quote with uploaded UUIDs): requires `1–6`
+     `--audio_references` AND either `1–2` `--character_images` (plus optional
+     `--location_image`) **OR** exactly `2` `--image_references` (character
+     first, location second) with neither `--character_images` nor
+     `--location_image` set. None of `kling3_0_motion_control`,
+     `hf_mult_motion_control*`, or `intone` accept `--start_image`/`--end_image`.
+   - `nano_banana_2_ai_stylist` requires `--image_references` plus at least one
+     of `--outfit_preset_ids` or `--user_outfit_ids`; `nano_banana_2_skin_enhancer`
+     requires `--image_references` and `--preset_id`.
 
 ## Minimal Guarded Recipes
 
@@ -164,6 +192,30 @@ python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
   --out campaigns/<slug>/media/shots/s02-1080p-v2.mp4 -- \
   --resolution 1080p --video_references <locked_clip_job_id> \
   --image_references <canonical_prop_uuid>
+
+# R2 Cast Lookbook (0.12 cr.) & R4/R5 Acting Transfer (Kling 3.0 Motion Control workflow, 10/15 cr. 5s)
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot cast_lead_front --kind lookbook --round R2 --round-cap 35 \
+  --variant A --version 1 --model soul_cast \
+  --prompt-file campaigns/<slug>/prompts/cast_lead_v1.txt \
+  --out campaigns/<slug>/media/lookbook/cast_lead-v1-A.png -- --aspect_ratio 16:9
+
+# No --prompt on CLI kling3_0_motion_control; --duration is cost-only and stripped automatically on exec by hf_guard.py
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s04 --kind video --round R4B --round-cap 40 --version 1 \
+  --model kling3_0_motion_control --workflow \
+  --out campaigns/<slug>/media/shots/s04-motion-v1.mp4 -- \
+  --duration 5 --mode pro --background_source input_image \
+  --image_references <s04_still_uuid> --video_references <actor_driver_uuid>
+
+# R4/R5 Audio-driven talking & lip-sync (Higgsfield Intone, 1-2 character_images + 1-6 audio_references)
+python3 scripts/hf_guard.py run --campaign campaigns/<slug> \
+  --shot s05 --kind video --round R5 --round-cap 100 --version 1 \
+  --model intone --prompt-file campaigns/<slug>/prompts/s05_intone_v1.txt \
+  --out campaigns/<slug>/media/shots/s05-intone-1080p-v1.mp4 -- \
+  --aspect_ratio 16:9 --resolution 1080p --bitrate_mode high \
+  --character_images <cast_front_uuid> --character_images <cast_smile_uuid> \
+  --location_image <loc_master_uuid> --audio_references <vo_line_uuid>
 
 # R3 Keyframe still (surgical v2 re-roll uses cumulative round_spent + delta_cap)
 python3 scripts/hf_guard.py run --campaign campaigns/<slug> \

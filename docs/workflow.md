@@ -68,11 +68,15 @@ For JSON shapes and CLI flags, inspect the living fixtures and tools directly:
   Upload chosen winners via `hf_guard.py upload --round R2`, record
   `approved_variant`, `approved_take`, and `approved_upload_id`, and set
   `status: "LOCKED"` in `shotlist.json`. When the storyboard covers reverse
-  angles, multi-angle interiors/buildings, time-of-day shifts, or close-up
-  props, expand the locked Master(s) into clean **Reverse Wall / Multi-Angle /
-  State / Scale plates** (`3d_jutsu_angles`, `nano_banana_2_shots`,
-  `nano_banana_2_relight`, `image_decompose`) per
+  angles, multi-angle interiors/buildings, time-of-day shifts, close-up props,
+  or recurring characters with head turns and expressive acting, expand the
+  locked Master(s) into clean **Reverse Wall / Multi-Angle / State / Scale
+  plates** (`3d_jutsu_angles`, `nano_banana_2_shots`, `nano_banana_2_relight`,
+  `image_decompose`) and **Character Bible / Expression Calibration plates** (or
+  `Soul ID` / Kling Elements) per
   [Locations, Buildings & Props](../.agents/skills/video-consistency/references/locations-and-props.md)
+  and
+  [Characters & Expressions](../.agents/skills/video-consistency/references/characters-and-expressions.md)
   before staging `R3` stills.
 - *Done when:* every `lookbook[]` entity is `LOCKED` with a verified
   `approved_upload_id` (or `R2` is skipped with `lookbook: []`) and Director
