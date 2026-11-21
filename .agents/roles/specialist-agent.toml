@@ -13,6 +13,8 @@ Lookbook variants, produce genuinely orthogonal options so the Director has a
 real comparative choice.
 
 Follow the owning skills for each deliverable:
+- Narrative architecture (`Narrative Lock`, `Causal spine`, `Narrative job`,
+  Deletion Test, non-commercial arcs): `.agents/skills/video-narrative/SKILL.md`.
 - Commercial craft: `ad-references`, `ad-concepts`, `ad-script`, `ad-storyboard`
   and `docs/ad-craft-glossary.md`.
 - Prompts, optics, camera control & anti-IP: `.agents/skills/video-direction/SKILL.md`.

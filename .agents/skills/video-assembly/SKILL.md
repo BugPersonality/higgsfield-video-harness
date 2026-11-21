@@ -28,10 +28,12 @@ before spending video credits.
   than masking with pillarbox padding or pulldown judder).
 - Pass `OUT=campaigns/<slug>/media/exports/draft_cut.mp4` during `R4B`
   (`make assemble` defaults to `master.mp4`).
-- Honor `storyboard.md`'s `Cut trigger` (`cut-on-action`, `J-cut`, `L-cut`) and
-  `[PAUSE Ns]` holds, and re-encode inside `assemble.sh`
-  (`libx264 -crf 18 -pix_fmt yuv420p -g 30`, `aac 192k 48kHz stereo`) rather
-  than `-c copy` concat to prevent cut freezes and A/V desync.
+- Honor `storyboard.md`'s `Cut trigger` (`cut-on-action`, `J-cut`, `L-cut`),
+  Kuleshov seam meaning, and `[PAUSE Ns]` holds (giving viewers `1.5–2.5s` on
+  key turns to complete `2 + 2` per
+  [`video-narrative`](../video-narrative/SKILL.md)), and re-encode inside
+  `assemble.sh` (`libx264 -crf 18 -pix_fmt yuv420p -g 30`, `aac 192k 48kHz
+  stereo`) rather than `-c copy` concat to prevent cut freezes and A/V desync.
 
 ## VO Timing, Audio Level Law & `-14 LUFS` Mastering
 

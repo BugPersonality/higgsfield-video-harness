@@ -7,6 +7,10 @@ Style Bible: [style-bible.md](style-bible.md)
 Shotlist: [shotlist.json](shotlist.json)
 Brand: [Nord Atelier Brand Profile](../../brands/example-brand/brand.md)
 
+## Narrative Lock
+
+Inherited from [script.md](script.md#narrative-lock): sensory/object-led quiet architectural observer; `Before -> Turn -> After` shifts from skeptical browse -> tactile mechanical proof -> unhurried heirloom trust via a strict `THEREFORE` progression (`S01` clasp lock -> `S02` weighted shoulder lift -> `S03` sunlit departure); `2 + 2` withholds all durability copy; `Primary misread risk` (glossy studio fashion reel) is foreclosed by matte pore detail (`S01`) and gravity-loaded lift (`S02`).
+
 ## Continuity Lock
 
 - **Product:** Nord Atelier Soren Weekender 40L in matte full-grain Warm Saddle Tan vegetable-tanned leather (`#8B5A2B`) with hand-burnished dark-espresso edges (`#3A2618`), 4 mm waxed-linen saddle stitching, rolled leather top handles, dark-charcoal waxed-canvas shoulder strap, and solid satin-brushed antique brass (`#B69659`) square roller clasps, side D-rings, and swivel snaps. Subtle blind-debossed uppercase `NORD ATELIER` mark sits centered 24 mm below the front handle gusset (`S01` front angle only; cleanly absent on unmarked side/rear views in `S02` and `S03`).
@@ -17,6 +21,7 @@ Brand: [Nord Atelier Brand Profile](../../brands/example-brand/brand.md)
 
 ### S01 | 0:00-0:05 (5.0s) | ECU/Macro, 85mm eye-level to bench, ultra-slow 3% forward push-in (job: pull focus onto brass clasp click and subtle blind-debossed wordmark)
 
+- **Narrative job:** `hook` — grounds the viewer in tactile material honesty (`0.1s` matte saddle leather + solid brass latch click) before revealing the full silhouette.
 - **Focal entry:** Satin-brushed antique brass square roller clasp and Warm Saddle Tan leather grain at center-left of frame.
 - **Start frame:** Soren Weekender 40L rests on the pale honed limestone bench with low 4600K morning sun raking from screen-left; traveler's natural right hand (charcoal wool sleeve, heather-grey knit cuff) enters from screen-right holding the leather strap tab aligned to the open brushed-brass clasp.
 - **Action:** From `0:00-0:01.6` the right hand guides the saddle-leather strap cleanly into the brass roller clasp; from `0:01.6-0:03.2` the thumb presses the brushed-brass tongue down until it locks shut while the thick leather flexes slightly along the dark-espresso stitch seam; from `0:03.2-0:05.0` the fingers pause lightly and withdraw screen-right while the camera completes a slow 3% push-in onto the fastened clasp and debossed `NORD ATELIER` mark.
@@ -27,6 +32,7 @@ Brand: [Nord Atelier Brand Profile](../../brands/example-brand/brand.md)
 
 ### S02 | 0:05-0:10 (5.0s) | MS side profile, 50mm waist-high, gentle lateral-and-rising dolly track (job: follow authentic packed weight from stone bench onto traveler's shoulder)
 
+- **Narrative job:** `proof` — converts close-up material beauty into real load-bearing utility as the packed 40L duffel settles under genuine gravity onto the traveler's shoulder.
 - **Focal entry:** Both hands closing around the rolled Warm Saddle Tan top handles and brushed-brass swivel D-rings in center frame.
 - **Start frame:** Medium side-profile view (mid-thigh to shoulder, face excluded) beside the pale limestone bench; Soren Weekender 40L sits fastened on the stone while both hands in charcoal wool sleeves and heather-grey knit cuffs grip the rolled handles.
 - **Action:** From `0:05.0-0:06.8` the traveler lifts the packed 40L duffel smoothly off the limestone bench so the full-grain leather settles downward under genuine gravity and the brushed-brass swivel snaps pivot; from `0:06.8-0:08.6` they sweep the waxed-canvas strap onto their right shoulder and let the weekender nestle solidly at their right hip; from `0:08.6-0:10.0` they pivot smoothly screen-right toward the sunlit concourse and begin their first measured stride forward.
@@ -38,6 +44,7 @@ Brand: [Nord Atelier Brand Profile](../../brands/example-brand/brand.md)
 
 ### S03 | 0:10-0:15 (5.0s) | WS architectural one-point perspective, 35mm eye-level, barely perceptible slow dolly-in (job: preserve monumental calm while closing button recedes into light)
 
+- **Narrative job:** `button` — releases physical proof into calm architectural space so the viewer earns quiet heirloom poise during the closing `[PAUSE 2s]` hold.
 - **Focal entry:** Traveler in matte charcoal wool coat with the Warm Saddle Tan Soren Weekender 40L slung at right hip, positioned slightly right of center in the first warm diagonal sunbeam.
 - **Start frame:** Symmetrical wide view down the vaulted limestone railway colonnade; traveler is mid-stride walking away from camera slightly right of center as long shafts of screen-left 4600K morning light cut diagonally across honed travertine slabs.
 - **Action:** From `0:10.0-0:12.0` the traveler walks calmly away through the first diagonal sunbeam while the saddle-tan weekender sways with natural weighted rhythm against their charcoal wool coat; from `0:12.0-0:13.8` they cross a cool slate shadow band into a broad golden pool of light where the brushed-brass side clasp catches one restrained glint; from `0:13.8-0:15.0` they continue toward towering arched glass windows softened by morning haze while the horizon stays rock-steady (closing **button**).
@@ -52,4 +59,5 @@ Brand: [Nord Atelier Brand Profile](../../brands/example-brand/brand.md)
 - **Seam `S01 -> S02`:** Scale change `ECU/Macro (85mm) -> MS (50mm)` plus >45-degree side-profile camera shift satisfies the **30-degree rule**. Screen-left 4600K morning light, matte Warm Saddle Tan leather, fastened brass clasp, and charcoal wool / heather-grey knit sleeve carry seamlessly from `S01 End frame` to `S02 Start frame`; focal entry stays centered on the bag; zero **180-degree axis** crossing.
 - **Seam `S02 -> S03`:** Scale change `MS (50mm) -> WS (35mm)` plus ~60-degree rear three-quarter angle shift satisfies the **30-degree rule**. Right-shoulder/right-hip bag carry, charcoal wool coat, matte saddle leather hue, and screen-left sunlight direction bridge cleanly on the first forward stride (**cut-on-action**); zero **180-degree axis** crossing.
 - **Proof & button hold check:** `S01` holds the fastened brass clasp and blind-debossed `NORD ATELIER` mark unobstructed for `1.8s` (`0:03.2-0:05.0`, exceeding the `1.5s` readability floor); `S02` sustains weighted lift physics across `3.6s`; `S03` holds the closing **button** silhouette in golden morning light across the final `2.0s` (`0:13.0-0:15.0`).
+- **Deletion test & causal audit:** Deleting `S01` loses tactile material/brand proof; deleting `S02` breaks gravity-weighted utility (`Primary misread risk` returns); deleting `S03` drops the emotional exhale and closing button. Every shot carries a unique `Narrative job` with zero filler.
 - **Highest-risk seam & pilot order:** `S02` carries the sole `Test-take check` (two-hand grip around rolled leather handles near brushed-brass swivel clasp + weighted matte leather crease physics), so `R4` Draft Motion runs **`S02` first as the Risk-First Pilot** before batching `S01` and `S03`.

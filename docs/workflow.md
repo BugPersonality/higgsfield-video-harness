@@ -11,7 +11,9 @@ For JSON shapes and CLI flags, inspect the living fixtures and tools directly:
 [`campaigns/example-product-spot/`](../campaigns/example-product-spot),
 `scripts/check-brief.py`, `scripts/check-campaign.py`, and
 `scripts/hf_guard.py --help`. Load the owning skill when a round needs
-technical craft: [`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md),
+technical or narrative craft:
+[`video-narrative`](../.agents/skills/video-narrative/SKILL.md),
+[`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md),
 [`video-direction`](../.agents/skills/video-direction/SKILL.md),
 [`video-consistency`](../.agents/skills/video-consistency/SKILL.md),
 [`video-qa`](../.agents/skills/video-qa/SKILL.md), and
@@ -24,8 +26,9 @@ technical craft: [`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md),
   `workspace list`, `studio/director.md` (plus `studio/director.local.md` if
   present), `studio/engine-memory.md`, `brands/<brand>/{brand.md,taste.md}`, and
   local photos under `media/references/`. Run light [Grilling](grilling.md)
-  (3–5 meaning-only questions: viewer effect, brand truth, spoken pronunciation,
-  taboos, `Campaign cap`). Scaffold with `make campaign-init`, write
+  (3–5 meaning-only questions: viewer state shift `Before -> After`, human &
+  brand truth, primary misread risk, spoken pronunciation, taboos,
+  `Campaign cap`). Scaffold with `make campaign-init`, write
   plain-language `brief.md` (`status: draft`), seed `taste-log.md` from
   `brands/<brand>/taste.md` when present, compile `taste-active.md` via
   `make memory-compile CAMPAIGN=<slug>`, and run
@@ -40,11 +43,17 @@ technical craft: [`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md),
 ### R1 — Story & Cost Ticket (`0 cr.`)
 - **R1A (Concept):** For commercials, run `ad-references` (skip if Director
   supplied an angle or reference spots) → `ad-concepts` (4–5 orthogonal
-  swap-tested pitches); for non-commercials, draft 2–3 contrasting treatments.
+  swap-tested pitches grounded in **Human Truth** and **State Shift** per
+  [`video-narrative`](../.agents/skills/video-narrative/SKILL.md)); for
+  non-commercials (brand films, product launches, shorts, docs), draft 2–3
+  contrasting narrative treatments via
+  [`video-narrative`](../.agents/skills/video-narrative/SKILL.md).
   Stop with **Dailies 1A** so the Director picks or blends a direction.
-- **R1B (Blueprint & Quote):** Run `ad-script` (`Time | Video | Audio`,
-  read-aloud budget, mute test) → `ad-storyboard` (`Continuity Lock`,
-  `test_take_check`) → `style-bible.md`. Commit to one **Production & Prompt
+- **R1B (Blueprint & Quote):** Run `ad-script` (`Narrative Lock`, `Time | Video
+  | Audio`, `BUT / THEREFORE` causal spine, read-aloud budget, mute test) →
+  `ad-storyboard` (`Narrative Lock`, `Continuity Lock`, per-shot `Narrative job`
+  passing the **Deletion Test**, `test_take_check`) → `style-bible.md`. Commit
+  to one **Production & Prompt
   Architecture** upfront (`Commercial Hybrid` default, `Cinema Spec`, or
   optional `Ultra-Lean Stylized Multi-Shot` — see
   [`video-direction`](../.agents/skills/video-direction/SKILL.md)), plan
@@ -119,6 +128,10 @@ technical craft: [`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md),
   `qc/stills_strip.png` (`make lookbook`), and render
   `media/exports/animatic.mp4` via `make animatic CAMPAIGN=<slug>` (`0` video
   credits; see [`video-assembly`](../.agents/skills/video-assembly/SKILL.md)).
+  Verify `0.1s` instant-read silhouettes and run a fresh `reviewer-agent`
+  **Blind Viewer Read** against `Narrative Lock` (`NARRATIVE_DEFECT` filter per
+  [`video-narrative`](../.agents/skills/video-narrative/SKILL.md)) on
+  `stills_strip.png` + `animatic.mp4` before Dailies 3.
 - **Dailies 3:** `stills_strip.png` + `animatic.mp4` + `R4A` (or `R4` if zero
   shots carry `test_take_check`) ticket (`0 cr.` Web Unlimited first + CLI
   fallback quote). Lock approved stills/audio (`status: "LOCKED"`) and upload
@@ -149,7 +162,9 @@ technical craft: [`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md),
   --json`), filter via fresh `reviewer-agent`, record `video.selected_take` in
   `shotlist.json`, and assemble `draft_cut.mp4` via `make assemble
   CAMPAIGN=<slug> OUT=campaigns/<slug>/media/exports/draft_cut.mp4` (`-14 LUFS`,
-  `<= -1.0 dBTP`).
+  `<= -1.0 dBTP`). Re-run `reviewer-agent`'s **Blind Viewer Read** on
+  `draft_cut.mp4` (arc clarity in motion, `2 + 2` pause room, audio counterpoint)
+  before Dailies 4B.
 - **Dailies 4B:** Playable `draft_cut.mp4` + **per-shot native `1080p` upgrade
   plan** for `R5` (`0 cr.` Web `Unlimited` native `1080p` first, with per-shot
   CLI fallback prices where `Unlimited` is unavailable; never offer

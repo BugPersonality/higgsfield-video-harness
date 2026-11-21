@@ -1,6 +1,6 @@
 ---
 name: video-qa
-description: "Internal technical/continuity QA and Dailies grid packaging. Use when running qa_media.py probes, 1:1 crop strips, batch audits, or lookbook grids, or filtering defects and taste regressions before Director Dailies."
+description: "Internal technical, continuity, and Blind Viewer Read narrative QA plus Dailies grid packaging. Use when running qa_media.py probes, 1:1 crop strips, batch audits, or lookbook grids, or filtering defects, taste regressions, and narrative misreads before Director Dailies."
 ---
 
 # Video QA
@@ -9,9 +9,10 @@ Canonical owner of deterministic media probes (`scripts/qa_media.py`), Dailies
 grid packaging, mandatory `1:1` native-pixel crop verification, and the binary
 pre-Dailies Visual Critic rubric. Follow
 [Pre-Dailies Visual Critic](../../../docs/delegation.md#pre-dailies-visual-critic):
-fresh `reviewer-agent` lanes filter defects, continuity breaks, and
-`TASTE_REGRESSION`s while leaving `A / B / C` picks and `LOCKED` sign-off solely
-to the Director.
+fresh `reviewer-agent` lanes filter defects, continuity breaks,
+`TASTE_REGRESSION`s, and `NARRATIVE_DEFECT`s (Blind Viewer Read against
+`Narrative Lock` per [`video-narrative`](../video-narrative/SKILL.md)) while
+leaving `A / B / C` picks and `LOCKED` sign-off solely to the Director.
 
 ## Deterministic Probes & Grid Builders (`scripts/qa_media.py`)
 
@@ -48,23 +49,33 @@ exact verdict mapping:
 | Camera drifts on static hold, walls bend like rubber, pan edges strobe, or motion freezes stiff | `FAIL` | `VISUAL_DRIFT_DEFECT` | `Worker(<asset_id>)` — apply One Variable Per Re-roll fix ([Camera Control](../video-direction/references/camera-control.md#6-camera-failure-diagnostics)) |
 | Face morphs on head turn, alien/warped teeth on smile, lens stare, or wide-shot face collapse | `FAIL` | `CONTINUITY_DEFECT` | `Worker(<asset_id>)` — bind `3/4`/profile + Expression Calibration (`R2B`), bake `40–60%` expression in `2k`/`4k` `R3`, strip face prose from video ([Characters & Expressions](../video-consistency/references/characters-and-expressions.md#6-face--expression-failure-diagnostics)) |
 | Mid-clip face likeness softens on an otherwise golden acting take | `FAIL` | `VISUAL_DRIFT_DEFECT` | `Root Producer` — rescue surgically via `kling4_0 --mode video-edit` (bound to canonical `R2A` portrait) or Web Face Swap (keep performance) |
+| Cold `R3`/`R4B` Blind Viewer Read triggers `Primary Misread Risk`, or a proof-bearing object fails `0.1s` instant recognition / referent cohesion | `FAIL` | `NARRATIVE_DEFECT` | `Root Producer` / `Worker(<asset_id>)` — replace ambiguous object silhouette or strengthen misread-foreclosing beat before animating ([Narrative Diagnostics](../video-narrative/references/narrative-diagnostics.md#symptom-to-fix-table)) |
+| Shot fails the Deletion Test (zero-delta filler repeating an adjacent beat), breaks `BUT / THEREFORE` causality, over-explains (`2 + 2`), or breaks `Narrative Voice` | `FAIL` / `CONCERNS` | `NARRATIVE_DEFECT` | `Root Producer` — cut filler shot, restore `[PAUSE Ns]` / audio counterpoint, or align copy to `Narrative Lock` ([Narrative Diagnostics](../video-narrative/references/narrative-diagnostics.md#symptom-to-fix-table)) |
 
-## Three Audit Pillars & Root-Cause Escalation
+## Four Audit Pillars & Root-Cause Escalation
 
-- **Three visual audit pillars:** Inspect fixed primary artifacts only (`brief.md`,
-  `taste-log.md`, `style-bible.md`, `shotlist.json`, `media/references/`,
-  candidate images/`3x2` sheets/`1:1` `--crops` strips, `qa_media.py --json`
-  reports) across: (1) green `qa_media.py` JSON, (2) `continuity_lock` axes
-  (facial bone structure, teeth/eyelid/gaze/expression continuity, 4-wall/reverse
-  geography, prop/building scale, absence of *Lighting Bake-In* or off-screen
-  bleed, mid/end-frame prop integrity) plus the exact `test_take_check` oracle
-  ([Ad Craft Glossary](../../../docs/ad-craft-glossary.md)), and (3) every active
-  rule in `taste-log.md`.
+- **Four visual & narrative audit pillars:** Inspect fixed primary artifacts
+  only (`brief.md`, `taste-active.md`/`taste-log.md`, `style-bible.md`,
+  `script.md`/`storyboard.md` `Narrative Lock`, `shotlist.json`,
+  `media/references/`, candidate images/`3x2` sheets/`1:1` `--crops` strips,
+  `qa_media.py --json` reports) across: (1) green `qa_media.py` JSON, (2)
+  `continuity_lock` axes (facial bone structure, teeth/eyelid/gaze/expression
+  continuity, 4-wall/reverse geography, prop/building scale, absence of
+  *Lighting Bake-In* or off-screen bleed, mid/end-frame prop integrity) plus
+  the exact `test_take_check` oracle
+  ([Ad Craft Glossary](../../../docs/ad-craft-glossary.md)), (3) every active
+  rule in `taste-active.md`/`taste-log.md`, and (4) **Blind Viewer Read** on
+  `R3` (`stills_strip.png` / `animatic.mp4`) and `R4B` (`draft_cut.mp4`)
+  against `Narrative Lock` (`0.1s` object readability, zero triggered
+  `Primary Misread Risk`, `BUT / THEREFORE` chain, Deletion Test, `2 + 2`
+  restraint — [Blind Viewer Read Protocol](../video-narrative/references/narrative-diagnostics.md#blind-viewer-read-protocol-r3--r4b-pre-dailies-qc);
+  never judge creative taste).
 - **Root-cause repair vs. honest escalation:** Return
   [Review Result](../../../docs/delegation.md#review-result). Inside
   `Max auto-retries/asset` and `--round-cap`, repair root causes on unlocked
   assets using **One Variable Per Re-roll** and the linked domain diagnostics
-  ([Prompting](../video-direction/references/model-prompting.md#symptom-to-fix-prompt-diagnostics),
+  ([Narrative](../video-narrative/references/narrative-diagnostics.md#symptom-to-fix-table),
+  [Prompting](../video-direction/references/model-prompting.md#symptom-to-fix-prompt-diagnostics),
   [Camera](../video-direction/references/camera-control.md#6-camera-failure-diagnostics),
   [Spatial](../video-consistency/references/locations-and-props.md#6-spatial--prop-failure-diagnostics),
   [Faces](../video-consistency/references/characters-and-expressions.md#6-face--expression-failure-diagnostics),
@@ -73,6 +84,6 @@ exact verdict mapping:
   surviving borderline `CONCERN` openly in one line of Dailies.
 
 *Done when:* every required `qa_media.py` JSON, `3x2` sheet, `R5` `1:1` `--crops`
-strip, and `batch --strict` audit is inspected via vision tool, technical trash
-and `TASTE_REGRESSION`s are filtered out, and clean Dailies artifacts are ready
-for the Director.
+strip, and `batch --strict` audit is inspected via vision tool, technical trash,
+`TASTE_REGRESSION`s, and `NARRATIVE_DEFECT`s are filtered out, and clean Dailies
+artifacts are ready for the Director.

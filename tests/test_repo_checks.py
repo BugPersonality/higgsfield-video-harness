@@ -50,9 +50,9 @@ class TestRepoChecks(unittest.TestCase):
             msg=f"check-instructions.py failed:\nstdout={proc.stdout}\nstderr={proc.stderr}",
         )
         self.assertIn("roles=4", proc.stdout)
-        self.assertIn("skills=12", proc.stdout)
+        self.assertIn("skills=13", proc.stdout)
 
-    def test_minimalist_docs_layout_and_twelve_skills_exist(self) -> None:
+    def test_minimalist_docs_layout_and_thirteen_skills_exist(self) -> None:
         expected_skills = (
             "idea-refine",
             "grilling",
@@ -61,6 +61,7 @@ class TestRepoChecks(unittest.TestCase):
             "ad-concepts",
             "ad-script",
             "ad-storyboard",
+            "video-narrative",
             "higgsfield-cli",
             "video-direction",
             "video-consistency",
@@ -158,6 +159,8 @@ class TestRepoChecks(unittest.TestCase):
             brief_text = brief_path.read_text(encoding="utf-8")
             self.assertIn("status: draft", brief_text)
             self.assertIn("brands/example-brand/brand.md", brief_text)
+            self.assertIn("State shift (Before -> After):", brief_text)
+            self.assertIn("Primary misread risk:", brief_text)
 
             taste_log_path = camp_dir / "taste-log.md"
             self.assertTrue(taste_log_path.is_file(), "Missing scaffolded taste-log.md")
@@ -246,6 +249,7 @@ class TestRepoChecks(unittest.TestCase):
         # Verify canonical three-column script and continuity-locked storyboard sections
         script_text = (EXAMPLE_CAMPAIGN / "script.md").read_text(encoding="utf-8")
         for token in (
+            "## Narrative Lock",
             "| Time | Video | Audio |",
             "## Read-aloud budget",
             "## Mute test",
@@ -256,10 +260,12 @@ class TestRepoChecks(unittest.TestCase):
 
         storyboard_text = (EXAMPLE_CAMPAIGN / "storyboard.md").read_text(encoding="utf-8")
         for token in (
+            "## Narrative Lock",
             "## Continuity Lock",
             "### S01 |",
             "### S02 |",
             "### S03 |",
+            "**Narrative job:**",
             "**Test-take check:**",
             "## Cut-by-cut continuity audit",
         ):

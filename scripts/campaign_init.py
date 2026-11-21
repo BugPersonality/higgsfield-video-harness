@@ -62,6 +62,8 @@ def _render_brief_template(slug: str, brand: str | None, has_brand_taste: bool) 
         "## Purpose & viewer effect\n"
         "\n"
         "- **Viewer takeaway:** <What should the viewer feel, remember, and do after watching?>\n"
+        "- **State shift (Before -> After):** <What feeling or mental state does the viewer enter with, and what shifts by the end?>\n"
+        "- **Primary misread risk:** <What must a cold viewer never mistake this video or brand for?>\n"
         "- **Target audience & channel:** <Who is watching and on which platform?>\n"
         "\n"
         "## Subject & visual truth\n"

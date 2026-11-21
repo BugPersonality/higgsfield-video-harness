@@ -63,9 +63,25 @@ A cut triggered by a physical movement (**cut-on-action**), an **eyeline match**
 **Test-take check**:
 The specific failure mode and observable pass check flagged on a risky shot (grip, physics, legible text, reflection, comic timing, multi-subject blocking) to verify in a short trial take before committing.
 
+**Narrative lock**:
+Six top-level meaning invariants (`Human truth`, `State shift`, `POV & narrative voice`, `Causal spine`, `2 + 2 rule`, `Primary misread risk`) owned by [`video-narrative`](../.agents/skills/video-narrative/SKILL.md) and inherited by every shot alongside the **Continuity lock**.
+
+**Causal spine**:
+The 3–5 beat story skeleton linked strictly by **`BUT`** (contrast/pivot) or **`THEREFORE`** (consequence)—zero **`AND THEN`** slideshow transitions.
+
+**Narrative job**:
+A shot's explicit `beat_function` (`hook`, `setup`, `tension`, `escalation`, `turn`, `proof`, `payoff`, `breath`, or `button`) paired with its one-line viewer information/feeling `delta`.
+
+**Deletion test**:
+Removing a shot from the storyboard to verify whether the **Causal spine** or emotional turn breaks; any shot whose removal changes nothing in meaning is zero-delta filler and gets cut at `0 cr.` in `R1B`.
+
+**Blind viewer read**:
+A pre-Dailies cold inspection of `stills_strip.png`/`animatic.mp4` (`R3`) or `draft_cut.mp4` (`R4B`) by a fresh `reviewer-agent` (zero builder rationale) verifying instant `0.1s` readability and zero triggered `Primary misread risk` against the **Narrative lock** (`NARRATIVE_DEFECT`).
+
 ## Relationships
 
+- [`video-narrative`](../.agents/skills/video-narrative/SKILL.md) owns the **Narrative lock**, **Causal spine**, per-shot **Narrative job**, **Deletion test**, and **Blind viewer read** across both commercials and non-commercial films.
 - `ad-references` dissects **primary spots** into **timecoded beats**, **brand entry** notes, and **transferable mechanisms**.
-- `ad-concepts` turns a brief (and optional **transferable mechanisms**) into orthogonal **dramatic situations** running on distinct **dramatic engines**, verified by the **swap test**.
-- `ad-script` turns a chosen premise into a **three-column script** verified by the **read-aloud budget** and **mute test**.
-- `ad-storyboard` turns a **three-column script** into numbered shots (`S01`, `S02`, ...) bound by a **Continuity lock** and flagged with **test-take checks** where risk lives.
+- `ad-concepts` turns a brief (and optional **transferable mechanisms**) into orthogonal **dramatic situations** grounded in human truth and state shift, running on distinct **dramatic engines** and verified by the **swap test**.
+- `ad-script` turns a chosen premise into a **three-column script** locked by a **Narrative lock** and verified by the **Causal spine**, **read-aloud budget**, and **mute test**.
+- `ad-storyboard` turns a **three-column script** into numbered shots (`S01`, `S02`, ...) bound by both **Narrative lock** and **Continuity lock**, carrying a per-shot **Narrative job** passing the **Deletion test** and flagged with **test-take checks** where risk lives.

@@ -9,6 +9,15 @@
 - **Delivery cadence:** Visual/SFX-only + sparse acoustic underscore (`0.0 wps`, ceiling `<= 1.8 wps` dramatic tier; zero spoken voiceover per `M1` in [brief.md](brief.md))
 - **Dramatic situation:** Early morning departure inside a quiet sunlit Scandinavian railway concourse where an understated traveler fastens the solid brass clasp, lifts the weighted 40L weekender onto a wool shoulder, and walks calmly toward the morning light.
 
+## Narrative Lock
+
+- **Human truth:** Well-made travel gear proves itself in the quiet physical moments before a journey—a clasp that locks with weight, leather that settles honestly under load—not in loud luxury slogans.
+- **State shift (`Before -> Turn -> After`):** Skeptical visual browse -> tactile mechanical certainty on clasp lock and weighted lift -> quiet, unhurried heirloom trust.
+- **POV & narrative voice:** Quiet architectural observer with zero narrator voice; forbidden voice-breakers: sales copy, lifestyle buzzwords, or glossy luxury-commercial pose.
+- **Causal spine (`BUT / THEREFORE`):** `0:00–0:05` close-up brass clasp locks shut on matte leather -> **THEREFORE** `0:05–0:10` both hands lift the genuinely weighted weekender onto a wool shoulder -> **THEREFORE** `0:10–0:15` the bag anchors an unhurried departure into sunlit concourse space (zero `AND THEN` filler).
+- **`2 + 2` rule:** Show honest material weight and unhurried mechanics; withhold all spoken/written durability claims so the viewer earns the conclusion during explicit `[PAUSE Ns]` holds.
+- **Primary misread risk:** Mistaking the spot for a glossy studio fashion reel or hollow prop showcase—foreclosed by unretouched leather pores (`0:00–0:05`) and gravity-loaded lift physics (`0:05–0:10`).
+
 ## Three-column script
 
 | Time | Video | Audio |

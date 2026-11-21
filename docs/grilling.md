@@ -15,14 +15,16 @@ Classify every branch before asking:
 - **Low-stakes reversible conventions** (default `24fps`, `16:9` unless social
   vertical stated, standard Lookbook count `3`): record as labeled assumptions
   with an objective `Reopen if` trigger rather than grilling on trivia.
-- **Director-owned decisions** (viewer feeling, brand truth, spoken
-  pronunciation, visual taste forks, `Must not` taboos, `Campaign cap`, scope
-  cutline, or conflicts with `brands/*/taste.md`): place on the **frontier**.
+- **Director-owned decisions** (viewer state shift `Before -> After`, human
+  truth, brand truth, primary misread risk — what a cold viewer must never
+  mistake this video for, spoken pronunciation, visual taste forks, `Must not`
+  taboos, `Campaign cap`, scope cutline, or conflicts with `brands/*/taste.md`):
+  place on the **frontier**.
 
 Work the frontier in plain-text rounds of **3–5 highest-leverage questions**,
-ordered by pruning power first (viewer goal, brand truth, format/audio, budget
-cap, taboos). When the idea is foggy, open with one plain question asking what
-the viewer should feel and do after watching.
+ordered by pruning power first (viewer state shift & misread risk, brand truth,
+format/audio, budget cap, taboos). When the idea is foggy, open with one plain
+question asking what the viewer should feel and do after watching.
 
 - **Prevent yes-bias:**
   - *Supported default* (backed by `brands/*/taste.md` or low-regret norm):

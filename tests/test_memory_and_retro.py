@@ -345,8 +345,31 @@ class TestMemoryAndRetro(unittest.TestCase):
             )
             self.assertEqual(p2.returncode, 0, msg=p2.stdout + p2.stderr)
 
+            # CONCERNS with NARRATIVE_DEFECT succeeds and validates under check-memory.py
+            p_nar = self._run_py(
+                "qa_media.py",
+                "log-review",
+                "--campaign",
+                str(camp),
+                "--round",
+                "R3",
+                "--asset",
+                "animatic.mp4",
+                "--verdict",
+                "FAIL",
+                "--defect-class",
+                "NARRATIVE_DEFECT",
+                "--reopen-owner",
+                "Root Producer",
+                "--summary",
+                "Blind viewer read triggered Primary Misread Risk",
+                "--json",
+            )
+            self.assertEqual(p_nar.returncode, 0, msg=p_nar.stdout + p_nar.stderr)
+            self.assertEqual(json.loads(p_nar.stdout)["record"]["defect_class"], "NARRATIVE_DEFECT")
+
             lines = (camp / "qc" / "review-log.jsonl").read_text(encoding="utf-8").splitlines()
-            self.assertEqual(len(lines), 2)
+            self.assertEqual(len(lines), 3)
 
             # Corrupt review-log.jsonl fails closed
             with (camp / "qc" / "review-log.jsonl").open("a", encoding="utf-8") as fh:
@@ -410,6 +433,22 @@ class TestMemoryAndRetro(unittest.TestCase):
                 "--summary",
                 "Brass clasp drifted to chrome",
             )
+            self._run_py(
+                "qa_media.py",
+                "log-review",
+                "--campaign",
+                str(camp),
+                "--round",
+                "R3",
+                "--asset",
+                "animatic.mp4",
+                "--verdict",
+                "FAIL",
+                "--defect-class",
+                "NARRATIVE_DEFECT",
+                "--summary",
+                "Hero object silhouette ambiguous on 0.1s read",
+            )
 
             harv = self._run_py("retro_harvest.py", str(camp), "--json")
             self.assertEqual(harv.returncode, 0, msg=harv.stdout + harv.stderr)
@@ -418,6 +457,9 @@ class TestMemoryAndRetro(unittest.TestCase):
             self.assertEqual(hdata["telemetry"]["web_unlimited_runs"], 1)
             self.assertEqual(len(hdata["telemetry"]["web_failures"]), 1)
             self.assertEqual(hdata["reviews"]["by_defect_class"]["VISUAL_DRIFT_DEFECT"], 1)
+            self.assertEqual(hdata["reviews"]["by_defect_class"]["NARRATIVE_DEFECT"], 1)
+            mem_ok = self._run_py("check-memory.py", str(root), "--as-of", "2026-11-21", "--json")
+            self.assertEqual(mem_ok.returncode, 0, msg=mem_ok.stdout + mem_ok.stderr)
             self.assertIn("new_untracked_model_x", hdata["graduation_signals"]["models_not_in_engine_memory"])
             self.assertTrue(
                 any(item["asset"] == "s02_still" for item in hdata["churn"]["multi_version_prompts"])

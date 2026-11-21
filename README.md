@@ -6,7 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](#prerequisites)
 [![Zero PyPI Dependencies](https://img.shields.io/badge/Dependencies-Python%20stdlib%20%2B%20FFmpeg-2ea44f)](#prerequisites)
-[![AGENTS.md + Skills](https://img.shields.io/badge/AGENTS.md-4%20Roles%20%7C%2012%20Skills-111827)](#multi-agent-architecture)
+[![AGENTS.md + Skills](https://img.shields.io/badge/AGENTS.md-4%20Roles%20%7C%2013%20Skills-111827)](#multi-agent-architecture)
 
 Turn a plain-English idea (and optional product photos) into a multi-shot, broadcast-ready **1080p AI commercial or short film**—without wasting credits on random video rolls.
 
@@ -34,10 +34,10 @@ Generating a single AI clip is easy. Directing a coherent **multi-shot commercia
 - **6-Round Director ↔ Crew Loop (`R0` → `R5`):** Move smoothly from brief (`0 cr.`) to story & live quote (`0 cr.`), Lookbook (`A / B / C`), Keyframe Stills + playable Animatic (`0` video cr.), Draft Motion, and `1080p` Final Master.
 - **Hard Credit Safety & Immutable Locks (`scripts/hf_guard.py`):** Every paid CLI call checks live `higgsfield generate cost`, enforces both a campaign-wide cap and a per-round `--round-cap`, serializes receipts with `flock`, resumes timed-out/failed downloads without double-charging, and refuses to touch `LOCKED` assets.
 - **Web Unlimited-First (`0 cr.`) & Native-First Mastering:** Prioritizes `0 cr.` Unlimited runs on `higgsfield.ai` via browser handoff (pausing cleanly for manual login/CAPTCHA), falls back to low-cost `720p` CLI drafts (`seedance_2_0_mini`, `kling_4_0_flash`, `wan3_0`) or `seedance_2_5 --draft true`, and graduates approved cuts natively to `1080p` (`seedance_2_5 --draft_job_id --bitrate_mode high`, `kling4_0`, `wan3_0`, `veo3_1`, `cinematic_studio_video_4_0`)—never pixel-upscaling `480p` drafts into `1080p` masters (see [Mastering & Upscaling](.agents/skills/higgsfield-cli/references/mastering-and-upscaling.md)).
-- **Real Ad-Agency Pre-Production Built In:** Ships 4 commercial craft skills—[`ad-references`](.agents/skills/ad-references/SKILL.md), [`ad-concepts`](.agents/skills/ad-concepts/SKILL.md), [`ad-script`](.agents/skills/ad-script/SKILL.md), and [`ad-storyboard`](.agents/skills/ad-storyboard/SKILL.md)—for swap-tested pitches, timed 3-column scripts (`Time | Video | Audio`), read-aloud pacing checks, sound-off mute tests, and risky-shot `test_take_check` pilots.
+- **Narrative Architecture & Agency Pre-Production Built In:** Pairs [`video-narrative`](.agents/skills/video-narrative/SKILL.md) (`Narrative Lock`, `BUT / THEREFORE` causality, per-shot `Narrative job` + Deletion Test, `0.1s` instant-read semiotics, `2 + 2` subtext, and non-commercial story structures) with 4 commercial craft skills—[`ad-references`](.agents/skills/ad-references/SKILL.md), [`ad-concepts`](.agents/skills/ad-concepts/SKILL.md), [`ad-script`](.agents/skills/ad-script/SKILL.md), and [`ad-storyboard`](.agents/skills/ad-storyboard/SKILL.md)—for swap-tested pitches, timed 3-column scripts, read-aloud pacing checks, mute tests, and risky-shot `test_take_check` pilots.
 - **Zero-Video-Credit Still Animatic (`make animatic`):** Watch and listen to your full spot (locked keyframes + voiceover + rough score) before spending a single credit on video generation.
 - **5-Layer Self-Improving Memory (`taste-log.md` → `taste-active.md` → `brands/` & `studio/`):** Every Director reaction is logged with explicit `Supersedes:` links and compiled deterministically (`0` LLM tokens) into a conflict-free `taste-active.md` snapshot; post-campaign `R6` consolidation (`studio-retro`) mines CLI + Web Unlimited (`log-web`) + Visual Critic (`review-log.jsonl`) traces to propose gated ACE delta updates into `studio/{director,engine-memory,evolution-log}.md`, `brands/<brand>/taste.md`, and code validators.
-- **Automated Technical QA & Visual Critic (`scripts/qa_media.py` + `reviewer-agent`):** Automatically catches black gaps, frozen tails, static clips, low bitrates, non-standard dimensions (`1918×1080`), sharpness spikes (`hf_edge_energy`), and overflowing voiceover windows (`100ms` RMS), builds `3x2` contact sheets, unscaled `1:1` native crop strips (`--crops`), and labeled `A / B / C` lookbook grids, and runs an isolated read-only Vision reviewer to strip defects before Dailies reach you.
+- **Automated Technical QA, Narrative Blind Read & Visual Critic (`scripts/qa_media.py` + `reviewer-agent`):** Automatically catches black gaps, frozen tails, static clips, low bitrates, non-standard dimensions (`1918×1080`), sharpness spikes (`hf_edge_energy`), and overflowing voiceover windows (`100ms` RMS), builds `3x2` contact sheets, unscaled `1:1` native crop strips (`--crops`), and labeled `A / B / C` lookbook grids, and runs an isolated read-only Vision reviewer to filter pixel defects, continuity breaks, `TASTE_REGRESSION`s, and `NARRATIVE_DEFECT`s (Blind Viewer Read against `Narrative Lock`) before Dailies reach you.
 - **Broadcast-Ready FFmpeg Mastering & Stems (`scripts/assemble.sh`):** FPS-locked re-encoded cuts with `lanczos` scaling (no concat freezes or A/V desync), two-pass `-14 LUFS` (`<= -1.0 dBTP`) loudness normalization, and unbaked `media/exports/stems/` (`video_only.mp4`, `diegetic.wav`, `vo.wav`, `music.wav`) ready for NLE finishing or optional Remotion graphics.
 - **Zero Third-Party Python Packages:** Runs on pure **Python 3.11+ stdlib**, **FFmpeg/ffprobe**, and **ShellCheck**, backed by a comprehensive offline unit and integration test suite (`make check`).
 
@@ -190,23 +190,23 @@ The harness does not hardcode one model for every job. It checks **live Higgsfie
 
 ## Multi-Agent Architecture
 
-Built on open, agent-agnostic primitives—[`AGENTS.md`](AGENTS.md), 12 portable skills in [`.agents/skills/`](.agents/skills), pure Python/FFmpeg scripts, and Higgsfield MCP (`https://mcp.higgsfield.ai/mcp`)—so you can run the studio in **Claude Code**, **OpenAI Codex**, **Cursor**, **Antigravity**, or any CLI coding agent. Ready-to-use multi-agent presets for Codex are also bundled in [`.codex/config.toml`](.codex/config.toml) and [`.agents/roles/`](.agents/roles).
+Built on open, agent-agnostic primitives—[`AGENTS.md`](AGENTS.md), 13 portable skills in [`.agents/skills/`](.agents/skills), pure Python/FFmpeg scripts, and Higgsfield MCP (`https://mcp.higgsfield.ai/mcp`)—so you can run the studio in **Claude Code**, **OpenAI Codex**, **Cursor**, **Antigravity**, or any CLI coding agent. Ready-to-use multi-agent presets for Codex are also bundled in [`.codex/config.toml`](.codex/config.toml) and [`.agents/roles/`](.agents/roles).
 
 ### 4 Specialized Roles ([`.agents/roles/`](.agents/roles))
 
 | Role | Access | Responsibility |
 | --- | --- | --- |
 | **`evidence-agent`** | Read-only | Queries live Higgsfield schemas, `generate cost`, account balance, brand profiles, local photos, and `receipts.jsonl` |
-| **`specialist-agent`** | Read-only | Develops swap-tested concepts, 3-column scripts, continuity-locked storyboards, modern DiT prompts, and anti-IP rewrites |
+| **`specialist-agent`** | Read-only | Develops `Narrative Lock` arcs, swap-tested concepts, 3-column scripts, continuity-locked storyboards, modern DiT prompts, and anti-IP rewrites |
 | **`worker-agent`** | Disjoint write scope | Executes one Lookbook entity, still, video shot, audio stem, or assembly unit via `hf_guard.py` (CLI + `log-web`), `qa_media.py`, and `assemble.sh` |
-| **`reviewer-agent`** | Fresh read-only | Unbiased pre-Dailies Visual Critic (`view_image`) that inspects stills, `3x2` contact sheets, and `R5`/upscale `1:1` crop strips against `taste-active.md` and logs defects via `qa_media.py log-review` |
+| **`reviewer-agent`** | Fresh read-only | Unbiased pre-Dailies Visual Critic (`view_image`) that inspects stills, `3x2` contact sheets, and `R5`/upscale `1:1` crop strips against `taste-active.md` and `Narrative Lock` (`Blind Viewer Read`) and logs defects via `qa_media.py log-review` |
 
-### 12 Bundled Skills ([`.agents/skills/`](.agents/skills))
+### 13 Bundled Skills ([`.agents/skills/`](.agents/skills))
 
 | Category | Skills |
 | --- | --- |
 | **Alignment, Discovery & Retro** *(user-invoked)* | [`idea-refine`](.agents/skills/idea-refine/SKILL.md) (converge raw ideas into an MVP bet) · [`grilling`](.agents/skills/grilling/SKILL.md) (meaning-only alignment interview) · [`studio-retro`](.agents/skills/studio-retro/SKILL.md) (`R6` trace harvest & gated Dream consolidation) |
-| **Commercial Craft** | [`ad-references`](.agents/skills/ad-references/SKILL.md) · [`ad-concepts`](.agents/skills/ad-concepts/SKILL.md) · [`ad-script`](.agents/skills/ad-script/SKILL.md) · [`ad-storyboard`](.agents/skills/ad-storyboard/SKILL.md) |
+| **Narrative & Commercial Craft** | [`video-narrative`](.agents/skills/video-narrative/SKILL.md) (`Narrative Lock`, `BUT/THEREFORE` causality, Deletion Test, `0.1s` semiotics, Blind Viewer Read) · [`ad-references`](.agents/skills/ad-references/SKILL.md) · [`ad-concepts`](.agents/skills/ad-concepts/SKILL.md) · [`ad-script`](.agents/skills/ad-script/SKILL.md) · [`ad-storyboard`](.agents/skills/ad-storyboard/SKILL.md) |
 | **Production, QA & Mastering** | [`higgsfield-cli`](.agents/skills/higgsfield-cli/SKILL.md) · [`video-direction`](.agents/skills/video-direction/SKILL.md) · [`video-consistency`](.agents/skills/video-consistency/SKILL.md) · [`video-qa`](.agents/skills/video-qa/SKILL.md) · [`video-assembly`](.agents/skills/video-assembly/SKILL.md) |
 
 ---
@@ -253,7 +253,7 @@ Core mechanical scripts under [`scripts/`](scripts):
 | [`docs/grilling.md`](docs/grilling.md) | Meaning-only alignment and comparative taste-fork interview protocol |
 | [`docs/ad-craft-glossary.md`](docs/ad-craft-glossary.md) | Shared vocabulary across the 4 commercial craft skills (`swap test`, `mute test`, `Continuity Lock`, `test-take check`) |
 | [`docs/writing-for-agents.md`](docs/writing-for-agents.md) | Authoring rules for keeping `AGENTS.md`, skills, and roles minimal and mechanically verified |
-| [`.agents/`](.agents) & [`.codex/config.toml`](.codex/config.toml) | 4 agent role definitions, 12 portable Agent Skills, model benchmarks, and bundled Codex + Higgsfield MCP config |
+| [`.agents/`](.agents) & [`.codex/config.toml`](.codex/config.toml) | 4 agent role definitions, 13 portable Agent Skills, model benchmarks, and bundled Codex + Higgsfield MCP config |
 | [`studio/`](studio) | Long-term studio memory: Director preferences (`director.md`), ACE model playbook (`engine-memory.md`), and SIM harness evolution log (`evolution-log.md`) |
 | [`scripts/`](scripts) & [`tests/`](tests) | Mechanical spend/QA/memory/retro/assembly scripts and stdlib `unittest` suite |
 | [`brands/example-brand/`](brands/example-brand) | Example reusable brand identity and graduated taste memory |

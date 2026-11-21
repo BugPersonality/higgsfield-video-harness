@@ -29,6 +29,7 @@ VALID_DEFECT_CLASSES = frozenset(
         "VISUAL_DRIFT_DEFECT",
         "TASTE_REGRESSION",
         "CONTINUITY_DEFECT",
+        "NARRATIVE_DEFECT",
         "POLICY_BLOCK",
         "BUDGET_CAP",
         "CONCERN",

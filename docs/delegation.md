@@ -17,9 +17,9 @@ agent harness; reserve thread slots for Visual Critic QC and recovery):
 | Role | Effort | Owns |
 | --- | --- | --- |
 | `evidence-agent` | `low` | Read-only live Higgsfield schemas, `generate cost`, account/workspace checks, `brands/` & photo discovery, `ffprobe`/`receipts.jsonl` reduction |
-| `specialist-agent` | `high` | Read-only contrasting concepts, 3-column scripts, continuity-locked storyboards, prompt architecture, anti-IP rewrites |
+| `specialist-agent` | `high` | Read-only narrative architecture (`Narrative Lock`), contrasting concepts, 3-column scripts, continuity-locked storyboards, prompt architecture, anti-IP rewrites |
 | `worker-agent` | `medium` | Mutable leaf execution for one Lookbook entity, still, clip, audio stem, or assembly unit inside disjoint paths via `hf_guard.py`, `qa_media.py`, `assemble.sh` |
-| `reviewer-agent` | `high` | Fresh read-only pre-Dailies Visual Critic (vision inspection) filtering technical defects, continuity breaks, and `TASTE_REGRESSION`s |
+| `reviewer-agent` | `high` | Fresh read-only pre-Dailies Visual Critic (vision inspection) filtering technical defects, continuity breaks, `TASTE_REGRESSION`s, and `NARRATIVE_DEFECT`s (Blind Viewer Read) |
 
 - **Disjoint asset paths (no Git worktrees for binaries):** parallel workers
   write strictly to assigned paths (`media/lookbook/{characters,locations,props}/*`,
@@ -54,8 +54,10 @@ defect patterns.
 
 - **Filter defects, leave taste to the Director:** score strictly with the
   binary rubric in [`video-qa`](../.agents/skills/video-qa/SKILL.md) using the
-  `#review-result` defect classes below. Leave creative picks and `LOCKED`
-  sign-off solely to the Director.
+  `#review-result` defect classes below (including `R3`/`R4B` **Blind Viewer
+  Read** against `Narrative Lock` per
+  [`video-narrative`](../.agents/skills/video-narrative/SKILL.md)). Leave
+  creative picks and `LOCKED` sign-off solely to the Director.
 - **Fail closed on missing proof:** return `REVIEW_HANDOFF_INVALID` whenever
   required `qa_media.py` JSON, `taste-log.md`, contact sheets, `R5` `1:1`
   `--crops` strips, or `R5` `batch --strict` reports are missing.
@@ -115,7 +117,7 @@ blocker: <none | BUDGET_CAP | asset_locked | POLICY_BLOCK | retry_limit_exceeded
 ```text
 candidate: <round and exact asset/sheet paths inspected>
 verdict: PASS | CONCERNS | FAIL | REVIEW_HANDOFF_INVALID
-findings: <anchor, defect class (MEDIA_TECH_DEFECT | VISUAL_DRIFT_DEFECT | TASTE_REGRESSION | CONTINUITY_DEFECT | POLICY_BLOCK | BUDGET_CAP | CONCERN | FOLLOW_UP), impact, or none>
+findings: <anchor, defect class (MEDIA_TECH_DEFECT | VISUAL_DRIFT_DEFECT | TASTE_REGRESSION | CONTINUITY_DEFECT | NARRATIVE_DEFECT | POLICY_BLOCK | BUDGET_CAP | CONCERN | FOLLOW_UP), impact, or none>
 evidence_boundary: <files, qa_media.py reports, and images inspected via view_image>
 reopen_owner: <Worker(<asset_id>) | Root Producer | none>
 ```

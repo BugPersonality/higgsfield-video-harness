@@ -16,6 +16,8 @@ Execute pre-Dailies QC in three steps with zero builder rationale:
    required artifact is missing, stop and return `REVIEW_HANDOFF_INVALID`.
 2. Inspect every candidate image, contact sheet, and `1:1` `--crops` strip via
    `view_image` (or native vision tool) and score strictly against the binary
-   rubric and three audit pillars in `.agents/skills/video-qa/SKILL.md`.
+   rubric and four audit pillars in `.agents/skills/video-qa/SKILL.md`
+   (including the `R3`/`R4B` Blind Viewer Read against `Narrative Lock` in
+   `.agents/skills/video-narrative/SKILL.md` to filter `NARRATIVE_DEFECT`s).
 3. Leave creative picks and `LOCKED` sign-off solely to the Director.
 """

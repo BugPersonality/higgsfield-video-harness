@@ -30,6 +30,9 @@ Rules for editing `AGENTS.md`, `docs/*.md`, `.agents/roles/*.toml`, and
 ## Canonical Ownership, Leading Words & Pruning
 
 - **One canonical owner per topic (cross-link, never copy-paste):**
+  - `video-narrative` → `Narrative Lock`, `BUT / THEREFORE` causal spine,
+    per-shot `Narrative job` & Deletion Test, `0.1s` instant-read semiotics,
+    `2 + 2` subtext, Blind Viewer Read protocol, non-commercial story arcs.
   - `higgsfield-cli` → Web Unlimited, model benchmarks/pricing, `R4 → R5`
     mastering & Upscale Gate, Web UI vs. CLI boundaries, live CEL traps & recipes.
   - `video-direction` → prompt patterns, optics, camera control/rigs/speedramps,

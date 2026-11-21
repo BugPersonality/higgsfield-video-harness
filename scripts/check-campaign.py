@@ -18,6 +18,27 @@ from typing import Any
 VALID_ASSET_STATUSES = ("DRAFT", "IN_REVIEW", "ITERATING", "LOCKED")
 VALID_ASSET_STATUS_SET = frozenset(VALID_ASSET_STATUSES)
 VALID_LOOKBOOK_KINDS = frozenset({"character", "object", "location"})
+VALID_BEAT_FUNCTIONS = frozenset(
+    {
+        "hook",
+        "setup",
+        "tension",
+        "escalation",
+        "turn",
+        "proof",
+        "payoff",
+        "breath",
+        "button",
+    }
+)
+NARRATIVE_LOCK_FIELDS = (
+    "human_truth",
+    "state_shift",
+    "pov_and_voice",
+    "causal_spine",
+    "subtext_2_plus_2",
+    "primary_misread_risk",
+)
 VALID_CS4_MODES = frozenset({"t2v", "omni_reference", "video_edit", "video_extension"})
 VALID_CS35_CAMERA_STYLES = frozenset(
     {
@@ -268,6 +289,23 @@ def _validate_shotlist(
                         f"shotlist.json (continuity_lock): missing, empty, or placeholder string '{field}'"
                     )
 
+    # Optional narrative_lock (soft/backwards-compatible)
+    if "narrative_lock" in data and data["narrative_lock"] is not None:
+        nl = data["narrative_lock"]
+        if not isinstance(nl, dict):
+            errors.append("shotlist.json: 'narrative_lock' must be a JSON object")
+        else:
+            for field in NARRATIVE_LOCK_FIELDS:
+                val = nl.get(field)
+                if (
+                    not isinstance(val, str)
+                    or not val.strip()
+                    or _CHECK_BRIEF.is_placeholder(val)
+                ):
+                    errors.append(
+                        f"shotlist.json (narrative_lock): missing, empty, or placeholder string '{field}'"
+                    )
+
     # Declared references
     declared_ref_ids: set[str] = set()
     raw_refs = data.get("references")
@@ -406,6 +444,29 @@ def _validate_shotlist(
 
         _check_prompt_file(shot.get("prompt_file"), f"shot {sid}")
         _check_ref_id_list(shot.get("references"), f"shot {sid}.references")
+
+        # Optional per-shot narrative_job (soft/backwards-compatible)
+        if "narrative_job" in shot and shot["narrative_job"] is not None:
+            nj = shot["narrative_job"]
+            nj_ctx = f"shot {sid}.narrative_job"
+            if not isinstance(nj, dict):
+                errors.append(f"shotlist.json ({nj_ctx}): must be a JSON object")
+            else:
+                bf = nj.get("beat_function")
+                if not isinstance(bf, str) or bf.strip().lower() not in VALID_BEAT_FUNCTIONS:
+                    errors.append(
+                        f"shotlist.json ({nj_ctx}): invalid 'beat_function' {bf!r} "
+                        f"(expected one of {sorted(VALID_BEAT_FUNCTIONS)})"
+                    )
+                delta = nj.get("delta")
+                if (
+                    not isinstance(delta, str)
+                    or not delta.strip()
+                    or _CHECK_BRIEF.is_placeholder(delta)
+                ):
+                    errors.append(
+                        f"shotlist.json ({nj_ctx}): missing, empty, or placeholder string 'delta'"
+                    )
 
         # Optional per-shot test_take_check
         ttc_locations: list[tuple[str, Any]] = []

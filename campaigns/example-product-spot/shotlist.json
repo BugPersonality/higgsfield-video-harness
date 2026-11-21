@@ -9,6 +9,14 @@
     "lighting_and_palette": "Fixed low-angle 4600K Nordic morning sunlight from screen-left with cool 6200K indirect limestone bounce fill on screen-right; 35mm Kodak Vision3 250D palette of Warm Saddle Tan, Limestone Chalk, Morning Slate, and Charcoal Wool; zero studio sweep glare.",
     "space_cast_axis": "Single sunlit Scandinavian limestone-and-glass railway concourse; anonymous traveler in matte charcoal wool overcoat and heather-grey knit cuff (lb_traveler_hand); bag carried on right hip moving left-to-right into concourse depth without crossing the 180-degree axis."
   },
+  "narrative_lock": {
+    "human_truth": "Well-made travel gear proves itself in quiet physical moments before departure—a solid clasp click and honest packed weight—not loud luxury slogans.",
+    "state_shift": "Skeptical visual browse -> tactile mechanical certainty on clasp lock and weighted lift -> calm, unhurried heirloom trust.",
+    "pov_and_voice": "Quiet architectural observer with zero narrator voice; forbids sales copy, buzzwords, or glossy luxury poses.",
+    "causal_spine": "S01 brass clasp locks shut on matte leather -> THEREFORE S02 both hands lift genuine packed weight onto wool shoulder -> THEREFORE S03 bag anchors unhurried sunlit concourse departure.",
+    "subtext_2_plus_2": "Show honest material craft and weighted motion; withhold durability copy so the viewer earns trust during explicit pause holds.",
+    "primary_misread_risk": "Reading as a glossy fashion lookbook or hollow prop reel—foreclosed by unretouched matte leather pores (S01) and gravity-loaded lift physics (S02)."
+  },
   "references": [
     {
       "id": "ref_bag_front",
@@ -50,6 +58,10 @@
       "id": "s01",
       "title": "Brass clasp closure and saddle leather grain macro",
       "duration_s": 5,
+      "narrative_job": {
+        "beat_function": "hook",
+        "delta": "Establishes tactile material honesty via matte leather grain, mechanical brass clasp lock, and debossed mark before revealing full scale."
+      },
       "test_take_check": null,
       "still": {
         "model": "gpt_image_2_6",
@@ -100,6 +112,10 @@
       "id": "s02",
       "title": "Weighted bench lift of Soren Weekender onto shoulder",
       "duration_s": 5,
+      "narrative_job": {
+        "beat_function": "proof",
+        "delta": "Converts close-up material beauty into real load-bearing utility as the packed 40L weekender settles naturally under gravity."
+      },
       "test_take_check": {
         "risk": "Hand-to-brass-clasp and rolled-handle grip during weighted bench lift may warp fingers, detach or shimmer brushed-brass swivel hardware, or deform matte saddle leather stiffly like plastic.",
         "pass_check": "In a 5s 480p R4 Risk-First Pilot take, 3x2 contact-sheet inspection confirms anatomically stable five-fingered hands across all frames, attached satin-brushed brass D-rings/clasp without flicker, and realistic downward matte leather crease physics under gravity."
@@ -153,6 +169,10 @@
       "id": "s03",
       "title": "Wide sunlit railway concourse departure",
       "duration_s": 5,
+      "narrative_job": {
+        "beat_function": "button",
+        "delta": "Releases tactile proof into calm architectural space so the viewer earns quiet heirloom poise during the closing hold."
+      },
       "test_take_check": null,
       "still": {
         "model": "gpt_image_2_6",

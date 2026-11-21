@@ -628,6 +628,42 @@ class TestCheckCampaign(unittest.TestCase):
             self.assertEqual(code_f, 1, msg=f"kling_4_0_flash with end_image must fail:\n{comb_f}")
             self.assertIn("kling_4_0_flash", " ".join(data_f.get("errors", [])), msg=data_f)
 
+    def test_narrative_lock_and_narrative_job_are_optional_but_validated_when_present(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            camp = _copy_campaign_fixture(Path(tmp))
+            shotlist_path = camp / "shotlist.json"
+            shotlist = json.loads(shotlist_path.read_text(encoding="utf-8"))
+
+            # 1) Example fixture with narrative_lock & narrative_job passes
+            self.assertIsInstance(shotlist.get("narrative_lock"), dict)
+            for shot in shotlist["shots"]:
+                self.assertIsInstance(shot.get("narrative_job"), dict)
+            code_ok, data_ok, comb_ok = self._run(camp)
+            self.assertEqual(code_ok, 0, msg=comb_ok)
+            self.assertTrue(data_ok["ok"], msg=data_ok)
+
+            # 2) Omitting narrative_lock and narrative_job remains backwards-compatible
+            legacy = json.loads(json.dumps(shotlist))
+            legacy.pop("narrative_lock", None)
+            for shot in legacy["shots"]:
+                shot.pop("narrative_job", None)
+            shotlist_path.write_text(json.dumps(legacy, indent=2), encoding="utf-8")
+            code_leg, data_leg, comb_leg = self._run(camp)
+            self.assertEqual(code_leg, 0, msg=f"Legacy shotlist without narrative fields must pass:\n{comb_leg}")
+            self.assertTrue(data_leg["ok"], msg=data_leg)
+
+            # 3) Malformed narrative_lock and invalid shot narrative_job must fail
+            bad = json.loads(json.dumps(shotlist))
+            bad["narrative_lock"] = {"human_truth": "TBD"}
+            bad["shots"][0]["narrative_job"] = {"beat_function": "filler", "delta": ""}
+            shotlist_path.write_text(json.dumps(bad, indent=2), encoding="utf-8")
+            code_bad, data_bad, comb_bad = self._run(camp)
+            self.assertEqual(code_bad, 1, msg=f"Malformed narrative fields must fail:\n{comb_bad}")
+            errs = " ".join(data_bad.get("errors", []))
+            self.assertIn("narrative_lock", errs, msg=data_bad)
+            self.assertIn("narrative_job", errs, msg=data_bad)
+            self.assertIn("beat_function", errs, msg=data_bad)
+
 
 if __name__ == "__main__":
     unittest.main()

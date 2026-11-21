@@ -58,14 +58,18 @@ Load only the reference needed for the current task:
   down on the clasp, never looking at the camera`). Use continuous prose for
   slow performance, timestamped micro-beats (`0-2s`, `2-5s`) for timed stages,
   and `[MASTER PROMPT]` + `[SHOT 1..N]` only on native multi-shot engines.
-- **Camera control & optics:** Route every shot through
-  [`references/camera-control.md`](references/camera-control.md). Keep one
-  coherent lens family per set (`24–35mm` wide/medium, `50–85mm` close-ups),
-  direct **one dominant camera move per shot** (state `Locked-off static tripod
-  shot, horizon level` whenever stillness is intended), obey **Zero
-  Double-Command** (omit prose camera verbs when a UI preset, `--camera_style`,
-  `--speedramp`, or `@Video` owns motion), and distinguish 3D translation
-  (`Dolly`, `Truck`, `Crane`) from nodal/optical moves (`Zoom`, `Pan`, `Tilt`).
+- **Camera control, optics & narrative motivation:** Route every shot through
+  [`references/camera-control.md`](references/camera-control.md) and align
+  framing, camera stillness vs. movement, lighting shifts, and `0.1s` hero
+  object silhouettes to each shot's **`Narrative job`**
+  ([`video-narrative`](../video-narrative/SKILL.md)). Keep one coherent lens
+  family per set (`24–35mm` wide/medium, `50–85mm` close-ups), direct **one
+  dominant camera move per shot** (state `Locked-off static tripod shot,
+  horizon level` whenever stillness or a proof/swap turn carries the meaning),
+  obey **Zero Double-Command** (omit prose camera verbs when a UI preset,
+  `--camera_style`, `--speedramp`, or `@Video` owns motion), and distinguish 3D
+  translation (`Dolly`, `Truck`, `Crane`) from nodal/optical moves (`Zoom`,
+  `Pan`, `Tilt`).
 - **Production & Prompt Architecture (choose 1 in `R1B`):**
   1. **Commercial Hybrid (default 15–30s spots):** delta-only prose tuned to
      each engine's word sweet spot (`references/model-prompting.md`).

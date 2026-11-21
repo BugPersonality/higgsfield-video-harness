@@ -35,7 +35,8 @@
   `shotlist.json` (`LOCKED` → `ITERATING`).
 - **Internal QC filters noise; the Director judges taste.** Fresh read-only
   `reviewer-agent` lanes (fresh context, vision inspection) filter technical
-  defects, continuity breaks, and `TASTE_REGRESSION`s before Dailies; creative
+  defects, continuity breaks, `TASTE_REGRESSION`s, and `NARRATIVE_DEFECT`s
+  (Blind Viewer Read against `Narrative Lock`) before Dailies; creative
   selection belongs solely to the Director.
 - **Live schemas, probed media, and receipts are truth.** Follow live
   `higgsfield` CLI schemas, `ffprobe`/`scripts/qa_media.py`, `receipts.jsonl`,
@@ -80,7 +81,8 @@ first; each skill links its deep `references/`):
 - Isolated single deliverable (schema check, harness edit, local QA/assembly, or one confirmed test asset after live `generate cost`) → execute directly without a campaign folder; escalate to [Workflow](docs/workflow.md) once shots or rounds coordinate.
 - Subagents, parallel workers, Visual Critic, or retry/timeout recovery → [Delegation](docs/delegation.md).
 - Meaning-only alignment or resolving a taste fork → [Grilling](docs/grilling.md).
-- Commercial craft vocabulary (`swap test`, `mute test`, `Continuity Lock`, `test-take check`) → [Ad Craft Glossary](docs/ad-craft-glossary.md).
+- Commercial craft vocabulary (`swap test`, `mute test`, `Narrative Lock`, `Continuity Lock`, `test-take check`) → [Ad Craft Glossary](docs/ad-craft-glossary.md).
+- Narrative architecture (`Narrative Lock`, `BUT/THEREFORE` causality, per-shot `Narrative job` / Deletion Test, `0.1s` instant-read, `2+2` subtext, Blind Viewer Read, non-commercial arcs) → [`video-narrative`](.agents/skills/video-narrative/SKILL.md).
 - Models, `0 cr.` Web Unlimited, live CLI/CEL gotchas, `hf_guard.py`, or `R4 → R5` mastering/upscaling → [`higgsfield-cli`](.agents/skills/higgsfield-cli/SKILL.md).
 - Prompt engineering, optics, camera control/rigs/speedramps, dialogue/audio, anti-IP, or prompt repairs → [`video-direction`](.agents/skills/video-direction/SKILL.md).
 - Cross-shot characters/expressions, locations/buildings/props, Asset Bibles, ref budgets, Soul ID, Motion Control, or Intone → [`video-consistency`](.agents/skills/video-consistency/SKILL.md).

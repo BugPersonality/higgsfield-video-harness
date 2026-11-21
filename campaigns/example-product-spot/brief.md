@@ -6,6 +6,9 @@ status: active
 
 Introduce the **Nord Atelier Soren Weekender 40L** to design-conscious weekend travelers and urban commuters through a 15-second visual hero spot built for homepage autoplay embeds and sound-on YouTube/Vimeo placements. Within the first two seconds, viewers should register the physical honesty of matte full-grain saddle leather and solid brushed brass hardware bathed in crisp morning daylight — leaving an impression of heirloom durability and unhurried travel poise without overt sales copy.
 
+- **State shift (Before -> After):** From skeptical browsing of glossy luxury luggage ads -> tactile physical conviction from real brass-clasp and weighted leather proof -> calm, unhurried heirloom trust.
+- **Primary misread risk:** Never read as a stiff high-fashion studio lookbook or synthetic fast-fashion luggage promo; raw matte grain, real packed weight, and one quiet real-world morning departure anchor genuine durability.
+
 ## Subject & visual truth
 
 All visual invariants and reusable taste seeds inherit directly from [Nord Atelier Brand Profile](../../brands/example-brand/brand.md) (`brands/example-brand/brand.md`) and [Nord Atelier Brand Taste Memory](../../brands/example-brand/taste.md) (`brands/example-brand/taste.md`):

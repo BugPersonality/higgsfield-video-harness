@@ -10,7 +10,7 @@ description: Storyboard a commercial script into a continuity-locked shot list f
    - **Existing shot list**: extract the implicit **Continuity lock** from the supplied shots, then jump to steps 4 and 5 to report exact seam breaks, runtime errors, and unflagged hazards before offering a repaired shot list.
    - **Timed script**: extract exact target runtime (`0:00-0:XX`), **brand entry**, product proof beats, **earned pauses** (`[PAUSE Ns]`), and closing **button**; resolve any missing timestamps, duration mismatches, or unfilmable Video lines before step 2.
 
-2. **Establish the Continuity lock.** Fix all three cross-shot invariants once at the top using concrete physical anchors verifiable on a single frame:
+2. **Establish the Narrative lock and Continuity lock.** Carry the 6-line **Narrative lock** from `script.md` (per [`video-narrative`](../video-narrative/SKILL.md)) and fix all three physical cross-shot invariants once at the top using concrete physical anchors verifiable on a single frame:
    - **Product / Props**: physical form, finish, label/logo facing, explicit scale anchor against hands or fixtures (to prevent scale drift), and hero angle.
    - **Lighting and palette**: fixed key light side (`screen left`, `screen right`, `overhead`, or `back` relative to the primary axis), light quality (hard/soft), color temperature, and palette anchors.
    - **Space, cast, and axis**: absolute 4-wall Spatial Map (`North / East / South / West` fixtures and primary light source—never solely camera-relative left/right, which flip on reverse angles), cast markers (wardrobe, hair, accessories, active hand), screen-left/screen-right starting positions, screen direction, and **180-degree axis**. Name per-shot camera position and facing wall whenever coverage changes angle or crosses into a reverse shot.
@@ -26,15 +26,16 @@ description: Storyboard a commercial script into a continuity-locked shot list f
 
 5. **Run a cut-by-cut continuity audit and repair breaks.** Walk every adjacent seam (`S01 -> S02`, `S02 -> S03`, ...):
    - Sum shot durations explicitly (`S01 + S02 + ... = target`) with contiguous timestamps matching the exact target runtime, and verify spoken lines fit inside their spanning shot durations.
-   - Audit every seam against the **Continuity lock** (product state/label, key light side, cast/wardrobe, active hand, screen direction, **180-degree axis**), **30-degree rule**, and `End frame -> Start frame` physical handoff.
+   - **Audit every seam and run the Deletion test:** audit every seam against the **Continuity lock** (product state/label, key light side, cast/wardrobe, active hand, screen direction, **180-degree axis**), **30-degree rule**, and `End frame -> Start frame` physical handoff, and run [`video-narrative`](../video-narrative/SKILL.md)'s **Deletion test** on every shot (cut any zero-delta filler shot whose removal leaves the **Causal spine** and turn intact).
    - Confirm product proof and the closing **button** hold long enough to read cleanly (at least 1.5-2.0s on legible packaging or copy, matching the script beat).
    - Repair any failing shot directly in the shot list before finalizing so every seam passes.
 
 ## Output format
 
-1. **Continuity Lock**: the three locks from step 2.
+1. **Narrative Lock** & **Continuity Lock**: the 6 meaning invariants plus the three physical locks from step 2.
 2. **Shot list**: numbered entries (`S01`, `S02`, ...):
    - **Header**: `S01 | 0:00-0:03 (3.0s) | Shot scale, angle, camera (static hold or motivated move + job)`
+   - **Narrative job**: `beat_function` (`hook`/`setup`/`tension`/`escalation`/`turn`/`proof`/`payoff`/`breath`/`button`) + viewer information/feeling delta
    - **Focal entry**: element and frame zone
    - **Start frame**: opening visual state
    - **Action**: observable movement across the shot
