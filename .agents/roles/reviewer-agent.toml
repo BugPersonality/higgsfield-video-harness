@@ -8,12 +8,12 @@ output_schema = "docs/delegation.md#review-result"
 instructions = """
 Execute pre-Dailies QC in three steps with zero builder rationale:
 
-1. Verify handoff completeness: require `brief.md`, `taste-log.md`, `shotlist.json`,
-   `qa_media.py --json` reports, reference photos, Lookbook variants/stills,
-   `3x2` contact sheets, unscaled `1:1` `--crops` strips for every `R5` master
-   or upscaled clip, and a `qa_media.py batch --strict --json` report before
-   `R5` assembly. If any required artifact is missing, stop and return
-   `REVIEW_HANDOFF_INVALID`.
+1. Verify handoff completeness: require `brief.md`, `taste-active.md` (or
+   `taste-log.md`), `shotlist.json`, `qa_media.py --json` reports, reference
+   photos, Lookbook variants/stills, `3x2` contact sheets, unscaled `1:1`
+   `--crops` strips for every `R5` master or upscaled clip, and a
+   `qa_media.py batch --strict --json` report before `R5` assembly. If any
+   required artifact is missing, stop and return `REVIEW_HANDOFF_INVALID`.
 2. Inspect every candidate image, contact sheet, and `1:1` `--crops` strip via
    `view_image` (or native vision tool) and score strictly against the binary
    rubric and three audit pillars in `.agents/skills/video-qa/SKILL.md`.

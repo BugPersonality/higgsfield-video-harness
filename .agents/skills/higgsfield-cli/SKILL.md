@@ -31,18 +31,25 @@ Load only the reference needed for the current decision:
   (including downloaded Web Unlimited files) through `hf_guard.py upload --round <R>`
   (`0 cr.`), honoring [Budget & Lock Invariants](../../../docs/workflow.md#budget--lock-invariants).
   Check `python3 scripts/hf_guard.py --help` for flags.
-- **3-Tier Cost Ladder (Unlimited-first):**
-  1. **Priority 1 — Web `Unlimited` (`0 cr.`):** Check `higgsfield.ai` via browser
-     handoff first (pause cleanly for manual Director login/CAPTCHA, resume the
-     same browser session, ingest downloads via `hf_guard.py upload`).
-  2. **Priority 2 — Economy `720p` / Latent CLI Drafts:** Cheap stills
-     (`0.12–0.50 cr.`), `720p` video drafts, or `seedance_2_5 --draft true` when
-     1:1 latent escalation to `R5` is required.
-  3. **Priority 3 — Native `1080p` Finals (`R5`):** Never pixel-upscale `480p`
-     drafts into `1080p` masters. Graduate takes natively (`--bitrate_mode high`
-     where supported—`0 cr.` surcharge); reserve pixel upscalers strictly for
-     clean `>= 720p` inputs (`<= 2×`) passing all 6 Upscale Gate rules + 1-shot
-     `1:1` `--crops` pilot.
+- **3-Tier Cost Ladder (Web `Unlimited` Mandatory Default):**
+  1. **Priority 1 — Web `Unlimited` (`0 cr.`) via built-in `browser` subagent (DEFAULT):**
+     On `ultra` and Unlimited-eligible plans, route all `R2`–`R5` image and
+     video generations directly to `higgsfield.ai` via the built-in `browser`
+     subagent without stopping to ask "CLI or Unlimited?". Verify the
+     **`Unlimited` toggle is ON and cost reads `0`** before clicking Generate
+     (fail closed: never click a paid web button without approval), pause only
+     for manual Director login/CAPTCHA, log every run via `hf_guard.py log-web`
+     (`0 cr.` trace), and ingest downloads via `hf_guard.py upload`.
+  2. **Priority 2 — Economy `720p` / Latent CLI Drafts (FALLBACK ONLY):**
+     Use paid CLI (`hf_guard.py run`) only for non-Unlimited tasks (audio/VO/SFX),
+     models confirmed without an active `Unlimited` toggle, stalled web queues,
+     or explicit Director requests for faster paid CLI batching.
+  3. **Priority 3 — Native `1080p` CLI Finals (`R5`, FALLBACK ONLY):**
+     Prefer Web `Unlimited` native `1080p` (`0 cr.`) whenever available; never
+     pixel-upscale `480p` drafts into `1080p` masters. When using CLI for `R5`,
+     graduate takes natively (`--bitrate_mode high` where supported—`0 cr.`
+     surcharge) and reserve pixel upscalers strictly for clean `>= 720p` inputs
+     (`<= 2×`) passing all 6 Upscale Gate rules + 1-shot `1:1` `--crops` pilot.
 
 ## Stage Endpoint Index
 

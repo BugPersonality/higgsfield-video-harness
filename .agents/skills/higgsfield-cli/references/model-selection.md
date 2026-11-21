@@ -7,31 +7,40 @@ snapshots below reflect the `ultra` plan as of `2026-11` and may drift.
 
 ## Generation Priority Ladder
 
-Always try cheaper tiers before spending flagship credits:
+Web `Unlimited` (`0 cr.`) is the **mandatory default** for all image and video
+rounds on Unlimited-eligible subscriptions—never quote CLI credits as the
+default price or pause to debate CLI vs. Web for Unlimited-eligible visuals:
 
-1. **Web UI `Unlimited` (`0 cr.`) via built-in browser agent (Priority 1):**
+1. **Web UI `Unlimited` (`0 cr.`) via built-in browser agent (Priority 1 — DEFAULT):**
    On `ultra` and eligible plans, the **Unlimited (`0 cr.`)** toggle works
    **only** inside the `higgsfield.ai` web app—CLI, API, and MCP always charge
-   credits even for Unlimited-eligible models. Whenever a target model has an
-   active `Unlimited` toggle on `higgsfield.ai`, prioritize generating through
-   the built-in browser subagent first.
-2. **Economy CLI drafts (Priority 2):** When the model has no `Unlimited`
-   toggle, the Director wants fast parallel CLI batches, or multi-ref counts
-   exceed web convenience, run cheap CLI draft models (`0.12–0.5 cr.` stills;
-   `5–8.75 cr.` `720p` video or `15 cr.` `seedance_2_5 --draft true`) via
-   `hf_guard.py run`.
-3. **Flagship CLI finals (Priority 3):** Reserve flagship models and `1080p`
-   renders (`35–80 cr.`) strictly for Director-approved `R5` upgrades or
-   high-risk multi-reference `R4A` pilots.
+   credits even for Unlimited-eligible models. Route every `R2`–`R5` image and
+   video generation to the built-in `browser` subagent first, verify the
+   **`Unlimited` toggle is ON and the Generate button reads `0` / Unlimited**
+   before triggering (fail closed: never trigger a non-zero web spend without
+   Director approval), and download outputs straight into `campaigns/<slug>/media/`.
+2. **Economy CLI drafts (Priority 2 — FALLBACK ONLY):** Use paid CLI via
+   `hf_guard.py run` only when the target model has no active `Unlimited` toggle
+   on `higgsfield.ai` (e.g., audio/TTS/SFX or excluded models), the web queue
+   stalls critically, or the Director explicitly asks to spend CLI credits for
+   parallel speed (`0.12–0.5 cr.` stills; `5–10 cr.` `720p` video or `12–15 cr.`
+   `seedance_2_5 --draft true`).
+3. **Flagship CLI finals (Priority 3 — FALLBACK ONLY):** Check Web `Unlimited`
+   native `1080p` first; reserve paid flagship CLI `1080p` renders (`15–80 cr.`)
+   strictly for Director-approved `R5` upgrades or high-risk multi-reference
+   `R4A` pilots where `Unlimited` is unavailable.
 
 ## Built-In Browser Agent Protocol (`higgsfield.ai` Unlimited, `0 cr.`)
 
-Use this workflow to capture `0 cr.` Unlimited image or video generations
-without violating anti-bot boundaries:
+Use this mandatory default workflow to capture `0 cr.` Unlimited image or video
+generations without violating anti-bot boundaries:
 
 1. **Launch in the user's logged-in browser pane:** delegate to the `browser`
-   subagent to open `higgsfield.ai`, select the target model, and verify that
-   the **Unlimited** toggle is present and **ON** (`0 credits`).
+   subagent (`Model: "flash"`) to open `https://higgsfield.ai`, select the
+   target model, and verify that the **Unlimited** toggle is present and **ON**
+   AND the Generate button confirms **`0` credits / Unlimited**. If no
+   `Unlimited` toggle exists or the button shows a credit charge `> 0`, STOP
+   without clicking Generate and report which models ARE `Unlimited`-enabled.
 2. **CAPTCHA / Login handoff (hard rule):** Never attempt to solve, click
    through, or bypass a CAPTCHA, Cloudflare Turnstile, or login wall. Pause
    immediately, notify the Director to complete login or solve the CAPTCHA
@@ -41,14 +50,17 @@ without violating anti-bot boundaries:
    subagent conversation ID (do not spawn a fresh tab/agent) so it continues in
    the cleared session to trigger the Unlimited generation(s) and download the
    outputs.
-4. **Ingest into campaign truth:** Move/copy downloaded assets into the
-   expected `campaigns/<slug>/media/{lookbook,stills,shots}/` path, run
-   `scripts/qa_media.py` and fresh `reviewer-agent` QC, record the selected
-   file in `shotlist.json`, and upload approved stills/lookbook winners via
-   `hf_guard.py upload --round <R>` (`0 cr.`) so downstream shots stay UUID-locked.
-5. **Fallback trigger:** If `Unlimited` is unavailable for the needed model,
-   queue wait stalls the round, or the Director prefers speed over `0 cr.`,
-   fall back cleanly to Priority 2 (Economy CLI drafts) via `hf_guard.py run`.
+4. **Ingest & log into campaign truth:** Move/copy downloaded assets into the
+   expected `campaigns/<slug>/media/{lookbook,stills,shots}/` path, record every
+   `0 cr.` Web Unlimited generation trace via `hf_guard.py log-web`, run
+   `scripts/qa_media.py` and fresh `reviewer-agent` QC (logging verdicts via
+   `qa_media.py log-review`), record the selected file in `shotlist.json`, and
+   upload approved stills/lookbook winners via `hf_guard.py upload --round <R>`
+   (`0 cr.`) so downstream shots stay UUID-locked.
+5. **Fallback trigger:** Only if `Unlimited` is confirmed unavailable for the
+   needed model, queue wait stalls the round, or the Director explicitly asks to
+   spend CLI credits for speed, quote live CLI costs and fall back cleanly to
+   Priority 2/3 via `hf_guard.py run`.
 
 *Done when:* asset is saved under `campaigns/<slug>/media/`, passes internal
 QC, and (if used as a downstream reference) is uploaded via `hf_guard.py upload`.

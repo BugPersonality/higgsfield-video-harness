@@ -30,6 +30,7 @@ from typing import Any
 VALID_ROUNDS = ("R2", "R3", "R4", "R4A", "R4B", "R5")
 VALID_KINDS = ("lookbook", "still", "video", "audio", "analysis")
 VALID_HF_COMMANDS = ("generate", "product-photoshoot", "soul-id")
+VALID_WEB_STATUSES = ("completed", "failed", "rejected", "ip_detected")
 
 IN_FLIGHT_STATUSES = frozenset(
     {
@@ -333,7 +334,8 @@ def _effective_credits(rec: dict[str, Any]) -> float:
 def _counts_as_attempt(rec: dict[str, Any]) -> bool:
     status = str(rec.get("status") or "").lower()
     kind = str(rec.get("kind") or "video").lower()
-    if kind == "upload":
+    channel = str(rec.get("channel") or "").lower()
+    if kind == "upload" or channel == "web_unlimited":
         return False
     return not (status == "rejected" and not str(rec.get("job_id") or "").strip())
 
@@ -1782,6 +1784,150 @@ def _cmd_upload(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_log_web(args: argparse.Namespace) -> int:
+    """Record a 0-credit Web Unlimited generation trace in receipts.jsonl under flock."""
+    campaign_dir = Path(args.campaign)
+    if not campaign_dir.is_dir():
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error_code": "brief_not_active",
+                    "message": f"campaign directory not found: {campaign_dir}",
+                },
+                indent=2,
+            )
+        )
+        return 2
+
+    _, env_err = _load_envelope_or_error(campaign_dir)
+    if env_err is not None:
+        print(json.dumps(env_err, indent=2, ensure_ascii=False))
+        return 2
+
+    clean_variant, var_err = _validate_variant_arg(args.kind, args.variant)
+    if var_err is not None:
+        print(json.dumps(var_err, indent=2, ensure_ascii=False))
+        return 2
+
+    version, sl_err = _inspect_shotlist_guard(
+        campaign_dir, args.shot, args.kind, args.round, args.version
+    )
+    if sl_err is not None or version is None:
+        print(json.dumps(sl_err, indent=2, ensure_ascii=False))
+        return 2
+
+    model = (args.model or "").strip()
+    if not model:
+        print(
+            json.dumps(
+                {
+                    "ok": False,
+                    "error_code": "missing_model",
+                    "message": "--model must be a non-empty string",
+                },
+                indent=2,
+            )
+        )
+        return 2
+
+    refs = [r.strip() for r in (args.refs or []) if isinstance(r, str) and r.strip()]
+    params_hash = hashlib.sha256(
+        json.dumps(
+            {
+                "channel": "web_unlimited",
+                "shot": args.shot,
+                "kind": args.kind,
+                "round": args.round,
+                "variant": clean_variant or None,
+                "version": version,
+                "model": model,
+                "prompt_file": args.prompt_file,
+                "refs": refs,
+                "out": args.out,
+            },
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+
+    with _receipts_lock(campaign_dir):
+        try:
+            records = _read_receipts_raw(campaign_dir)
+        except CorruptReceiptsError as exc:
+            print(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "error_code": "corrupt_receipts",
+                        "message": str(exc),
+                    },
+                    indent=2,
+                )
+            )
+            return 2
+
+        prior_web = sum(
+            1
+            for r in records
+            if str(r.get("channel") or "").lower() == "web_unlimited"
+            and str(r.get("shot") or "") == args.shot
+            and str(r.get("kind") or "") == args.kind
+            and str(r.get("round") or "") == args.round
+            and _record_variant(r) == clean_variant
+            and _record_version(r) == version
+        )
+
+        receipt = {
+            "ts": _utc_now_iso(),
+            "reservation_id": f"web-{uuid.uuid4().hex[:12]}",
+            "channel": "web_unlimited",
+            "shot": args.shot,
+            "kind": args.kind,
+            "round": args.round,
+            "round_cap": None,
+            "variant": clean_variant or None,
+            "version": version,
+            "command": "web_unlimited",
+            "model": model,
+            "is_workflow": False,
+            "params_hash": params_hash,
+            "job_id": (args.job_id or "").strip(),
+            "status": args.status,
+            "estimated_credits": 0.0,
+            "actual_credits": 0.0,
+            "credits": 0.0,
+            "prompt_file": args.prompt_file,
+            "refs": refs,
+            "url": args.url,
+            "out": args.out,
+            "note": (args.note or "").strip() or None,
+            "attempt": prior_web,
+        }
+        _append_receipt(campaign_dir, receipt)
+
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "channel": "web_unlimited",
+                "shot": args.shot,
+                "kind": args.kind,
+                "round": args.round,
+                "variant": clean_variant or None,
+                "version": version,
+                "model": model,
+                "status": args.status,
+                "credits": 0,
+                "attempt": prior_web,
+                "receipt": receipt,
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+    )
+    return 0
+
+
 def _cmd_run(args: argparse.Namespace, extra_args: list[str]) -> int:
     campaign_dir = Path(args.campaign)
     hf_bin = _resolve_hf_bin(getattr(args, "higgsfield_bin", None))
@@ -2364,6 +2510,14 @@ def _cmd_status(args: argparse.Namespace) -> int:
 
     collapsed = _collapse_receipts(records)
     total_spent, spent_by_round, attempts_map, _, active_reserved = _summarize_receipts(records)
+    web_by_round: dict[str, int] = {r: 0 for r in VALID_ROUNDS}
+    web_unlimited_total = 0
+    for rec in collapsed:
+        if str(rec.get("channel") or "").lower() == "web_unlimited":
+            web_unlimited_total += 1
+            rn = str(rec.get("round") or "")
+            if rn in web_by_round:
+                web_by_round[rn] += 1
 
     campaign_cap = envelope.get("campaign_cap")
     max_retries = envelope.get("max_retries")
@@ -2414,8 +2568,13 @@ def _cmd_status(args: argparse.Namespace) -> int:
         "max_retries": max_retries,
         "auto_open_dailies": envelope.get("auto_open_dailies"),
         "rounds": {
-            r: {"spent": _clean_num(spent_by_round[r])} for r in VALID_ROUNDS
+            r: {
+                "spent": _clean_num(spent_by_round[r]),
+                "web_unlimited_runs": web_by_round[r],
+            }
+            for r in VALID_ROUNDS
         },
+        "web_unlimited_runs": web_unlimited_total,
         "receipt_count": len(records),
         "unique_job_count": len(collapsed),
         "shots": shots_summary,
@@ -2430,7 +2589,8 @@ def _cmd_status(args: argparse.Namespace) -> int:
         )
         print(
             f"  Campaign cap: spent {report['total_spent']} / {campaign_cap} credits "
-            f"(active_reserved: {report['active_reserved']}, remaining: {remaining_campaign})"
+            f"(active_reserved: {report['active_reserved']}, remaining: {remaining_campaign}, "
+            f"web_unlimited_runs: {web_unlimited_total})"
         )
         round_parts = ", ".join(
             f"{r}={report['rounds'][r]['spent']}" for r in VALID_ROUNDS
@@ -2595,6 +2755,51 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to higgsfield executable (overrides HIGGSFIELD_BIN env var).",
     )
 
+    # log-web
+    lw = sub.add_parser(
+        "log-web",
+        help="Log a 0-credit Web Unlimited generation trace into receipts.jsonl without consuming paid caps.",
+    )
+    lw.add_argument("--campaign", required=True, help="Campaign directory containing brief.md.")
+    lw.add_argument("--shot", required=True, help="Shot, lookbook, or audio asset identifier.")
+    lw.add_argument("--kind", required=True, choices=VALID_KINDS, help="Generation kind.")
+    lw.add_argument(
+        "--round",
+        required=True,
+        choices=VALID_ROUNDS,
+        help="Production round (R2, R3, R4, R4A, R4B, or R5).",
+    )
+    lw.add_argument("--model", required=True, help="Model or workflow label used in Web Unlimited.")
+    lw.add_argument(
+        "--status",
+        choices=VALID_WEB_STATUSES,
+        default="completed",
+        help="Observed generation outcome (default: completed).",
+    )
+    lw.add_argument(
+        "--variant",
+        default="",
+        help="Optional Lookbook variant tag (A, B, C); allowed only when --kind lookbook.",
+    )
+    lw.add_argument(
+        "--version",
+        type=int,
+        default=None,
+        help="Optional asset version (>= 1); auto-resolved from shotlist.json when omitted.",
+    )
+    lw.add_argument("--prompt-file", default=None, help="Path to prompt text file used.")
+    lw.add_argument("--out", default=None, help="Saved local media output path.")
+    lw.add_argument("--url", default=None, help="Optional remote media URL.")
+    lw.add_argument("--job-id", default=None, help="Optional Web job identifier.")
+    lw.add_argument(
+        "--ref",
+        dest="refs",
+        action="append",
+        default=[],
+        help="Reference/lookbook ID attached to the generation (repeatable).",
+    )
+    lw.add_argument("--note", default=None, help="Short factual trace note (e.g. failure cause or settings).")
+
     # status
     st = sub.add_parser(
         "status",
@@ -2625,6 +2830,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_run(args, extra_args)
     if args.command == "upload":
         return _cmd_upload(args)
+    if args.command == "log-web":
+        return _cmd_log_web(args)
     if args.command == "status":
         return _cmd_status(args)
     parser.error(f"unknown subcommand: {args.command}")

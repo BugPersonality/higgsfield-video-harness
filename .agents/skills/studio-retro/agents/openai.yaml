@@ -1,0 +1,5 @@
+interface:
+  display_name: "Studio Retro"
+  short_description: "Mine campaign traces and consolidate durable taste, engine, and harness lessons"
+policy:
+  allow_implicit_invocation: false

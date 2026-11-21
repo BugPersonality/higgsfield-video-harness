@@ -9,9 +9,23 @@ sys.dont_write_bytecode = True
 
 import argparse
 import datetime
+import importlib.util
 import json
 import re
 from pathlib import Path
+
+
+def _load_memory_compile():
+    mod_path = Path(__file__).resolve().with_name("memory_compile.py")
+    spec = importlib.util.spec_from_file_location("memory_compile", mod_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load sibling module: {mod_path}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_MEMORY_COMPILE = _load_memory_compile()
 
 SLUG_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$")
 
@@ -92,7 +106,8 @@ def _render_taste_log_template(slug: str, brand: str | None, has_brand_taste: bo
         "\n"
         "Cumulative Director taste memory for this campaign. Append a new `### TL-<NN>` entry\n"
         "after each round's Dailies review using `Approved / LOCKED`, `More of`, `Change / Steer`,\n"
-        "and `Never` bullets. Never revert to a ruled-out aesthetic.\n"
+        "and `Never` bullets (plus optional `Supersedes: TL-<prev>` when overriding an earlier rule),\n"
+        "then rebuild `taste-active.md` via `make memory-compile CAMPAIGN=<slug>`.\n"
     )
 
 
@@ -145,6 +160,7 @@ def scaffold_campaign(
     taste_log_path.write_text(
         _render_taste_log_template(slug, brand, has_brand_taste), encoding="utf-8"
     )
+    _MEMORY_COMPILE.compile_campaign_memory(campaign_dir)
     return campaign_dir
 
 
@@ -213,6 +229,7 @@ def main(argv: list[str] | None = None) -> int:
                     "campaign_dir": str(created),
                     "brief_path": str(created / "brief.md"),
                     "taste_log_path": str(created / "taste-log.md"),
+                    "taste_active_path": str(created / "taste-active.md"),
                 },
                 indent=2,
             )
@@ -221,6 +238,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Created campaign scaffold: {created}")
         print(f"  Brief template:  {created / 'brief.md'}")
         print(f"  Taste log:       {created / 'taste-log.md'}")
+        print(f"  Active taste:    {created / 'taste-active.md'}")
         print(f"  References dir:  {created / 'media' / 'references'}")
     return 0
 

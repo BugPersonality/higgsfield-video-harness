@@ -50,12 +50,13 @@ class TestRepoChecks(unittest.TestCase):
             msg=f"check-instructions.py failed:\nstdout={proc.stdout}\nstderr={proc.stderr}",
         )
         self.assertIn("roles=4", proc.stdout)
-        self.assertIn("skills=11", proc.stdout)
+        self.assertIn("skills=12", proc.stdout)
 
-    def test_minimalist_docs_layout_and_eleven_skills_exist(self) -> None:
+    def test_minimalist_docs_layout_and_twelve_skills_exist(self) -> None:
         expected_skills = (
             "idea-refine",
             "grilling",
+            "studio-retro",
             "ad-references",
             "ad-concepts",
             "ad-script",
@@ -70,6 +71,10 @@ class TestRepoChecks(unittest.TestCase):
         for name in expected_skills:
             skill_md = skills_root / name / "SKILL.md"
             self.assertTrue(skill_md.is_file(), msg=f"Missing skill: {skill_md}")
+
+        for studio_doc in ("director.md", "engine-memory.md", "evolution-log.md"):
+            sp = REPO_ROOT / "studio" / studio_doc
+            self.assertTrue(sp.is_file(), msg=f"Missing studio memory file: {sp}")
 
         for doc in (
             "workflow.md",
@@ -97,6 +102,14 @@ class TestRepoChecks(unittest.TestCase):
             proc.returncode,
             0,
             msg=f"check-docs.py failed:\nstdout={proc.stdout}\nstderr={proc.stderr}",
+        )
+
+    def test_check_memory_passes(self) -> None:
+        proc = self._run_py("check-memory.py", str(REPO_ROOT))
+        self.assertEqual(
+            proc.returncode,
+            0,
+            msg=f"check-memory.py failed:\nstdout={proc.stdout}\nstderr={proc.stderr}",
         )
 
     def test_campaign_init_scaffolds_structure_and_guards_duplicates(self) -> None:
@@ -151,6 +164,10 @@ class TestRepoChecks(unittest.TestCase):
             taste_text = taste_log_path.read_text(encoding="utf-8")
             self.assertIn("# Taste Log:", taste_text)
 
+            taste_active_path = camp_dir / "taste-active.md"
+            self.assertTrue(taste_active_path.is_file(), "Missing scaffolded taste-active.md")
+            self.assertIn("# Active Taste Snapshot:", taste_active_path.read_text(encoding="utf-8"))
+
             # Second invocation with identical slug/day must refuse overwrite
             dup_proc = self._run_py(
                 "campaign_init.py",
@@ -178,6 +195,7 @@ class TestRepoChecks(unittest.TestCase):
         for rel in (
             "brief.md",
             "taste-log.md",
+            "taste-active.md",
             "script.md",
             "storyboard.md",
             "style-bible.md",

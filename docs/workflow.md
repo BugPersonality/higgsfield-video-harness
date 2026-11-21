@@ -21,12 +21,15 @@ technical craft: [`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md),
 
 ### R0 — Brief (`0 cr.`)
 - **Craft:** Ground via `evidence-agent` in `higgsfield account status`,
-  `workspace list`, `brands/<brand>/{brand.md,taste.md}`, and local photos under
-  `media/references/`. Run light [Grilling](grilling.md) (3–5 meaning-only
-  questions: viewer effect, brand truth, spoken pronunciation, taboos,
-  `Campaign cap`). Scaffold with `make campaign-init`, write plain-language
-  `brief.md` (`status: draft`), seed `taste-log.md` from `brands/<brand>/taste.md`
-  when present, and run `make brief-check CAMPAIGN=<slug>`.
+  `workspace list`, `studio/director.md` (plus `studio/director.local.md` if
+  present), `studio/engine-memory.md`, `brands/<brand>/{brand.md,taste.md}`, and
+  local photos under `media/references/`. Run light [Grilling](grilling.md)
+  (3–5 meaning-only questions: viewer effect, brand truth, spoken pronunciation,
+  taboos, `Campaign cap`). Scaffold with `make campaign-init`, write
+  plain-language `brief.md` (`status: draft`), seed `taste-log.md` from
+  `brands/<brand>/taste.md` when present, compile `taste-active.md` via
+  `make memory-compile CAMPAIGN=<slug>`, and run
+  `make brief-check CAMPAIGN=<slug>`.
 - **Dailies 0:** Short `brief.md` card + seeded taste anchors + `Campaign cap`
   confirmation. Once confirmed, flip `brief.md` to `status: active` and re-run
   `make brief-check CAMPAIGN=<slug>`.
@@ -54,14 +57,17 @@ technical craft: [`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md),
   or uploaded UUIDs only—never private local file paths, which `generate cost`
   auto-uploads). Write `shotlist.json` + initial `prompts/` and verify
   `make campaign-check CAMPAIGN=<slug>` (`R2 + R3 + R4 + R5 <= Campaign cap`).
-- **Dailies 1B:** Readable beat-by-beat story + exact round-by-round price list
-  + approval ask for uploading local `media/references/` photos (if any) and
-  setting `R2` (or `R3` if `R2` is skipped) `--round-cap`.
+- **Dailies 1B:** Readable beat-by-beat story + clear budget ticket separating
+  the **default `0 cr.` Web `Unlimited` visual path** (via built-in `browser`
+  subagent on `higgsfield.ai`) from non-Unlimited CLI items (e.g., audio/SFX)
+  and the live CLI fallback ceiling + approval ask for uploading local
+  `media/references/` photos (if any) and setting a `--round-cap` only if the
+  next round has paid CLI items.
 - *Done when:* Director picks a direction (`1A`), `make campaign-check` passes
-  (`1B`), and Director approves reference uploads (if any) plus the next round's
-  `--round-cap`.
+  (`1B`), and Director confirms story/direction plus any private reference
+  uploads or paid `--round-cap` (if non-Unlimited spend applies).
 
-### R2 — Casting & World Asset Bible (`~20–45 cr.`, skip if `lookbook: []`)
+### R2 — Casting & World Asset Bible (`0 cr.` Web Unlimited default; `~20–45 cr.` CLI fallback; skip if `lookbook: []`)
 - **Skip rule:** Skip `R2` automatically when real photos in `media/references/`
   already cover every hero object, character, and location (`lookbook: []`);
   upload those photos at the start of `R3` via `hf_guard.py upload --round R3`
@@ -69,16 +75,18 @@ technical craft: [`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md),
 - **R2A (Discovery & Master Lock):** Upload approved local `media/references/`
   photos needed for Lookbook generation via `hf_guard.py upload --round R2`
   (`references[].upload_id`). Organize outputs by entity type under
-  `media/lookbook/{characters,locations,props}/`. Dispatch parallel
-  `worker-agent` lanes to generate 2–3 contrasting variants (`--variant A`, `B`,
-  `C`, `--version 1`) per `lookbook[]` entity (following
-  [`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md)'s Unlimited-first
-  ladder and [`video-consistency`](../.agents/skills/video-consistency/SKILL.md)'s
-  master plate standards) via `hf_guard.py run --round R2 --round-cap <cap>`.
-  Filter defects and `TASTE_REGRESSION`s via fresh `reviewer-agent`, then build
-  one labeled grid with
+  `media/lookbook/{characters,locations,props}/`. Generate 2–3 contrasting
+  variants (`A`, `B`, `C`, version `1`) per `lookbook[]` entity using
+  **`higgsfield.ai` Web `Unlimited` (`0 cr.`) via the built-in `browser`
+  subagent by default** (per [`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md)
+  and [`video-consistency`](../.agents/skills/video-consistency/SKILL.md)),
+  falling back to parallel `worker-agent` CLI `hf_guard.py run --round R2
+  --round-cap <cap>` only when `Unlimited` is unavailable or Director asks for
+  paid CLI speed. Filter defects and `TASTE_REGRESSION`s via fresh
+  `reviewer-agent`, then build one labeled grid with
   `make lookbook FILES="..." OUT=campaigns/<slug>/qc/lookbook.png LABELS="A,B,C"`.
-- **Dailies 2:** `qc/lookbook.png` + comparative picks + `R2B`/`R3` Cost Ticket.
+- **Dailies 2:** `qc/lookbook.png` + comparative picks + `R2B`/`R3` ticket
+  (`0 cr.` Web Unlimited for visuals + exact CLI cost for audio/non-Unlimited).
   Upload chosen winners via `hf_guard.py upload --round R2`, record
   `approved_variant`, `approved_take`, and `approved_upload_id`, and set
   `status: "LOCKED"` in `shotlist.json`.
@@ -88,68 +96,77 @@ technical craft: [`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md),
   Masters (`variants_requested: 1`) into only the triggered canonical plates
   (Reverse Walls, multi-angle/state plates, orthographic `#808080` prop plates,
   Character Bible / Expression Calibration plates, or optional `Soul ID` /
-  Kling Elements) per
+  Kling Elements) via Web `Unlimited` (`0 cr.`) first per
   [`video-consistency`](../.agents/skills/video-consistency/SKILL.md), slice
   any angle sheets with `make slice-grid`, audit via `reviewer-agent`, upload
   via `hf_guard.py upload --round R2`, and lock their UUIDs before `R3`.
 - *Done when:* every triggered `R2A` Master and `R2B` Bible plate is `LOCKED`
   with a verified `approved_upload_id` (or `R2` is skipped with `lookbook: []`)
-  and Director approves `R3` `--round-cap`.
+  and Director approves `R3` direction (plus `--round-cap` for any paid CLI
+  audio/non-Unlimited items).
 
-### R3 — Keyframe Stills & Still Animatic (`~30–50 cr.`, `0` video cr.)
+### R3 — Keyframe Stills & Still Animatic (`0 cr.` Web Unlimited stills + `~5 cr.` audio; `~30–50 cr.` CLI fallback)
 - **Craft:** If `R2` was skipped, upload approved local `media/references/` via
   `hf_guard.py upload --round R3` (`references[].upload_id`). Generate `s01..sN`
-  `2k`/`4k` stills in parallel via `hf_guard.py run --round R3 --round-cap <cap>`
+  `2k`/`4k` stills via **Web `Unlimited` (`0 cr.`) first** (falling back to
+  parallel `hf_guard.py run --round R3 --round-cap <cap>` only when unavailable)
   bound to `LOCKED` UUIDs, `Continuity Lock`, `taste-log.md`, and visible-only
   reference budgets. Generate enabled VO (verify via `make qa-voice` /
   `scripts/qa_media.py voice <wav> --window <sec> --json`; rewrite copy and
   regenerate on overflow instead of speeding up with `atempo`) and enabled
-  rough music. Filter via fresh `reviewer-agent`, record `still.selected_take`
-  and audio `selected_file` in `shotlist.json`, build `qc/stills_strip.png`
-  (`make lookbook`), and render `media/exports/animatic.mp4` via
-  `make animatic CAMPAIGN=<slug>` (`0` video credits; see
-  [`video-assembly`](../.agents/skills/video-assembly/SKILL.md)).
+  rough music via `hf_guard.py run`. Filter via fresh `reviewer-agent`, record
+  `still.selected_take` and audio `selected_file` in `shotlist.json`, build
+  `qc/stills_strip.png` (`make lookbook`), and render
+  `media/exports/animatic.mp4` via `make animatic CAMPAIGN=<slug>` (`0` video
+  credits; see [`video-assembly`](../.agents/skills/video-assembly/SKILL.md)).
 - **Dailies 3:** `stills_strip.png` + `animatic.mp4` + `R4A` (or `R4` if zero
-  shots carry `test_take_check`) Cost Ticket. Lock approved stills/audio
-  (`status: "LOCKED"`) and upload locked stills via `hf_guard.py upload --round R3`.
+  shots carry `test_take_check`) ticket (`0 cr.` Web Unlimited first + CLI
+  fallback quote). Lock approved stills/audio (`status: "LOCKED"`) and upload
+  locked stills via `hf_guard.py upload --round R3`.
 - *Done when:* Director locks all required stills and audio after reviewing
   `animatic.mp4`, locked stills are uploaded, and Director approves `R4A`/`R4`
-  `--round-cap`.
+  (plus `--round-cap` if CLI fallback applies).
 
-### R4 — Motion Dailies (`~45–90 cr.`)
+### R4 — Motion Dailies (`0 cr.` Web Unlimited default; `~45–90 cr.` CLI fallback)
 - **Draft-to-final & camera planning:** Verify each shot's camera route
   ([`video-direction`](../.agents/skills/video-direction/SKILL.md)), reference
   bindings ([`video-consistency`](../.agents/skills/video-consistency/SKILL.md)),
   and `R5` native escalation path
   ([`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md)) *before*
-  shooting `R4` (Web `Unlimited` `0 cr.` first → economy `720p` drafts or
-  latent `--draft true` when 1:1 `R5` lock is required).
+  shooting `R4` (Web `Unlimited` `0 cr.` mandatory default → economy `720p` CLI
+  drafts or latent `--draft true` only when `Unlimited` is unavailable or
+  Director asks for paid CLI speed).
 - **R4A (Risk-First Pilot):** Shoot shots with `test_take_check != null` first
-  at draft settings via `hf_guard.py run --round R4A --round-cap <r4a_cap>`.
-  Probe with `scripts/qa_media.py clip <mp4> --sheet <png> --json` and inspect
-  via fresh `reviewer-agent`. Stop with **Dailies 4A** (pilot clip + `R4B` Cost
-  Ticket). *(Skip `R4A` only when zero shots carry `test_take_check` and
-  Director approved batch `--round R4` on Dailies 3.)*
-- **R4B (Batch Draft & Cut):** Shoot remaining unlocked shots in parallel via
-  `hf_guard.py run --round R4B --round-cap <r4b_cap>` (or `--round R4` when
-  `R4A` was skipped). Probe each clip (`qa_media.py clip --sheet <png> --json`),
-  filter via fresh `reviewer-agent`, record `video.selected_take` in
+  via Web `Unlimited` (`0 cr.`) or approved CLI fallback
+  (`hf_guard.py run --round R4A --round-cap <r4a_cap>`). Probe with
+  `scripts/qa_media.py clip <mp4> --sheet <png> --json` and inspect via fresh
+  `reviewer-agent`. Stop with **Dailies 4A** (pilot clip + `R4B` ticket).
+  *(Skip `R4A` only when zero shots carry `test_take_check` and Director
+  approved batch `R4` on Dailies 3.)*
+- **R4B (Batch Draft & Cut):** Shoot remaining unlocked shots via Web
+  `Unlimited` (`0 cr.`) or approved CLI fallback (`hf_guard.py run --round R4B
+  --round-cap <r4b_cap>`). Probe each clip (`qa_media.py clip --sheet <png>
+  --json`), filter via fresh `reviewer-agent`, record `video.selected_take` in
   `shotlist.json`, and assemble `draft_cut.mp4` via `make assemble
   CAMPAIGN=<slug> OUT=campaigns/<slug>/media/exports/draft_cut.mp4` (`-14 LUFS`,
   `<= -1.0 dBTP`).
 - **Dailies 4B:** Playable `draft_cut.mp4` + **per-shot native `1080p` upgrade
-  prices** for `R5` (never offer `480p → 1080p` pixel upscaling as a budget
-  shortcut). Mark shots kept as-is (no `R5` upgrade) `LOCKED`; keep shots
-  scheduled for `R5` `1080p` upgrade unlocked (`IN_REVIEW` or `ITERATING`,
-  bumping `version` if prompt/parameters change) so `hf_guard.py` permits `R5`.
+  plan** for `R5` (`0 cr.` Web `Unlimited` native `1080p` first, with per-shot
+  CLI fallback prices where `Unlimited` is unavailable; never offer
+  `480p → 1080p` pixel upscaling as a shortcut). Mark shots kept as-is (already
+  native `1080p` or no upgrade needed) `LOCKED`; keep shots scheduled for `R5`
+  `1080p` upgrade unlocked (`IN_REVIEW` or `ITERATING`, bumping `version` if
+  prompt/parameters change) so `hf_guard.py` permits `R5`.
 - *Done when:* pilot passes Dailies 4A (when applicable), Director approves cut
   rhythm in `draft_cut.mp4`, kept shots are `LOCKED`, upgrade targets stay
-  unlocked, and Director approves `R5` `--round-cap`.
+  unlocked, and Director approves `R5` (plus `--round-cap` if CLI fallback
+  applies).
 
-### R5 — Final Master (`1080p`, approved quote)
+### R5 — Final Master (`1080p`, `0 cr.` Web Unlimited default / approved CLI quote)
 - **Craft:** Upgrade **only** Director-approved unlocked shots to **native
-  `1080p`** via `hf_guard.py run --round R5 --round-cap <r5_cap>` following the
-  mastering runbook and strict Upscale Gate in
+  `1080p`** via Web `Unlimited` (`0 cr.`) first, or approved CLI fallback
+  (`hf_guard.py run --round R5 --round-cap <r5_cap>`) following the mastering
+  runbook and strict Upscale Gate in
   [`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md) (never
   pixel-upscale `480p` drafts). Probe every upgraded clip with
   `qa_media.py clip <mp4> --sheet <sheet.png> --crops <crops.png> --json`, run
@@ -162,11 +179,22 @@ technical craft: [`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md),
   [`video-assembly`](../.agents/skills/video-assembly/SKILL.md), and verify
   `make qa-render FILE=campaigns/<slug>/media/exports/master.mp4`.
 - **Final Dailies 5:** `master.mp4` + `stems/` + spend receipt
-  (`make budget-status CAMPAIGN=<slug>`) + offer to graduate durable
-  `taste-log.md` rules into `brands/<brand>/taste.md`. On sign-off, mark
+  (`make budget-status CAMPAIGN=<slug>`) + offer to run `R6` consolidation
+  ([`studio-retro`](../.agents/skills/studio-retro/SKILL.md)). On sign-off, mark
   upgraded shots `LOCKED` and flip `brief.md` to `status: done`.
 - *Done when:* Director signs off on `master.mp4`, `make qa-render` passes, all
   final assets are `LOCKED`, and `brief.md` is `status: done`.
+
+### R6 — Studio Retro & Consolidation (`0 cr.`, optional post-campaign Dream loop)
+- **Craft:** Invoke user-triggered
+  [`studio-retro`](../.agents/skills/studio-retro/SKILL.md): run
+  `make retro-harvest CAMPAIGN=<slug>` and `make memory-lint` to mine
+  `receipts.jsonl` (paid CLI + `log-web`), `qc/review-log.jsonl`, prompt churn,
+  and `Supersedes` flips; route durable lessons as atomic ACE deltas to
+  `studio/director.md`, `brands/<brand>/taste.md`, `studio/engine-memory.md`, or
+  graduated code/skills + `studio/evolution-log.md`.
+- *Done when:* `make check` passes and the Director approves the Retro Dailies
+  diff (one-way door).
 
 ## Dailies Packet & Feedback Loop
 
@@ -176,8 +204,8 @@ Every round terminates in four compact blocks:
    `master.mp4` + `stems/`). On macOS with `Auto-open dailies: true`, run
    `open <artifact>` right before posting.
 2. **Filtered internally** — one plain sentence summarizing defects or taste
-   regressions caught internally, or honestly surfacing any surviving borderline
-   concern after retries exhaust.
+   regressions caught internally (logged via `qa_media.py log-review`), or
+   honestly surfacing any surviving borderline concern after retries exhaust.
 3. **Comparative taste questions** — 2–3 jargon-free questions inviting `A / B / C`
    picks, blends, or visceral reactions.
 4. **Cost ticket** — spent so far, remaining `Campaign cap`, exact itemized live
@@ -185,9 +213,14 @@ Every round terminates in four compact blocks:
    internally via `--round-cap`).
 
 When the Director reacts:
-1. **Distill into `taste-log.md`:** append `### TL-<NN> (R<k> — <stage>)` using
-   the canonical bullets checked by `check-campaign.py`:
+1. **Distill into `taste-log.md` and compile `taste-active.md`:** append
+   `### TL-<NN> (R<k> — <stage>)` using the canonical bullets checked by
+   `check-campaign.py`:
    - `Approved / LOCKED` · `More of` · `Change / Steer` · `Never`
+   - Add `- **Supersedes:** TL-<prev>` (or `TL-<prev>[Category]` / `TL-<prev> (scope)`)
+     whenever a new reaction overrides an earlier entry, then run
+     `make memory-compile CAMPAIGN=<slug>` so downstream subagents read a fresh,
+     contradiction-free `taste-active.md`.
    *(Surface any conflict with an earlier `TL-NN` as one `A / B` question before
    spending.)*
 2. **Update `shotlist.json` (Root Producer only):** set approved items to

@@ -8,23 +8,27 @@
   (`R0`–`R5`): agents own 100% of technical craft inside a round, then stop with
   one compact **Dailies Packet** for taste feedback and next-round credit
   approval.
-- **Cheap proofs before expensive pixels (Unlimited-first).** Prioritize
-  `0 cr.` **Unlimited** generations on `higgsfield.ai` via browser handoff
-  whenever available (pausing for the Director to complete any login or CAPTCHA
-  manually, then ingesting downloads via `hf_guard.py upload`). When using CLI
-  credits, prove meaning before story, story and live costs before pixels,
-  Lookbook `A / B / C` before scenes, draft stills and a 0-video-credit Still
-  Animatic before motion, and economy `720p` or latent drafts before native
-  `1080p` mastering (never pixel-upscale `480p` drafts; verify `R5` masters at
-  `1:1` pixel crops).
+- **Cheap proofs before expensive pixels (Web `Unlimited` mandatory default).**
+  On Unlimited-eligible plans (`Ultra`, etc.), route all `R2`–`R5` image and
+  video generations to `0 cr.` **Unlimited** on `higgsfield.ai` via the
+  built-in `browser` subagent **by default** (verify `Unlimited` is **ON** /
+  `0 credits` before generating, pause only for manual Director login/CAPTCHA,
+  and ingest downloads via `hf_guard.py upload`). Never default to paid CLI
+  quotes or stop to ask "CLI or Unlimited?" for Unlimited-eligible visuals;
+  reserve paid CLI (`hf_guard.py run`) strictly for non-Unlimited items (audio,
+  unavailable models) or explicit Director speed requests. Always prove meaning
+  before story, story before pixels, Lookbook `A / B / C` before scenes, stills
+  and a 0-video-credit Still Animatic before motion, and drafts before native
+  `1080p` mastering (never pixel-upscale `480p` drafts; verify `R5` at `1:1`).
 - **Keep the Director boundary jargon-free.** Present visual artifacts, light,
   texture, pacing, `A / B / C` choices (or blends), and plain credit totals.
   Keep model slugs, CLI flags, prompt syntax, UUID wiring, codecs, and FFmpeg
   filters internal unless asked.
-- **Taste Memory is cumulative.** Distill every Director reaction into
-  `campaigns/<slug>/taste-log.md`, feed it to every downstream prompt author,
-  worker, and Visual Critic, and graduate durable brand taste into
-  `brands/<brand>/taste.md`.
+- **Taste Memory is cumulative and compiled.** Distill every Director reaction
+  into `campaigns/<slug>/taste-log.md` (using `Supersedes:` on overrides),
+  rebuild conflict-free `taste-active.md` (`make memory-compile`) for downstream
+  actors, and graduate durable lessons into `brands/<brand>/taste.md` and
+  `studio/` via gated `studio-retro` (`R6`) diffs.
 - **`LOCKED` assets are immutable in policy and code.** Once approved in
   `shotlist.json`, regenerate only `ITERATING` assets with a bumped `version`;
   unlocking requires explicit Director approval and a Root Producer edit in
@@ -44,17 +48,21 @@
 ## Authority & Guard Rails
 
 - **Two-way vs. one-way doors.** Read-only CLI introspection, story craft,
-  local `qa_media.py`, lookbook grids, still animatics, and local FFmpeg cuts
-  are authorized in scope. Paid generations, remote uploads of private media,
-  unlocking `LOCKED` assets, and publishing require explicit Director approval.
-- **Mandatory spend guard.** Route every paid campaign job through
-  `python3 scripts/hf_guard.py preflight` / `run` with active `brief.md`,
+  verified `0 cr.` Web `Unlimited` generations on `higgsfield.ai` (once round
+  direction is confirmed and the UI reads `Unlimited` ON / `0 credits`), local
+  `qa_media.py`, lookbook grids, still animatics, and local FFmpeg cuts are
+  authorized in scope. Any credit-spending generation (`> 0 cr.` CLI or Web),
+  remote uploads of private media, unlocking `LOCKED` assets, and publishing
+  require explicit Director approval.
+- **Mandatory spend guard & raw trace logging.** Route every paid campaign job
+  through `python3 scripts/hf_guard.py preflight` / `run` with active `brief.md`,
   `--round`, and cumulative `--round-cap`; route tracked uploads through
-  `hf_guard.py upload --round <R>` (0 cr.) and budget checks through
-  `hf_guard.py status`. Inside campaigns, reserve direct `higgsfield` CLI and
-  MCP (`.codex/config.toml`) for free read-only checks; outside a campaign, a
-  single direct CLI generation is permitted only after live `generate cost` and
-  explicit user confirmation.
+  `hf_guard.py upload --round <R>` (0 cr.), Web `Unlimited` traces through
+  `hf_guard.py log-web` (0 cr.), review verdicts through `qa_media.py log-review`,
+  and budget checks through `hf_guard.py status`. Inside campaigns, reserve direct
+  `higgsfield` CLI and MCP (`.codex/config.toml`) for free read-only checks;
+  outside a campaign, a single direct CLI generation is permitted only after live
+  `generate cost` and explicit user confirmation.
 - **Precedence.** Current Director feedback overrides skill defaults inside
   safety and budget walls. This `AGENTS.md` overrides external skills on
   mandatory live `generate cost`, dual budget caps, and receipt logging.
@@ -67,7 +75,8 @@
 Load a target only when its branch triggers (route through the owning `SKILL.md`
 first; each skill links its deep `references/`):
 
-- Multi-shot video, commercial, or branded spot → [Workflow](docs/workflow.md) (`R0`–`R5`, Dailies Packet, Taste Memory, surgical re-rolls, budget & lock invariants).
+- Multi-shot video, commercial, or branded spot → [Workflow](docs/workflow.md) (`R0`–`R6`, Dailies Packet, Taste Memory, surgical re-rolls, budget & lock invariants).
+- Studio long-term memory (Director prefs, ACE model memory, SIM evolution log) → [`studio/director.md`](studio/director.md), [`studio/engine-memory.md`](studio/engine-memory.md), [`studio/evolution-log.md`](studio/evolution-log.md).
 - Isolated single deliverable (schema check, harness edit, local QA/assembly, or one confirmed test asset after live `generate cost`) → execute directly without a campaign folder; escalate to [Workflow](docs/workflow.md) once shots or rounds coordinate.
 - Subagents, parallel workers, Visual Critic, or retry/timeout recovery → [Delegation](docs/delegation.md).
 - Meaning-only alignment or resolving a taste fork → [Grilling](docs/grilling.md).
@@ -77,6 +86,6 @@ first; each skill links its deep `references/`):
 - Cross-shot characters/expressions, locations/buildings/props, Asset Bibles, ref budgets, Soul ID, Motion Control, or Intone → [`video-consistency`](.agents/skills/video-consistency/SKILL.md).
 - `qa_media.py` probes, `1:1` crop strips, batch audits, lookbook grids, or pre-Dailies Visual Critic rubric → [`video-qa`](.agents/skills/video-qa/SKILL.md).
 - `R3` still animatics, VO timing, FPS-locked FFmpeg mastering, `-14 LUFS`, `LUT`/`GRAIN` finishing, stems, or Remotion boundary → [`video-assembly`](.agents/skills/video-assembly/SKILL.md).
-- User-invoked & commercial skills → [`.agents/skills`](.agents/skills): user-invoked `idea-refine`, `grilling`; commercial `ad-references`, `ad-concepts`, `ad-script`, `ad-storyboard`.
+- User-invoked & commercial skills → [`.agents/skills`](.agents/skills): user-invoked `idea-refine`, `grilling`, `studio-retro`; commercial `ad-references`, `ad-concepts`, `ad-script`, `ad-storyboard`.
 - Editing `AGENTS.md`, docs, roles, or skills → [Writing For Agents](docs/writing-for-agents.md).
 - Commands, flags, and schemas → inspect `make help`, `scripts/<tool> --help`, and `campaigns/example-product-spot/`; run `make check` before finishing harness edits.

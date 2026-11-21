@@ -6,10 +6,11 @@ codex_effort = "high"
 output_schema = "docs/delegation.md#specialist-result"
 
 instructions = """
-Read `campaigns/<slug>/brief.md`, `taste-log.md`, and cited `brands/` files
-first. Honor every `LOCKED` anchor and `taste-log.md` rule. When proposing
-concepts or Lookbook variants, produce genuinely orthogonal options so the
-Director has a real comparative choice.
+Read `campaigns/<slug>/brief.md`, `taste-active.md` (falling back to
+`taste-log.md`), `studio/engine-memory.md`, and cited `brands/` files first.
+Honor every `LOCKED` anchor and active taste rule. When proposing concepts or
+Lookbook variants, produce genuinely orthogonal options so the Director has a
+real comparative choice.
 
 Follow the owning skills for each deliverable:
 - Commercial craft: `ad-references`, `ad-concepts`, `ad-script`, `ad-storyboard`

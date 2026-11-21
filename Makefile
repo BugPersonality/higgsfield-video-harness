@@ -6,14 +6,15 @@ export PYTHONDONTWRITEBYTECODE := 1
 PYTHON ?= python3
 SHELL_FILES := $(wildcard scripts/*.sh)
 
-.PHONY: help check test shellcheck docs-check check-instructions \
-	brief-check campaign-check campaign-init lookbook slice-grid qa-clip qa-batch qa-voice qa-render \
+.PHONY: help check test shellcheck docs-check check-instructions memory-lint \
+	brief-check campaign-check campaign-init memory-compile retro-harvest memory-search \
+	lookbook slice-grid qa-clip qa-batch qa-voice qa-render \
 	assemble animatic budget-status
 
 help: ## List available commands
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "  %-24s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-check: check-instructions docs-check shellcheck test ## Run all offline harness checks and unit/integration tests
+check: check-instructions docs-check memory-lint shellcheck test ## Run all offline harness checks and unit/integration tests
 	@$(PYTHON) scripts/check-brief.py campaigns/example-product-spot
 	@$(PYTHON) scripts/check-campaign.py campaigns/example-product-spot
 
@@ -30,6 +31,21 @@ docs-check: ## Verify all relative Markdown links and heading anchors offline
 
 check-instructions: ## Validate .agents/ roles, skills, openai.yaml, and .codex/config.toml sync
 	$(PYTHON) scripts/check-instructions.py .
+
+memory-lint: ## Validate studio/ memory, brands/*/taste.md caps, taste-active.md freshness, and review logs
+	$(PYTHON) scripts/check-memory.py .
+
+memory-compile: ## Compile campaigns/<CAMPAIGN>/taste-log.md into conflict-free taste-active.md (CAMPAIGN=<slug|path>)
+	@test -n "$(CAMPAIGN)" || { echo "memory-compile requires CAMPAIGN=<slug|path>" >&2; exit 2; }
+	$(PYTHON) scripts/memory_compile.py "$(if $(wildcard $(CAMPAIGN)/taste-log.md),$(CAMPAIGN),$(if $(wildcard campaigns/$(CAMPAIGN)/taste-log.md),campaigns/$(CAMPAIGN),$(CAMPAIGN)))"
+
+retro-harvest: ## Mine receipts, review logs, prompt churn, and Supersedes flips for R6 studio-retro (CAMPAIGN=<slug|path>)
+	@test -n "$(CAMPAIGN)" || { echo "retro-harvest requires CAMPAIGN=<slug|path>" >&2; exit 2; }
+	$(PYTHON) scripts/retro_harvest.py "$(if $(wildcard $(CAMPAIGN)/brief.md),$(CAMPAIGN),$(if $(wildcard campaigns/$(CAMPAIGN)/brief.md),campaigns/$(CAMPAIGN),$(CAMPAIGN)))" $(if $(OUT),--out "$(OUT)")
+
+memory-search: ## Full-text BM25 search across studio/, brands/, and campaigns/ memory (Q="<terms>" [SCOPE=all|studio|brands|campaigns])
+	@test -n "$(Q)" || { echo "memory-search requires Q='<terms>'" >&2; exit 2; }
+	$(PYTHON) scripts/memory_search.py "$(Q)" $(if $(SCOPE),--scope "$(SCOPE)") $(if $(LIMIT),--limit "$(LIMIT)")
 
 brief-check: ## Verify campaigns/<CAMPAIGN>/brief.md invariants (CAMPAIGN=<slug|path>)
 	@test -n "$(CAMPAIGN)" || { echo "brief-check requires CAMPAIGN=<slug|path>" >&2; exit 2; }

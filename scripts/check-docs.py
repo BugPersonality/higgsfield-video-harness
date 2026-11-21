@@ -135,13 +135,13 @@ def _parse_link_target(raw_inside_parens: str) -> str:
 
 
 def collect_markdown_files(repo_root: Path) -> list[Path]:
-    """Collect tracked/repo Markdown files under root, docs, .agents, brands, and campaigns."""
+    """Collect tracked/repo Markdown files under root, docs, .agents, studio, brands, and campaigns."""
     files: set[Path] = set()
     for top_md in repo_root.glob("*.md"):
         if top_md.is_file():
             files.add(top_md.resolve())
 
-    for subdir_name in ("docs", ".agents", "brands", "campaigns"):
+    for subdir_name in ("docs", ".agents", "studio", "brands", "campaigns"):
         sub = repo_root / subdir_name
         if not sub.is_dir():
             continue

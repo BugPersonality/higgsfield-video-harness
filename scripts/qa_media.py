@@ -8,6 +8,9 @@ import sys
 sys.dont_write_bytecode = True
 
 import argparse
+import contextlib
+import datetime
+import fcntl
 import json
 import math
 import re
@@ -16,6 +19,7 @@ import struct
 import subprocess
 import tempfile
 import zlib
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +31,20 @@ FRAME_BYTES = SAMPLE_W * SAMPLE_H
 STILL_DIFF_THRESHOLD = 1.0
 SILENT_MEAN_DB_THRESHOLD = -60.0
 VOICE_RMS_ACTIVE_DB = -34.0
+
+VALID_REVIEW_ROUNDS = ("R2", "R2A", "R2B", "R3", "R4", "R4A", "R4B", "R5")
+VALID_REVIEW_VERDICTS = ("PASS", "CONCERNS", "FAIL", "REVIEW_HANDOFF_INVALID")
+VALID_DEFECT_CLASSES = (
+    "NONE",
+    "MEDIA_TECH_DEFECT",
+    "VISUAL_DRIFT_DEFECT",
+    "TASTE_REGRESSION",
+    "CONTINUITY_DEFECT",
+    "POLICY_BLOCK",
+    "BUDGET_CAP",
+    "CONCERN",
+    "FOLLOW_UP",
+)
 
 
 def _ensure_ffmpeg_tools() -> tuple[str, str]:
@@ -1833,12 +1851,172 @@ def build_parser() -> argparse.ArgumentParser:
     )
     bt.add_argument("--json", action="store_true", dest="as_json", help="Emit JSON report.")
 
+    # log-review
+    lr = sub.add_parser(
+        "log-review",
+        help="Append a structured pre-Dailies Visual Critic review verdict to campaigns/<slug>/qc/review-log.jsonl.",
+    )
+    lr.add_argument("--campaign", required=True, help="Campaign directory.")
+    lr.add_argument("--round", required=True, choices=VALID_REVIEW_ROUNDS, help="Production round.")
+    lr.add_argument("--asset", required=True, help="Asset or batch identifier (e.g. s04.video, lookbook).")
+    lr.add_argument(
+        "--verdict",
+        required=True,
+        choices=VALID_REVIEW_VERDICTS,
+        help="Visual Critic verdict.",
+    )
+    lr.add_argument(
+        "--defect-class",
+        choices=VALID_DEFECT_CLASSES,
+        default=None,
+        help="Defect class from docs/delegation.md#review-result (defaults to NONE when verdict=PASS).",
+    )
+    lr.add_argument("--version", type=int, default=1, help="Asset version integer >= 1 (default: 1).")
+    lr.add_argument("--reopen-owner", default="none", help="Reopen owner (Worker(<id>), Root Producer, or none).")
+    lr.add_argument("--summary", default="", help="Concise factual impact / findings note.")
+    lr.add_argument("--qa-report", default=None, help="Optional path to qa_media.py JSON report.")
+    lr.add_argument("--sheet", default=None, help="Optional path to inspected contact sheet/grid.")
+    lr.add_argument("--crops", default=None, help="Optional path to inspected 1:1 crop strip.")
+    lr.add_argument("--json", action="store_true", dest="as_json", help="Emit JSON confirmation.")
+
     return parser
+
+
+@contextlib.contextmanager
+def _review_log_lock(qc_dir: Path) -> Iterator[None]:
+    qc_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = qc_dir / ".review-log.lock"
+    with lock_path.open("a+", encoding="utf-8") as fh:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+
+
+def append_review_log(
+    campaign_dir: Path,
+    *,
+    round_name: str,
+    asset_id: str,
+    verdict: str,
+    defect_class: str | None = None,
+    version: int = 1,
+    reopen_owner: str = "none",
+    summary: str = "",
+    qa_report: str | None = None,
+    sheet: str | None = None,
+    crops: str | None = None,
+) -> dict[str, Any]:
+    """Validate and atomically append a structured Visual Critic review event to qc/review-log.jsonl."""
+    if not campaign_dir.is_dir():
+        raise FileNotFoundError(f"campaign directory not found: {campaign_dir}")
+    if round_name not in VALID_REVIEW_ROUNDS:
+        raise ValueError(f"invalid round '{round_name}'")
+    if verdict not in VALID_REVIEW_VERDICTS:
+        raise ValueError(f"invalid verdict '{verdict}'")
+    if not isinstance(version, int) or isinstance(version, bool) or version < 1:
+        raise ValueError(f"--version must be an integer >= 1, got {version!r}")
+    asset_clean = asset_id.strip()
+    if not asset_clean:
+        raise ValueError("--asset must be non-empty")
+
+    resolved_defect = defect_class
+    if resolved_defect is None:
+        if verdict == "PASS":
+            resolved_defect = "NONE"
+        elif verdict == "REVIEW_HANDOFF_INVALID":
+            resolved_defect = "FOLLOW_UP"
+        else:
+            raise ValueError(
+                f"--defect-class is required when --verdict is {verdict} "
+                f"(choose one of {[c for c in VALID_DEFECT_CLASSES if c != 'NONE']})"
+            )
+    if resolved_defect not in VALID_DEFECT_CLASSES:
+        raise ValueError(f"invalid defect class '{resolved_defect}'")
+    if verdict in ("FAIL", "CONCERNS") and resolved_defect == "NONE":
+        raise ValueError(f"--defect-class cannot be NONE when --verdict is {verdict}")
+
+    qc_dir = campaign_dir / "qc"
+    log_path = qc_dir / "review-log.jsonl"
+    record = {
+        "ts": (
+            datetime.datetime.now(datetime.UTC)
+            .replace(microsecond=0)
+            .isoformat()
+            .replace("+00:00", "Z")
+        ),
+        "round": round_name,
+        "asset_id": asset_clean,
+        "version": version,
+        "verdict": verdict,
+        "defect_class": resolved_defect,
+        "reopen_owner": (reopen_owner or "none").strip() or "none",
+        "summary": summary.strip(),
+        "qa_report": qa_report,
+        "sheet": sheet,
+        "crops": crops,
+    }
+
+    with _review_log_lock(qc_dir):
+        if log_path.is_file():
+            for idx, line in enumerate(log_path.read_text(encoding="utf-8").splitlines(), start=1):
+                if not line.strip():
+                    continue
+                try:
+                    parsed = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise RuntimeError(f"corrupt review-log.jsonl at line {idx}: {exc}") from exc
+                if not isinstance(parsed, dict):
+                    raise RuntimeError(f"corrupt review-log.jsonl at line {idx}: expected JSON object")
+        with log_path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+            fh.flush()
+
+    return {
+        "ok": True,
+        "command": "log-review",
+        "log_path": str(log_path),
+        "record": record,
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.command == "log-review":
+        try:
+            report = append_review_log(
+                Path(args.campaign),
+                round_name=args.round,
+                asset_id=args.asset,
+                verdict=args.verdict,
+                defect_class=args.defect_class,
+                version=args.version,
+                reopen_owner=args.reopen_owner,
+                summary=args.summary,
+                qa_report=args.qa_report,
+                sheet=args.sheet,
+                crops=args.crops,
+            )
+        except (FileNotFoundError, ValueError, RuntimeError) as exc:
+            if args.as_json:
+                print(json.dumps({"ok": False, "error": str(exc)}, indent=2))
+            else:
+                print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
+
+        if args.as_json:
+            print(json.dumps(report, indent=2, ensure_ascii=False))
+        else:
+            rec = report["record"]
+            print(
+                f"[OK] logged review -> {report['log_path']} "
+                f"({rec['round']} {rec['asset_id']} v{rec['version']}: "
+                f"{rec['verdict']} / {rec['defect_class']})"
+            )
+        return 0
 
     if args.command == "lookbook":
         img_paths = [Path(p) for p in args.images]

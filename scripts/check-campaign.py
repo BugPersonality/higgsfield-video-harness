@@ -77,9 +77,9 @@ STEERING_BULLET_RE = re.compile(
 )
 
 
-def _load_check_brief():
-    mod_path = Path(__file__).resolve().with_name("check-brief.py")
-    spec = importlib.util.spec_from_file_location("check_brief", mod_path)
+def _load_sibling_module(filename: str, mod_name: str):
+    mod_path = Path(__file__).resolve().with_name(filename)
+    spec = importlib.util.spec_from_file_location(mod_name, mod_path)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load sibling module: {mod_path}")
     mod = importlib.util.module_from_spec(spec)
@@ -87,7 +87,8 @@ def _load_check_brief():
     return mod
 
 
-_CHECK_BRIEF = _load_check_brief()
+_CHECK_BRIEF = _load_sibling_module("check-brief.py", "check_brief")
+_MEMORY_COMPILE = _load_sibling_module("memory_compile.py", "memory_compile")
 
 
 def _clean_num(val: float) -> int | float:
@@ -98,140 +99,50 @@ def _is_valid_version(val: Any) -> bool:
     return isinstance(val, int) and not isinstance(val, bool) and val >= 1
 
 
-def _validate_taste_log(taste_path: Path, errors: list[str]) -> int:
-    """Validate taste-log.md H1 and all ### TL-<NN> entries. Returns entry count."""
-    text = taste_path.read_text(encoding="utf-8")
-    lines = text.splitlines()
+def _validate_taste_log(
+    taste_path: Path, errors: list[str], warnings: list[str]
+) -> dict[str, Any]:
+    """Validate taste-log.md (including Supersedes graph) and taste-active.md freshness."""
+    parsed = _MEMORY_COMPILE.parse_taste_log(taste_path)
+    errors.extend(parsed["errors"])
+    warnings.extend(parsed["warnings"])
 
-    h1_title: str | None = None
-    entries: list[tuple[str, list[str]]] = []
-    current_heading: str | None = None
-    current_lines: list[str] = []
+    active_path = taste_path.with_name("taste-active.md")
+    active_present = active_path.is_file()
+    active_fresh: bool | None = None
 
-    in_fence = False
-    fence_char = ""
-    fence_len = 0
-
-    for line in lines:
-        fm = FENCE_RE.match(line)
-        if not in_fence and fm:
-            in_fence = True
-            fence_char = fm.group(1)[0]
-            fence_len = len(fm.group(1))
-            if current_heading is not None:
-                current_lines.append(line)
-            continue
-        if in_fence:
-            stripped = line.lstrip()
-            if (
-                stripped.startswith(fence_char * fence_len)
-                and stripped.strip(fence_char).strip() == ""
-            ):
-                in_fence = False
-            if current_heading is not None:
-                current_lines.append(line)
-            continue
-
-        if h1_title is None and line.startswith("# ") and not line.startswith("## "):
-            m_h1 = re.match(r"^#\s+Taste\s+Log:\s*(.+?)\s*$", line)
-            if m_h1:
-                h1_title = m_h1.group(1).strip()
-            else:
-                errors.append(
-                    f"taste-log.md: H1 must match '^# Taste Log: <title>', got '{line.strip()}'"
+    if active_present:
+        meta = _MEMORY_COMPILE.extract_active_metadata(active_path)
+        if meta is None:
+            active_fresh = False
+            errors.append(
+                "taste-active.md: missing compiled header; run `make memory-compile CAMPAIGN=<slug>`"
+            )
+        elif meta["source_hash"] != parsed["source_hash"]:
+            active_fresh = False
+            errors.append(
+                f"taste-active.md: stale snapshot (hash {meta['source_hash']} != "
+                f"taste-log.md {parsed['source_hash']}); run `make memory-compile CAMPAIGN=<slug>`"
+            )
+        else:
+            active_fresh = True
+            if meta["line_count"] > _MEMORY_COMPILE.DEFAULT_ACTIVE_MAX_LINES:
+                warnings.append(
+                    f"taste-active.md has {meta['line_count']} lines "
+                    f"(soft cap <= {_MEMORY_COMPILE.DEFAULT_ACTIVE_MAX_LINES}); "
+                    "supersede obsolete TL-NN entries or run studio-retro"
                 )
-                h1_title = ""
-            continue
-
-        if re.match(r"^##\s+", line):
-            if current_heading is not None:
-                entries.append((current_heading, current_lines))
-                current_heading = None
-                current_lines = []
-            continue
-
-        if re.match(r"^###\s+", line):
-            if current_heading is not None:
-                entries.append((current_heading, current_lines))
-            heading_body = line[3:].strip()
-            if heading_body.upper().startswith("TL-"):
-                current_heading = heading_body
-                current_lines = []
-            else:
-                current_heading = None
-                current_lines = []
-            continue
-
-        if current_heading is not None:
-            current_lines.append(line)
-
-    if current_heading is not None:
-        entries.append((current_heading, current_lines))
-
-    if h1_title is None or (h1_title != "" and _CHECK_BRIEF.is_placeholder(h1_title)):
-        errors.append(
-            "taste-log.md: missing or placeholder H1 heading matching '^# Taste Log: <title>'"
+    elif parsed["entry_count"] >= 4:
+        warnings.append(
+            f"taste-log.md has {parsed['entry_count']} entries without compiled taste-active.md; "
+            "run `make memory-compile CAMPAIGN=<slug>`"
         )
 
-    seen_ids: set[str] = set()
-    valid_entries = 0
-
-    for raw_heading, body_lines in entries:
-        m_id = re.match(r"^(TL-\d+)(?:\b|[\s(—–:-]|$)", raw_heading, re.IGNORECASE)
-        if not m_id:
-            errors.append(
-                f"taste-log.md: invalid entry heading '### {raw_heading}' (expected '### TL-<NN> ...')"
-            )
-            continue
-
-        tl_id = m_id.group(1).upper()
-        if tl_id in seen_ids:
-            errors.append(f"taste-log.md: duplicate taste log entry ID '{tl_id}'")
-        seen_ids.add(tl_id)
-        valid_entries += 1
-
-        has_steering = False
-        idx = 0
-        total_lines = len(body_lines)
-        while idx < total_lines:
-            line = body_lines[idx]
-            sm = STEERING_BULLET_RE.match(line)
-            if not sm:
-                idx += 1
-                continue
-            base_indent = len(sm.group(1))
-            val_parts: list[str] = []
-            inline_val = sm.group(3).strip()
-            if inline_val:
-                val_parts.append(inline_val)
-            idx += 1
-            while idx < total_lines:
-                nxt = body_lines[idx]
-                if not nxt.strip():
-                    idx += 1
-                    continue
-                nxt_indent = len(nxt) - len(nxt.lstrip(" "))
-                if nxt_indent > base_indent and not STEERING_BULLET_RE.match(nxt):
-                    val_parts.append(nxt.strip())
-                    idx += 1
-                else:
-                    break
-            combined = " ".join(val_parts).strip()
-            cleaned_none = re.sub(r"^[-*]\s+", "", combined).strip().rstrip(".").lower()
-            if (
-                combined
-                and cleaned_none not in {"none", "-", "n/a"}
-                and not _CHECK_BRIEF.is_placeholder(combined)
-            ):
-                has_steering = True
-
-        if not has_steering:
-            errors.append(
-                f"taste-log.md ({tl_id}): must include at least one non-placeholder steering bullet "
-                "('Approved / LOCKED', 'More of', 'Change / Steer', or 'Never')"
-            )
-
-    return valid_entries
+    return {
+        "entries": parsed["entry_count"],
+        "active_present": active_present,
+        "active_fresh": active_fresh,
+    }
 
 
 def _validate_shotlist(
@@ -1071,11 +982,16 @@ def validate_campaign(
         if isinstance(env.get("campaign_cap"), int):
             campaign_cap = env["campaign_cap"]
 
-    # 2. Optional taste-log.md
+    # 2. Optional taste-log.md & compiled taste-active.md
     taste_log_entries = 0
+    taste_active_present = False
+    taste_active_fresh: bool | None = None
     taste_path = campaign_dir / "taste-log.md"
     if taste_path.is_file():
-        taste_log_entries = _validate_taste_log(taste_path, errors)
+        t_info = _validate_taste_log(taste_path, errors, warnings)
+        taste_log_entries = t_info["entries"]
+        taste_active_present = t_info["active_present"]
+        taste_active_fresh = t_info["active_fresh"]
 
     # 3. shotlist.json
     sl = _validate_shotlist(
@@ -1090,6 +1006,8 @@ def validate_campaign(
         "brief_status": brief_status,
         "taste_log_present": taste_path.is_file(),
         "taste_log_entries": taste_log_entries,
+        "taste_active_present": taste_active_present,
+        "taste_active_fresh": taste_active_fresh,
         "shot_count": sl["shot_count"],
         "lookbook_count": sl["lookbook_count"],
         "status_counts": sl["status_counts"],

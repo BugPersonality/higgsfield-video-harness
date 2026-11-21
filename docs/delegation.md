@@ -1,11 +1,11 @@
 # Delegation & Internal QC
 
 Keep every actor in the **Smart Zone**: one coherent outcome, bounded files,
-primary artifacts (`brief.md`, `taste-log.md`, `style-bible.md`, `shotlist.json`),
-and fresh history (`fork_turns: "none"` where supported). Keep the **Root
-Producer** in one continuous session across `R0`–`R5` so the Director's verbatim
-*why* stays a primary source; delegate AFK parallel craft and unbiased QC to
-fresh subagents.
+primary artifacts (`brief.md`, compiled `taste-active.md` / `taste-log.md`,
+`style-bible.md`, `shotlist.json`), and fresh history (`fork_turns: "none"`
+where supported). Keep the **Root Producer** in one continuous session across
+`R0`–`R5` so the Director's verbatim *why* stays a primary source; delegate AFK
+parallel craft and unbiased QC to fresh subagents.
 
 ## Roles & Ownership
 
@@ -25,7 +25,9 @@ agent harness; reserve thread slots for Visual Critic QC and recovery):
   write strictly to assigned paths (`media/lookbook/{characters,locations,props}/*`,
   `media/stills/sNN-*`, `media/shots/sNN-*`, `media/audio/*`, `media/exports/*`,
   `prompts/<id>_*`, `qc/<id>-*`). Only the **Root Producer** edits `brief.md`,
-  `taste-log.md`, and `shotlist.json`. `hf_guard.py` serializes `receipts.jsonl`
+  `taste-log.md`, `taste-active.md`, and `shotlist.json`. `hf_guard.py`
+  serializes `receipts.jsonl` (paid CLI, `upload`, and `0 cr.` `log-web` traces)
+  under `flock`, and `qa_media.py log-review` serializes `qc/review-log.jsonl`
   under `flock`.
 - **Freshness & reuse:** start every subagent with fresh history
   (`fork_turns: "none"` where supported—no parent chat turns or builder
@@ -42,10 +44,13 @@ agent harness; reserve thread slots for Visual Critic QC and recovery):
 
 Before assembling any Dailies Packet for generated media (`R2`–`R5`), spawn a
 fresh read-only `reviewer-agent` (`fork_turns: "none"`) with primary inputs only
-(`brief.md`, `taste-log.md`, `shotlist.json`, `qa_media.py --json` reports,
-reference photos, and `lookbook.png`/stills/`3x2` contact sheets—plus `1:1`
-unscaled `--crops` strips and `qa_media.py batch --strict --json` for `R5`
-masters and upscaled clips—via vision inspection)—zero builder rationale.
+(`brief.md`, compiled `taste-active.md` or `taste-log.md`, `shotlist.json`,
+`qa_media.py --json` reports, reference photos, and
+`lookbook.png`/stills/`3x2` contact sheets—plus `1:1` unscaled `--crops` strips
+and `qa_media.py batch --strict --json` for `R5` masters and upscaled clips—via
+vision inspection)—zero builder rationale. Log every returned `#review-result`
+via `scripts/qa_media.py log-review` so `R6` (`studio-retro`) can mine real
+defect patterns.
 
 - **Filter defects, leave taste to the Director:** score strictly with the
   binary rubric in [`video-qa`](../.agents/skills/video-qa/SKILL.md) using the

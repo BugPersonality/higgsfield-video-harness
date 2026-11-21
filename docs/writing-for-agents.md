@@ -71,10 +71,18 @@ Enforced mechanically by `scripts/check-instructions.py`:
   the leading concept and `Use when` trigger branches; omit
   `disable-model-invocation`; every `references/*.md` file under the skill must
   be linked from `SKILL.md`.
-- **User-invoked workflow skills** (`idea-refine`, `grilling`): set
-  `disable-model-invocation: true` in `SKILL.md` and `allow_implicit_invocation:
-  false` in `agents/openai.yaml`; write a concise human-facing `description`
-  (`<= 320` chars).
+- **User-invoked workflow skills** (`idea-refine`, `grilling`, `studio-retro`):
+  set `disable-model-invocation: true` in `SKILL.md` and
+  `allow_implicit_invocation: false` in `agents/openai.yaml`; write a concise
+  human-facing `description` (`<= 320` chars).
+- **Studio & Brand Memory caps** (enforced mechanically by `scripts/check-memory.py`
+  / `make memory-lint`): `studio/director.md` `<= 60` lines (private overrides in
+  gitignored `studio/director.local.md`), `brands/*/taste.md` `<= 80` lines
+  (brand invariants only, zero campaign plot leakage), `studio/engine-memory.md`
+  `<= 120` lines (ACE bullets with `helpful`/`harmful`, `verified=YYYY-MM-DD`,
+  and 60-day staleness warnings), `studio/evolution-log.md` (`EV-NN` SIM entries
+  with `Retire / Revisit when`), and fresh compiled `taste-active.md` (`<= 80`
+  lines soft cap) compiled from `taste-log.md` via `make memory-compile`.
 - **Roles** (`.agents/roles/*.toml`): every role declares `name` (matching
   filename), `description`, `class` (matching `.agents/role-classes/<class>.md`),
   `output_schema` (with verified `#anchor` in `docs/delegation.md`), and concise

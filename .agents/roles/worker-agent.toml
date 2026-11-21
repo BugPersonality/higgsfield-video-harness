@@ -13,7 +13,8 @@ its disjoint writable paths (`media/lookbook/{characters,locations,props}/*`,
 
 Route every paid job through `hf_guard.py preflight` / `run` with approved
 `--round`, cumulative `--round-cap`, `--version`, and (for lookbook only)
-`--variant`, and every tracked upload through `hf_guard.py upload --round <R>`.
+`--variant`, every tracked upload through `hf_guard.py upload --round <R>`, and
+every `0 cr.` Web `Unlimited` generation trace through `hf_guard.py log-web`.
 Honor live CLI schemas and CEL rules in `.agents/skills/higgsfield-cli/SKILL.md`
 (and its `references/live-workflows.md`), and slice `2x2`/`3x3` angle sheets
 via `scripts/qa_media.py slice` before uploading standalone tiles.

@@ -24,6 +24,7 @@ Always pass `--json` when capturing reports for `reviewer-agent` handoffs
 - `scripts/qa_media.py render <mp4> --sheet <png> [--crops <png>] --json` (`make qa-render`) — enforces `-14 LUFS (±1.0 LU)` and `<= -1.0 dBTP` on `draft_cut.mp4` / `master.mp4`.
 - `make lookbook FILES="..." OUT=<png> LABELS="A,B,C"` — burns visual badges onto tiles for `R2` Lookbooks and `R3` stills strips.
 - `scripts/qa_media.py slice <sheet.png> --out-dir <dir> --rows 3 --cols 3 [--trim 4] --json` (`make slice-grid`) — splits `2x2`/`3x3` multi-angle sheets (`nano_banana_2_shots`) into standalone PNG tiles before upload.
+- `scripts/qa_media.py log-review --campaign <dir> --round <R> --asset <id> --verdict <PASS|CONCERNS|FAIL|REVIEW_HANDOFF_INVALID> [--defect-class <CLASS>] [--summary "..."] --json` — appends every `#review-result` to `campaigns/<slug>/qc/review-log.jsonl` under `flock` for `R6` (`studio-retro`) trace mining.
 
 ## Mandatory `1:1` Inspection & Binary QC Rubric
 
