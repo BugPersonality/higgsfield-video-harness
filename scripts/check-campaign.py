@@ -867,7 +867,7 @@ def _validate_shotlist(
                 isinstance(start_src, str)
                 and start_src.strip().endswith(".last_frame")
                 and video_ref_count == 0
-                and v_model in ("seedance_2_5", "cinematic_studio_video_4_0", "kling4_0", "kling_4_0_flash")
+                and v_model in ("seedance_2_5", "cinematic_studio_video_4_0", "kling4_0", "kling_4_0_flash", "kling3_0")
             ):
                 warnings.append(
                     f"shotlist.json (shot {sid}.video): bridging from '{start_src.strip()}' without "
@@ -1021,6 +1021,22 @@ def _validate_shotlist(
                     if isinstance(tr, dict):
                         _check_prompt_file(tr.get("prompt_file"), f"audio.{track_name}.tracks[{tidx}]")
                         _check_prompt_file(tr.get("script_file"), f"audio.{track_name}.tracks[{tidx}]")
+                        ts_in = tr.get("trim_start_s")
+                        ts_out = tr.get("trim_end_s")
+                        if ts_in is not None and (isinstance(ts_in, bool) or not isinstance(ts_in, (int, float)) or ts_in < 0):
+                            errors.append(f"shotlist.json (audio.{track_name}.tracks[{tidx}].trim_start_s): must be a number >= 0")
+                        if ts_out is not None and (isinstance(ts_out, bool) or not isinstance(ts_out, (int, float)) or ts_out <= 0):
+                            errors.append(f"shotlist.json (audio.{track_name}.tracks[{tidx}].trim_end_s): must be a positive number")
+                        if (
+                            isinstance(ts_in, (int, float))
+                            and not isinstance(ts_in, bool)
+                            and isinstance(ts_out, (int, float))
+                            and not isinstance(ts_out, bool)
+                            and ts_out <= ts_in
+                        ):
+                            errors.append(
+                                f"shotlist.json (audio.{track_name}.tracks[{tidx}]): trim_end_s ({ts_out}) must exceed trim_start_s ({ts_in})"
+                            )
     elif isinstance(top_audio, list):
         for idx, track_obj in enumerate(top_audio):
             if not isinstance(track_obj, dict):

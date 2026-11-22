@@ -146,7 +146,13 @@ technical or narrative craft:
   (plus `--round-cap` if CLI fallback applies).
 
 ### R4 — Motion Dailies (`0 cr.` Web Unlimited default; `~45–90 cr.` CLI fallback)
-- **Single-flagship-engine & draft-to-final discipline:** Keep one cohesive
+- **Mandatory craft reads & single-flagship-engine discipline:** Before
+  authoring `R4`/`R5` video prompts, read
+  [`video-direction`](../.agents/skills/video-direction/SKILL.md) (and
+  [`video-consistency`](../.agents/skills/video-consistency/SKILL.md) for
+  recurring characters/sets); before executing any declared `sub_flows[]` stage
+  (e.g. `remotion_overlays`), read that sub-flow's owning `SKILL.md` from
+  [Flow Router](flows.md). Keep one cohesive
   video engine across a continuous live-action sequence (avoid mixing 3–4
   disparate engines or starved `mini`/`flash` drafts that produce inconsistent
   color, lens, and bitrate). Route to Web `Unlimited` (`0 cr.`) first — never
@@ -162,7 +168,7 @@ technical or narrative craft:
   `scripts/qa_media.py clip <mp4> --sheet <png> --json` (checking temporal
   stutter/jerk telemetry) and dispatch a **fresh `reviewer-agent`** (never
   self-grade) that watches actual `.mp4` playback via `read_file` and logs via
-  `qa_media.py log-review --qa-report <json>`. Stop with **Dailies 4A**.
+  `qa_media.py log-review --qa-report <json> --sheet <png>`. Stop with **Dailies 4A**.
   *(Skip `R4A` only when zero shots carry `test_take_check` and Director
   approved batch `R4` on Dailies 3.)*
 - **R4B (Batch Draft & Cut):** Shoot remaining unlocked shots (using `batch=2`
@@ -203,7 +209,8 @@ technical or narrative craft:
   `stems/` with optional finishing unification (`LUT`/`GRAIN` or Resolve) and
   post overlays per
   [`video-assembly`](../.agents/skills/video-assembly/SKILL.md), and verify
-  `make qa-render FILE=campaigns/<slug>/media/exports/master.mp4`.
+  `make qa-render FILE=campaigns/<slug>/media/exports/master.mp4 SHEET=campaigns/<slug>/qc/master_sheet.png CROPS=campaigns/<slug>/qc/master_crops.png SLICES_DIR=campaigns/<slug>/qc/verify_slices`
+  (handing the `<= 20s` slices directly to `reviewer-agent` for fast final playback QC).
 - **Final Dailies 5:** `master.mp4` + `stems/` + spend receipt
   (`make budget-status CAMPAIGN=<slug>`) + offer to run `R6` consolidation
   ([`studio-retro`](../.agents/skills/studio-retro/SKILL.md)). On sign-off, mark
