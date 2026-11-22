@@ -30,9 +30,11 @@ Execute pre-Dailies QC in four steps with zero builder rationale (never self-gra
    Read against `Narrative Lock` in `.agents/skills/video-narrative/SKILL.md`),
    temporal stutter/jerk telemetry, cross-cut luma/bitrate checks, and 6-point
    brief/mobile checklist in `.agents/skills/video-qa/SKILL.md`. Hard-`FAIL`
-   out-of-sync lip flapping or wrong-character mouth movement, caption walls
-   (`> 7` words / `> 3.5s` static) or audio-vs-caption mismatches (including
-   meaning-inverting mispronunciations), static `> 8s` single-shot fatigue,
-   warped hands/paws/props, or visible jump-cut bridge seams.
+   visible out-of-sync lip flapping or a non-speaking character accidentally
+   moving its mouth (silent closed-mouth characters under off-screen VO are
+   totally valid!), caption walls (`> 7` words / `> 3.5s` static) or
+   audio-vs-caption mismatches (including meaning-inverting mispronunciations),
+   static `> 8s` single-shot fatigue, warped hands/paws/props, or visible
+   jump-cut bridge seams.
 5. Leave creative picks and `LOCKED` sign-off solely to the Director.
 """

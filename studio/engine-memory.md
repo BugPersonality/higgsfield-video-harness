@@ -49,5 +49,5 @@ Keep under 120 lines; `scripts/check-memory.py` flags `active` rules older than 
   Evidence: `.agents/skills/higgsfield-cli/references/model-selection.md`
 
 - [ENG-11] model=kling3_0 | helpful=2 | harmful=2 | verified=2026-11-22 | status=active
-  `kling3_0 --mode pro --sound off` (`~1.75 cr./s`) is crisp for short (`3–6s`) stylized/2D/3D action and closed-mouth reaction cutaways, but **fails on visible on-camera talking faces** (causes out-of-sync random jaw flapping and wrong-speaker mouth motion) and **drifts past `8s`** (warped paws/hands, crawling background drawings, ear morphs). Route visible talking faces strictly to audio-driven lip-sync (`intone` / Lipsync Studio / native-speech models) and keep I2V beats `3–6s`.
+  `kling3_0 --mode pro --sound off` (`~1.75 cr./s`) works well for short (`3–6s`) stylized 2D/3D/animal action, silent acting under off-screen VO, and reaction cutaways (direct natural closed-mouth expressions so mouths do not flap accidentally), but drifts past `8s` (warped paws/hands, crawling backgrounds, ear morphs) and should not be used for visible on-camera speaking faces where audio-driven lip-sync (`intone` / Lipsync Studio / native-speech models) is needed.
   Evidence: `.agents/skills/higgsfield-cli/references/model-selection.md`
