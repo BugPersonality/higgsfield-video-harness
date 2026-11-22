@@ -57,7 +57,14 @@ technical or narrative craft:
 - **R1B (Blueprint & Quote):** Run `ad-script` (`Narrative Lock`, `Time | Video
   | Audio`, `BUT / THEREFORE` causal spine, read-aloud budget, mute test) →
   `ad-storyboard` (`Narrative Lock`, `Continuity Lock`, per-shot `Narrative job`
-  passing the **Deletion Test**, `test_take_check`) → `style-bible.md`. Commit
+  passing the **Deletion Test**, `test_take_check`) → `style-bible.md`. Enforce
+  the **Shot-Density & Anti-Static-Slideshow Gate**: target **`2.5–5.5s`**
+  average shot duration (`10–18` distinct shots/angles for a `45–60s` Short;
+  `6–10` for a `30s` spot). Even when reusing user-supplied stills (e.g. `4–5`
+  stills for a `60s` script), **never stretch 5 stills into `11–15s` single-shot
+  I2V clips** (long AI clips compound hand/prop/face morphing and kill pacing) —
+  derive complementary reaction close-ups, reverse angles, prop/evidence
+  cutaways, or `4K` 2× punch-ins in `R2B`/`R3` first. Commit
   to one **Production & Prompt
   Architecture** upfront (`Commercial Hybrid` default, `Cinema Spec`, or
   optional `Ultra-Lean Stylized Multi-Shot` — see

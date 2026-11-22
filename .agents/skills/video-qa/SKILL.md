@@ -34,15 +34,16 @@ Shrunk `480px` `3x2` sheets hide 94% of a clip's frames (micro-stutters,
 warping limbs, popping logos, and bad dissolves) as well as halos and face melt.
 Every `R4`/`R5` video review MUST be executed by a **fresh `reviewer-agent`
 lane** (never self-graded by Root Producer) within a **fast bounded budget
-(`<= 12` tool calls, 2–3 parallel `read_file` batches, zero ad-hoc shell/Python
-slicing scripts)** that inspects: (1) `qa_media.py` JSON (`temporal_stutter`,
-`motion_jerk`, `inter_shot_luma_jump`, `bitrate_disparity`), (2) **actual
-`.mp4` playback via `read_file`** on hero clips and pre-sliced `<= 20s`
-`qc/verify_slices/part_*.mp4` master segments, (3) `1:1` `--crops` strips +
-`batch --strict --json` for every `R5` or upscaled handoff, and (4) the
-**6-point brief/mobile audit** (product/place accuracy, zero stray
-logos/garbled lettering, offer/copy accuracy, phone-size readability, safe
-framing, cut-to-cut continuity):
+(`<= 12` tool calls, batching text/JSON/PNGs up to 5–6 per turn and reading
+at most 2 `.mp4` files per turn to avoid context compaction; zero ad-hoc
+shell/Python slicing scripts)** that inspects: (1) `qa_media.py` JSON
+(`temporal_stutter`, `motion_jerk`, `inter_shot_luma_jump`,
+`bitrate_disparity`), (2) **actual `.mp4` playback via `read_file`** on hero
+clips and pre-sliced `<= 20s` `qc/verify_slices/part_*.mp4` master segments,
+(3) `1:1` `--crops` strips + `batch --strict --json` for every `R5` or upscaled
+handoff, and (4) the **6-point brief/mobile audit** (product/place accuracy,
+zero stray logos/garbled lettering, offer/copy accuracy, phone-size
+readability, safe framing, cut-to-cut continuity):
 
 | Observed Signal (JSON or `1:1` `--crops`) | Verdict | Defect Class | `reopen_owner` & Required Action |
 | :--- | :--- | :--- | :--- |
@@ -60,6 +61,9 @@ framing, cut-to-cut continuity):
 | Mid-clip face likeness softens on an otherwise golden acting take | `FAIL` | `VISUAL_DRIFT_DEFECT` | `Root Producer` — rescue surgically via `kling4_0 --mode video-edit` (bound to canonical `R2A` portrait) or Web Face Swap (keep performance) |
 | Cold `R3`/`R4B` Blind Viewer Read triggers `Primary Misread Risk`, or a proof-bearing object fails `0.1s` instant recognition / referent cohesion | `FAIL` | `NARRATIVE_DEFECT` | `Root Producer` / `Worker(<asset_id>)` — replace ambiguous object silhouette or strengthen misread-foreclosing beat before animating ([Narrative Diagnostics](../video-narrative/references/narrative-diagnostics.md#symptom-to-fix-table)) |
 | Shot fails the Deletion Test (zero-delta filler repeating an adjacent beat), breaks `BUT / THEREFORE` causality, over-explains (`2 + 2`), or breaks `Narrative Voice` | `FAIL` / `CONCERNS` | `NARRATIVE_DEFECT` | `Root Producer` — cut filler shot, restore `[PAUSE Ns]` / audio counterpoint, or align copy to `Narrative Lock` ([Narrative Diagnostics](../video-narrative/references/narrative-diagnostics.md#symptom-to-fix-table)) |
+| Out-of-sync lip flapping on visible talking character, or wrong/non-speaking character's mouth moving while another speaks | `FAIL` | `MEDIA_TECH_DEFECT` | `Root Producer` — route talking face to audio-driven lip-sync (`intone` / Lipsync Studio / native-speech engine) or cut to closed-mouth reaction/B-roll (`3–6s`); lock listener's mouth closed in 2-character frames |
+| Subtitle wall (`> 2` short lines / `> 7` words frozen `> 3.5s`), paraphrased captions contradicting spoken audio, or mispronounced VO inverting meaning | `FAIL` | `NARRATIVE_DEFECT` | `Root Producer` — split into verbatim `2–6` word cues turning every `1.0–2.5s` synced to actual audio timestamps; regenerate broken VO line (never ship an inverted joke) |
+| Static `> 8s` single-camera shot causing pacing fatigue, warped hands/paws/held props, crawling background lines, or visible bridge jump-cut seam | `FAIL` | `VISUAL_DRIFT_DEFECT` | `Root Producer` / `Worker(<asset_id>)` — break into `3–6s` cuts/angles/reaction inserts or `4K` 2× punch-ins; never stretch `4–5` stills across `60s` |
 
 ## Four Audit Pillars & Root-Cause Escalation
 

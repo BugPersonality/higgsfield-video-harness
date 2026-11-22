@@ -729,20 +729,27 @@ class TestCheckCampaign(unittest.TestCase):
             self.assertIn("trim_out", errs, msg=res_bad)
             self.assertIn("trim_end_s", errs, msg=res_bad)
 
-            # kling3_0 bridging from .last_frame without canonical refs triggers photocopy-cascade warning
+            # kling3_0 bridging from .last_frame without canonical refs triggers photocopy-cascade warning,
+            # and >8s single-shot I2V triggers long-clip drift warning; trim_out compares prompt against raw duration
             data2 = json.loads((camp / "shotlist.json").read_text(encoding="utf-8"))
             data2["production_track"] = "scratch_cinema"
             data2["sub_flows"] = []
-            data2["shots"][0].pop("edit", None)
+            data2["shots"][0]["edit"] = {"trim_in": 0.0, "trim_out": 5.0}
+            data2["shots"][0]["video"]["final_params"]["duration"] = 9
             data2["audio"]["voiceover"].pop("tracks", None)
             data2["shots"][2]["video"]["model"] = "kling3_0"
             data2["shots"][2]["video"]["is_workflow"] = False
             data2["shots"][2]["video"]["start_image_from"] = "s02.last_frame"
             data2["shots"][2]["video"]["image_references"] = []
+            data2["shots"][2]["duration_s"] = 11
+            data2["target_duration_s"] = 21
             shotlist_path.write_text(json.dumps(data2, indent=2), encoding="utf-8")
             code_k3, res_k3, comb_k3 = self._run(camp)
             self.assertEqual(code_k3, 0, msg=comb_k3)
-            self.assertIn("photocopy", " ".join(res_k3.get("warnings", [])), msg=res_k3)
+            warns_k3 = " ".join(res_k3.get("warnings", []))
+            self.assertIn("photocopy", warns_k3, msg=res_k3)
+            self.assertIn("single-shot I2V duration (11s > 8s)", warns_k3, msg=res_k3)
+            self.assertNotIn("prompt timecodes end at 9s", warns_k3, msg=res_k3)
 
 
 if __name__ == "__main__":
