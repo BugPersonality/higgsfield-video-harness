@@ -28,6 +28,20 @@ def _load_memory_compile():
 _MEMORY_COMPILE = _load_memory_compile()
 
 SLUG_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]*$")
+VALID_TRACKS = (
+    "scratch_cinema",
+    "v2v_one_take",
+    "previz_3d_vfx",
+    "performance_ads",
+    "hybrid_motion_launch",
+    "youtube_and_clipping",
+)
+VALID_SUB_FLOWS = (
+    "remotion_overlays",
+    "vfx_hero_shot",
+    "v2v_rescue_or_recam",
+    "shorts_cutdown",
+)
 
 SUBDIRS = (
     "prompts",
@@ -37,6 +51,7 @@ SUBDIRS = (
     "media/lookbook/characters",
     "media/lookbook/locations",
     "media/lookbook/props",
+    "media/lookbook/outfits",
     "media/stills",
     "media/shots",
     "media/audio",
@@ -44,7 +59,13 @@ SUBDIRS = (
 )
 
 
-def _render_brief_template(slug: str, brand: str | None, has_brand_taste: bool) -> str:
+def _render_brief_template(
+    slug: str,
+    brand: str | None,
+    has_brand_taste: bool,
+    track: str = "scratch_cinema",
+    sub_flows: list[str] | None = None,
+) -> str:
     title = slug.replace("-", " ").replace("_", " ").strip().title()
     if brand:
         brand_lines = f"- **Brand reference:** `brands/{brand}/brand.md`\n"
@@ -54,10 +75,13 @@ def _render_brief_template(slug: str, brand: str | None, has_brand_taste: bool) 
         brand_lines = (
             "- **Brand reference:** <optional path to brands/<name>/brand.md or describe brand truth here>\n"
         )
+    sf_line = f"sub_flows: {', '.join(sub_flows)}\n" if sub_flows else "sub_flows: none\n"
     return (
         f"# Brief: {title}\n"
         "\n"
         "status: draft\n"
+        f"production_track: {track}\n"
+        f"{sf_line}"
         "\n"
         "## Purpose & viewer effect\n"
         "\n"
@@ -117,6 +141,8 @@ def scaffold_campaign(
     *,
     slug: str,
     brand: str | None = None,
+    track: str = "scratch_cinema",
+    sub_flows: list[str] | None = None,
     date_str: str | None = None,
     root: Path | None = None,
 ) -> Path:
@@ -124,6 +150,17 @@ def scaffold_campaign(
         raise ValueError(
             f"invalid slug '{slug}' (use alphanumeric characters, hyphens, and underscores only)"
         )
+    if track not in VALID_TRACKS:
+        raise ValueError(f"invalid --track '{track}' (expected one of {list(VALID_TRACKS)})")
+    cleaned_sf: list[str] = []
+    for sf in sub_flows or []:
+        s = sf.strip()
+        if not s:
+            continue
+        if s not in VALID_SUB_FLOWS:
+            raise ValueError(f"invalid --sub-flows entry '{s}' (expected one of {list(VALID_SUB_FLOWS)})")
+        if s not in cleaned_sf:
+            cleaned_sf.append(s)
 
     if date_str is None:
         resolved_date = datetime.date.today().isoformat()
@@ -155,7 +192,8 @@ def scaffold_campaign(
 
     brief_path = campaign_dir / "brief.md"
     brief_path.write_text(
-        _render_brief_template(slug, brand, has_brand_taste), encoding="utf-8"
+        _render_brief_template(slug, brand, has_brand_taste, track=track, sub_flows=cleaned_sf),
+        encoding="utf-8",
     )
 
     taste_log_path = campaign_dir / "taste-log.md"
@@ -179,6 +217,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--brand",
         default=None,
         help="Optional brand folder name under brands/<name>/.",
+    )
+    parser.add_argument(
+        "--track",
+        default="scratch_cinema",
+        choices=VALID_TRACKS,
+        help="Sticky production_track from docs/flows.md (default: scratch_cinema).",
+    )
+    parser.add_argument(
+        "--sub-flows",
+        default="",
+        help="Optional comma-separated composable sub_flows (e.g. remotion_overlays,shorts_cutdown).",
     )
     parser.add_argument(
         "--date",
@@ -207,6 +256,8 @@ def main(argv: list[str] | None = None) -> int:
         created = scaffold_campaign(
             slug=args.slug,
             brand=args.brand,
+            track=args.track,
+            sub_flows=[s for s in args.sub_flows.split(",") if s.strip()] if args.sub_flows else None,
             date_str=args.date,
             root=Path(args.root) if args.root else None,
         )

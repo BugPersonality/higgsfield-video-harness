@@ -298,6 +298,256 @@ def _analyze_motion(
     }
 
 
+def _analyze_temporal_stutter(
+    ffmpeg: str,
+    video_path: Path,
+    duration: float,
+    fps: float | None,
+) -> dict[str, Any]:
+    """Detect frame-drop/duplicate-frame stutters and sudden single-frame motion jerks at native FPS."""
+    sample_fps = min(24.0, max(12.0, float(fps))) if fps and fps > 0 else 24.0
+    sample_dur = min(duration, 12.0)
+    w, h = 160, 90
+    frame_size = w * h
+    proc = subprocess.run(
+        [
+            ffmpeg,
+            "-v",
+            "error",
+            "-i",
+            str(video_path),
+            "-t",
+            f"{sample_dur:.3f}",
+            "-vf",
+            f"fps={sample_fps:.3f},scale={w}:{h},format=gray",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "gray",
+            "-",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    if proc.returncode != 0 or len(proc.stdout) < frame_size * 4:
+        return {
+            "sampled_fps": round(sample_fps, 2),
+            "sampled_frames": 0,
+            "duplicate_frame_count": 0,
+            "duplicate_frame_ratio": 0.0,
+            "stutter_events": 0,
+            "motion_jerk_spikes": 0,
+        }
+
+    raw = proc.stdout
+    num_frames = len(raw) // frame_size
+    diffs: list[float] = []
+    for idx in range(num_frames - 1):
+        a = raw[idx * frame_size : (idx + 1) * frame_size]
+        b = raw[(idx + 1) * frame_size : (idx + 2) * frame_size]
+        total = sum(abs(x - y) for x, y in zip(a, b))
+        diffs.append(total / frame_size)
+
+    moving_diffs = [d for d in diffs if d >= 0.35]
+    moving_ratio = len(moving_diffs) / max(1, len(diffs))
+    if moving_ratio < 0.35 or len(moving_diffs) < 4:
+        return {
+            "sampled_fps": round(sample_fps, 2),
+            "sampled_frames": num_frames,
+            "duplicate_frame_count": 0,
+            "duplicate_frame_ratio": 0.0,
+            "stutter_events": 0,
+            "motion_jerk_spikes": 0,
+        }
+
+    dup_thresh = 0.12
+    dup_flags = [d < dup_thresh for d in diffs]
+    dup_count = sum(1 for f in dup_flags if f)
+    dup_ratio = round(dup_count / len(diffs), 3)
+
+    # Count mid-clip stutter bursts (>= 2 consecutive duplicate frames flanked by active motion)
+    stutter_events = 0
+    i = 0
+    n = len(dup_flags)
+    while i < n:
+        if dup_flags[i]:
+            j = i
+            while j < n and dup_flags[j]:
+                j += 1
+            has_before = i > 0 and not dup_flags[i - 1]
+            has_after = j < n and not dup_flags[j]
+            if (j - i) >= 2 and has_before and has_after:
+                stutter_events += 1
+            i = j
+        else:
+            i += 1
+
+    sorted_mov = sorted(moving_diffs)
+    med = sorted_mov[len(sorted_mov) // 2]
+    jerk_thresh = max(22.0, med * 4.5)
+    jerk_spikes = sum(1 for d in diffs if d > jerk_thresh)
+
+    return {
+        "sampled_fps": round(sample_fps, 2),
+        "sampled_frames": num_frames,
+        "duplicate_frame_count": dup_count,
+        "duplicate_frame_ratio": dup_ratio,
+        "stutter_events": stutter_events,
+        "motion_jerk_spikes": jerk_spikes,
+    }
+
+
+def _measure_boundary_luma(ffmpeg: str, video_path: Path, duration: float) -> tuple[float | None, float | None]:
+    """Measure mean grayscale luma (0-255) on opening and closing frames for cut-jump detection."""
+    w, h = 160, 90
+    frame_size = w * h
+
+    def _sample_at(ts: float) -> float | None:
+        proc = subprocess.run(
+            [
+                ffmpeg,
+                "-v",
+                "error",
+                "-ss",
+                f"{max(0.0, ts):.3f}",
+                "-i",
+                str(video_path),
+                "-frames:v",
+                "1",
+                "-vf",
+                f"scale={w}:{h},format=gray",
+                "-f",
+                "rawvideo",
+                "-pix_fmt",
+                "gray",
+                "-",
+            ],
+            capture_output=True,
+            check=False,
+        )
+        if proc.returncode != 0 or len(proc.stdout) < frame_size:
+            return None
+        frame = proc.stdout[:frame_size]
+        return round(sum(frame) / frame_size, 2)
+
+    start_luma = _sample_at(min(0.05, duration * 0.1))
+    end_luma = _sample_at(max(0.0, duration - 0.12))
+    return start_luma, end_luma
+
+
+def inspect_pixel_diff(
+    processed_path: Path,
+    plate_path: Path,
+    *,
+    active_windows: list[tuple[float, float]] | None = None,
+    tolerance: float = 3.5,
+    sample_fps: float = 2.0,
+) -> dict[str, Any]:
+    """Verify untouched pass-through frames outside active VFX windows match the source plate."""
+    if not processed_path.is_file():
+        raise FileNotFoundError(f"processed media not found: {processed_path}")
+    if not plate_path.is_file():
+        raise FileNotFoundError(f"source plate not found: {plate_path}")
+    if not math.isfinite(tolerance) or tolerance < 0.0:
+        raise ValueError("--tolerance must be >= 0")
+
+    ffmpeg, ffprobe = _ensure_ffmpeg_tools()
+    p_meta = _ffprobe_json(ffprobe, processed_path)
+    s_meta = _ffprobe_json(ffprobe, plate_path)
+    p_dur = _parse_finite_float((p_meta.get("format") or {}).get("duration")) or 0.0
+    s_dur = _parse_finite_float((s_meta.get("format") or {}).get("duration")) or 0.0
+    dur = min(p_dur, s_dur)
+    if dur <= 0.0:
+        raise RuntimeError("unable to determine overlapping video duration for pixel-diff")
+
+    w, h = 160, 90
+    frame_size = w * h * 3
+
+    def _dump_rgb(path: Path) -> bytes:
+        proc = subprocess.run(
+            [
+                ffmpeg,
+                "-v",
+                "error",
+                "-i",
+                str(path),
+                "-t",
+                f"{dur:.3f}",
+                "-vf",
+                f"fps={sample_fps:.3f},scale={w}:{h},format=rgb24",
+                "-f",
+                "rawvideo",
+                "-pix_fmt",
+                "rgb24",
+                "-",
+            ],
+            capture_output=True,
+            check=False,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"ffmpeg failed reading {path}: {proc.stderr.decode(errors='ignore').strip()}")
+        return proc.stdout
+
+    raw_proc = _dump_rgb(processed_path)
+    raw_plate = _dump_rgb(plate_path)
+    n_frames = min(len(raw_proc), len(raw_plate)) // frame_size
+    if n_frames == 0:
+        raise RuntimeError("no overlapping frames extracted for pixel-diff")
+
+    windows = active_windows or []
+    dt = 1.0 / sample_fps
+    passthrough_diffs: list[tuple[float, float]] = []
+    active_diffs: list[tuple[float, float]] = []
+
+    for idx in range(n_frames):
+        ts = round(idx * dt, 3)
+        a = raw_proc[idx * frame_size : (idx + 1) * frame_size]
+        b = raw_plate[idx * frame_size : (idx + 1) * frame_size]
+        mad = round(sum(abs(x - y) for x, y in zip(a, b)) / frame_size, 3)
+        in_active = any(lo <= ts <= hi for lo, hi in windows)
+        if in_active:
+            active_diffs.append((ts, mad))
+        else:
+            passthrough_diffs.append((ts, mad))
+
+    errors: list[dict[str, Any]] = []
+    max_pt = max((d for _, d in passthrough_diffs), default=0.0)
+    mean_pt = (
+        round(sum(d for _, d in passthrough_diffs) / len(passthrough_diffs), 3)
+        if passthrough_diffs
+        else 0.0
+    )
+    violations = [{"time_s": ts, "mad": d} for ts, d in passthrough_diffs if d > tolerance]
+    if violations:
+        errors.append(
+            {
+                "code": "passthrough_drift",
+                "message": (
+                    f"{len(violations)} untouched pass-through frame(s) drifted from source plate "
+                    f"(max MAD {max_pt} > tolerance {tolerance}; check AE/FFmpeg color management)"
+                ),
+                "max_mad": max_pt,
+                "tolerance": tolerance,
+                "sample_violations": violations[:5],
+            }
+        )
+
+    return {
+        "ok": len(errors) == 0,
+        "command": "pixel-diff",
+        "processed": str(processed_path),
+        "plate": str(plate_path),
+        "sampled_frames": n_frames,
+        "passthrough_frames": len(passthrough_diffs),
+        "active_frames": len(active_diffs),
+        "mean_passthrough_mad": mean_pt,
+        "max_passthrough_mad": max_pt,
+        "tolerance": tolerance,
+        "warnings": [],
+        "errors": errors,
+    }
+
+
 def _measure_volumedetect(ffmpeg: str, media_path: Path) -> dict[str, float | None]:
     proc = subprocess.run(
         [
@@ -799,6 +1049,35 @@ def inspect_clip(
                 }
             )
 
+        if max_still < 60.0 and duration >= 1.5:
+            temporal = _analyze_temporal_stutter(ffmpeg, video_path, duration, fps)
+            motion["temporal"] = temporal
+            if temporal["stutter_events"] >= 2 or temporal["duplicate_frame_ratio"] >= 0.18:
+                warnings.append(
+                    {
+                        "code": "temporal_stutter",
+                        "message": (
+                            f"temporal stutter/duplicate frames detected "
+                            f"(stutter_events={temporal['stutter_events']}, "
+                            f"duplicate_frame_ratio={temporal['duplicate_frame_ratio']}) — "
+                            "inspect actual MP4 playback for micro-freezes/judder"
+                        ),
+                        **temporal,
+                    }
+                )
+            if duration <= 12.0 and temporal["motion_jerk_spikes"] >= 2:
+                warnings.append(
+                    {
+                        "code": "motion_jerk",
+                        "message": (
+                            f"sudden motion jerk spikes detected "
+                            f"(motion_jerk_spikes={temporal['motion_jerk_spikes']}) — "
+                            "inspect actual MP4 playback for teleporting objects or glitches"
+                        ),
+                        **temporal,
+                    }
+                )
+
         if sheet_path is not None:
             _build_contact_sheet(ffmpeg, video_path, duration, sheet_path)
         if crops_path is not None:
@@ -965,6 +1244,11 @@ def inspect_batch(
             if vstream and duration and duration > 0
             else None
         )
+        start_luma, end_luma = (
+            _measure_boundary_luma(ffmpeg, vpath, duration)
+            if vstream and duration and duration > 0
+            else (None, None)
+        )
         clips.append(
             {
                 "path": str(vpath),
@@ -974,6 +1258,8 @@ def inspect_batch(
                 "duration": duration,
                 "video_bitrate_kbps": vbr_kbps,
                 "hf_edge_energy": hf,
+                "start_luma": start_luma,
+                "end_luma": end_luma,
             }
         )
         if not width or not height:
@@ -1084,6 +1370,45 @@ def inspect_batch(
                         ),
                     }
                 )
+
+    # Cross-cut exposure/luma jump & bitrate disparity checks
+    for idx in range(len(clips) - 1):
+        el = clips[idx].get("end_luma")
+        sl = clips[idx + 1].get("start_luma")
+        if el is not None and sl is not None and abs(float(el) - float(sl)) > 95.0:
+            warnings.append(
+                {
+                    "code": "inter_shot_luma_jump",
+                    "from_path": clips[idx]["path"],
+                    "to_path": clips[idx + 1]["path"],
+                    "end_luma": el,
+                    "start_luma": sl,
+                    "delta": round(abs(float(el) - float(sl)), 2),
+                    "message": (
+                        f"cut {idx + 1}->{idx + 2} ({Path(clips[idx]['path']).name} -> "
+                        f"{Path(clips[idx + 1]['path']).name}): harsh exposure/luma jump "
+                        f"({el} -> {sl}, delta={round(abs(float(el) - float(sl)), 1)} > 95); "
+                        "add a visual bridge or per-shot pre-LUT grade match"
+                    ),
+                }
+            )
+    vbr_vals = [float(c["video_bitrate_kbps"]) for c in clips if c.get("video_bitrate_kbps") and float(c["video_bitrate_kbps"]) > 0]
+    if len(vbr_vals) >= 2:
+        min_vbr, max_vbr = min(vbr_vals), max(vbr_vals)
+        if min_vbr > 0 and (max_vbr / min_vbr) > 4.0:
+            warnings.append(
+                {
+                    "code": "bitrate_disparity",
+                    "min_kbps": round(min_vbr, 1),
+                    "max_kbps": round(max_vbr, 1),
+                    "ratio": round(max_vbr / min_vbr, 2),
+                    "message": (
+                        f"severe cross-shot bitrate disparity ({round(min_vbr, 1)} kbps vs "
+                        f"{round(max_vbr, 1)} kbps = {round(max_vbr / min_vbr, 1)}x > 4.0x); "
+                        "avoid mixing starved low-bitrate drafts next to flagship masters"
+                    ),
+                }
+            )
 
     return {
         "ok": len(errors) == 0,
@@ -1852,6 +2177,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
     bt.add_argument("--json", action="store_true", dest="as_json", help="Emit JSON report.")
 
+    # pixel-diff
+    pd = sub.add_parser(
+        "pixel-diff",
+        help="Verify untouched pass-through frames outside active VFX windows match the source plate.",
+    )
+    pd.add_argument("processed", help="Processed/composited video file.")
+    pd.add_argument("--plate", required=True, help="Original source plate video file.")
+    pd.add_argument(
+        "--windows",
+        default="",
+        help="Optional comma-separated active effect windows in seconds (e.g. '2-7,12-17').",
+    )
+    pd.add_argument(
+        "--tolerance",
+        type=float,
+        default=3.5,
+        help="Max allowed mean absolute RGB pixel difference (0-255) on pass-through frames (default: 3.5).",
+    )
+    pd.add_argument("--json", action="store_true", dest="as_json", help="Emit JSON report.")
+
     # log-review
     lr = sub.add_parser(
         "log-review",
@@ -1875,9 +2220,10 @@ def build_parser() -> argparse.ArgumentParser:
     lr.add_argument("--version", type=int, default=1, help="Asset version integer >= 1 (default: 1).")
     lr.add_argument("--reopen-owner", default="none", help="Reopen owner (Worker(<id>), Root Producer, or none).")
     lr.add_argument("--summary", default="", help="Concise factual impact / findings note.")
-    lr.add_argument("--qa-report", default=None, help="Optional path to qa_media.py JSON report.")
+    lr.add_argument("--qa-report", default=None, help="Path to qa_media.py JSON report (required for R4/R5 PASS).")
     lr.add_argument("--sheet", default=None, help="Optional path to inspected contact sheet/grid.")
-    lr.add_argument("--crops", default=None, help="Optional path to inspected 1:1 crop strip.")
+    lr.add_argument("--crops", default=None, help="Path to inspected 1:1 crop strip (required for R5 PASS).")
+    lr.add_argument("--reviewer-id", default=None, help="Optional fresh reviewer-agent conversation/lane ID.")
     lr.add_argument("--json", action="store_true", dest="as_json", help="Emit JSON confirmation.")
 
     return parser
@@ -1908,6 +2254,7 @@ def append_review_log(
     qa_report: str | None = None,
     sheet: str | None = None,
     crops: str | None = None,
+    reviewer_id: str | None = None,
 ) -> dict[str, Any]:
     """Validate and atomically append a structured Visual Critic review event to qc/review-log.jsonl."""
     if not campaign_dir.is_dir():
@@ -1921,6 +2268,28 @@ def append_review_log(
     asset_clean = asset_id.strip()
     if not asset_clean:
         raise ValueError("--asset must be non-empty")
+
+    # Fail-closed proof gate: R4/R5 PASS requires an existing qa_media.py report; R5 PASS also requires 1:1 crops.
+    def _resolve_proof(raw_p: str | None) -> Path | None:
+        if not raw_p or not raw_p.strip():
+            return None
+        p = Path(raw_p.strip())
+        if p.is_file():
+            return p
+        if not p.is_absolute() and (campaign_dir / p).is_file():
+            return campaign_dir / p
+        return None
+
+    if verdict == "PASS" and round_name in ("R4", "R4A", "R4B", "R5"):
+        if _resolve_proof(qa_report) is None:
+            raise ValueError(
+                f"REVIEW_HANDOFF_INVALID: {round_name} PASS requires --qa-report pointing to an existing qa_media.py JSON file"
+            )
+    if verdict == "PASS" and round_name == "R5":
+        if _resolve_proof(crops) is None:
+            raise ValueError(
+                "REVIEW_HANDOFF_INVALID: R5 PASS requires --crops pointing to an existing 1:1 native crop strip PNG"
+            )
 
     resolved_defect = defect_class
     if resolved_defect is None:
@@ -1940,7 +2309,7 @@ def append_review_log(
 
     qc_dir = campaign_dir / "qc"
     log_path = qc_dir / "review-log.jsonl"
-    record = {
+    record: dict[str, Any] = {
         "ts": (
             datetime.datetime.now(datetime.UTC)
             .replace(microsecond=0)
@@ -1958,6 +2327,8 @@ def append_review_log(
         "sheet": sheet,
         "crops": crops,
     }
+    if reviewer_id and reviewer_id.strip():
+        record["reviewer_id"] = reviewer_id.strip()
 
     with _review_log_lock(qc_dir):
         if log_path.is_file():
@@ -1986,6 +2357,41 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
+    if args.command == "pixel-diff":
+        windows: list[tuple[float, float]] = []
+        raw_win = (args.windows or "").strip()
+        try:
+            if raw_win:
+                for token in raw_win.split(","):
+                    t = token.strip()
+                    if not t:
+                        continue
+                    lo_s, sep, hi_s = t.partition("-")
+                    if not sep:
+                        raise ValueError(f"invalid window {t!r}; expected start-end seconds")
+                    lo_f, hi_f = float(lo_s), float(hi_s)
+                    if not (math.isfinite(lo_f) and math.isfinite(hi_f)) or hi_f < lo_f:
+                        raise ValueError(f"invalid window bounds {t!r}")
+                    windows.append((lo_f, hi_f))
+            report = inspect_pixel_diff(
+                Path(args.processed),
+                Path(args.plate),
+                active_windows=windows,
+                tolerance=args.tolerance,
+            )
+        except (FileNotFoundError, ValueError, RuntimeError) as exc:
+            if args.as_json:
+                print(json.dumps({"ok": False, "error": str(exc)}, indent=2))
+            else:
+                print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
+
+        if args.as_json:
+            print(json.dumps(report, indent=2, ensure_ascii=False))
+        else:
+            _print_human(report)
+        return 0 if report["ok"] else 1
+
     if args.command == "log-review":
         try:
             report = append_review_log(
@@ -2000,6 +2406,7 @@ def main(argv: list[str] | None = None) -> int:
                 qa_report=args.qa_report,
                 sheet=args.sheet,
                 crops=args.crops,
+                reviewer_id=args.reviewer_id,
             )
         except (FileNotFoundError, ValueError, RuntimeError) as exc:
             if args.as_json:

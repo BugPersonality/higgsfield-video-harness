@@ -664,6 +664,69 @@ class TestCheckCampaign(unittest.TestCase):
             self.assertIn("narrative_job", errs, msg=data_bad)
             self.assertIn("beat_function", errs, msg=data_bad)
 
+    def test_validates_production_track_outfit_edit_prompt_timing_and_receipt_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            camp = _copy_campaign_fixture(Path(tmp))
+            shotlist_path = camp / "shotlist.json"
+            data = json.loads(shotlist_path.read_text(encoding="utf-8"))
+
+            # Valid production_track, sub_flows, lookbook outfit kind, and shot edit spec pass cleanly
+            data["production_track"] = "scratch_cinema"
+            data["sub_flows"] = ["remotion_overlays", "shorts_cutdown"]
+            data["lookbook"].append(
+                {
+                    "id": "lb_traveler_coat",
+                    "kind": "outfit",
+                    "title": "Flat-lay matte charcoal wool overcoat",
+                    "model": "seedream_v5_pro",
+                    "prompt_file": "prompts/lb_traveler_v1.txt",
+                    "variants_requested": 1,
+                    "status": "LOCKED",
+                    "version": 1,
+                    "approved_variant": "A",
+                    "approved_take": None,
+                    "approved_upload_id": None,
+                    "estimated_credits": 2.5,
+                }
+            )
+            data["shots"][0]["edit"] = {
+                "trim_in": 0.5,
+                "trim_out": 4.0,
+                "crop_4k_punchin": "center_2x",
+                "grade": {"brightness": -0.02, "saturation": 0.96},
+                "fade_out_black_s": 0.5,
+            }
+            shotlist_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+            # Prompt timecodes exceeding shot duration_s=5s trigger advisory warning
+            (camp / "prompts" / "s01_video_v1.txt").write_text(
+                "0-4s: Slow dolly in.\n4-9s: Hand opens clasp.\nNO MUSIC. NO BACKGROUND SCORE. Native diegetic sound only.\n",
+                encoding="utf-8",
+            )
+            # Receipt model mismatch triggers advisory reconciliation warning
+            (camp / "receipts.jsonl").write_text(
+                json.dumps({"shot": "s01", "kind": "video", "status": "completed", "model": "veo3_1"}) + "\n",
+                encoding="utf-8",
+            )
+            code, res, comb = self._run(camp)
+            self.assertEqual(code, 0, msg=comb)
+            warns = " ".join(res.get("warnings", []))
+            self.assertIn("prompt timecodes end at 9s", warns, msg=res)
+            self.assertIn("differs from latest completed receipt model 'veo3_1'", warns, msg=res)
+
+            # Invalid production_track, invalid sub_flows, and invalid edit.trim_out <= trim_in fail
+            data["production_track"] = "invalid_track"
+            data["sub_flows"] = ["bogus_sub_flow"]
+            data["shots"][0]["edit"]["trim_in"] = 4.0
+            data["shots"][0]["edit"]["trim_out"] = 2.0
+            shotlist_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            code_bad, res_bad, _ = self._run(camp)
+            self.assertEqual(code_bad, 1, msg=res_bad)
+            errs = " ".join(res_bad.get("errors", []))
+            self.assertIn("production_track", errs, msg=res_bad)
+            self.assertIn("sub_flows", errs, msg=res_bad)
+            self.assertIn("trim_out", errs, msg=res_bad)
+
 
 if __name__ == "__main__":
     unittest.main()

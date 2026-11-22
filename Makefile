@@ -8,7 +8,7 @@ SHELL_FILES := $(wildcard scripts/*.sh)
 
 .PHONY: help check test shellcheck docs-check check-instructions memory-lint \
 	brief-check campaign-check campaign-init memory-compile retro-harvest memory-search \
-	lookbook slice-grid qa-clip qa-batch qa-voice qa-render \
+	lookbook slice-grid qa-clip qa-batch qa-voice qa-render qa-pixel-diff \
 	assemble animatic budget-status
 
 help: ## List available commands
@@ -55,9 +55,9 @@ campaign-check: ## Verify brief.md + taste-log.md + shotlist.json invariants & s
 	@test -n "$(CAMPAIGN)" || { echo "campaign-check requires CAMPAIGN=<slug|path>" >&2; exit 2; }
 	$(PYTHON) scripts/check-campaign.py "$(if $(wildcard $(CAMPAIGN)/shotlist.json),$(CAMPAIGN),$(if $(wildcard campaigns/$(CAMPAIGN)/shotlist.json),campaigns/$(CAMPAIGN),$(CAMPAIGN)))"
 
-campaign-init: ## Scaffold a new campaign folder with brief.md + taste-log.md (SLUG=<name> [BRAND=<brand>])
+campaign-init: ## Scaffold a new campaign folder with brief.md + taste-log.md (SLUG=<name> [BRAND=<brand>] [TRACK=<track>] [SUB_FLOWS=a,b])
 	@test -n "$(SLUG)" || { echo "campaign-init requires SLUG=<name>" >&2; exit 2; }
-	$(PYTHON) scripts/campaign_init.py --slug "$(SLUG)" $(if $(BRAND),--brand "$(BRAND)")
+	$(PYTHON) scripts/campaign_init.py --slug "$(SLUG)" $(if $(BRAND),--brand "$(BRAND)") $(if $(TRACK),--track "$(TRACK)") $(if $(SUB_FLOWS),--sub-flows "$(SUB_FLOWS)")
 
 budget-status: ## Show spent vs remaining Campaign cap and per-round spend (CAMPAIGN=<slug|path>)
 	@test -n "$(CAMPAIGN)" || { echo "budget-status requires CAMPAIGN=<slug|path>" >&2; exit 2; }
@@ -87,7 +87,11 @@ qa-render: ## Validate final assembled render loudness, black/frozen frames, she
 	@test -n "$(FILE)" || { echo "qa-render requires FILE=<path.mp4>" >&2; exit 2; }
 	$(PYTHON) scripts/qa_media.py render "$(FILE)" $(if $(SHEET),--sheet "$(SHEET)") $(if $(CROPS),--crops "$(CROPS)") $(if $(CROP_FOCUS),--crop-focus "$(CROP_FOCUS)")
 
-assemble: ## Assemble selected takes from CAMPAIGN=<slug|path> into master.mp4 + stems/ (optional LUT=<.cube> GRAIN=<1..20>)
+qa-pixel-diff: ## Verify untouched pass-through frames match source plate (FILE=<processed.mp4> PLATE=<source.mp4> [WINDOWS=2-7,12-17] [TOL=3.5])
+	@test -n "$(FILE)" && test -n "$(PLATE)" || { echo "qa-pixel-diff requires FILE=<processed.mp4> PLATE=<source.mp4>" >&2; exit 2; }
+	$(PYTHON) scripts/qa_media.py pixel-diff "$(FILE)" --plate "$(PLATE)" $(if $(WINDOWS),--windows "$(WINDOWS)") $(if $(TOL),--tolerance "$(TOL)")
+
+assemble: ## Assemble selected takes from CAMPAIGN=<slug|path> into master.mp4 + stems/ (optional LUT=<.cube> GRAIN=<1..20> OVERLAY=<mov> DUCK_MUSIC=1 BPM=<N>)
 	@test -n "$(CAMPAIGN)" || { echo "assemble requires CAMPAIGN=<slug|path>" >&2; exit 2; }
 	@cdir="$(if $(wildcard $(CAMPAIGN)/shotlist.json),$(CAMPAIGN),$(if $(wildcard campaigns/$(CAMPAIGN)/shotlist.json),campaigns/$(CAMPAIGN),$(CAMPAIGN)))"; \
 	bash scripts/assemble.sh --campaign "$$cdir" --manifest "$$cdir/shotlist.json" \
@@ -96,7 +100,10 @@ assemble: ## Assemble selected takes from CAMPAIGN=<slug|path> into master.mp4 +
 		$(if $(MUSIC),--music "$(MUSIC)") \
 		$(if $(VO),--vo "$(VO)") \
 		$(if $(LUT),--lut "$(LUT)") \
-		$(if $(GRAIN),--grain "$(GRAIN)")
+		$(if $(GRAIN),--grain "$(GRAIN)") \
+		$(if $(OVERLAY),--overlay "$(OVERLAY)") \
+		$(if $(BPM),--bpm "$(BPM)") \
+		$(if $(DUCK_MUSIC),--duck-music)
 
 animatic: ## Build a zero-video-credit still animatic from approved stills in CAMPAIGN=<slug|path>
 	@test -n "$(CAMPAIGN)" || { echo "animatic requires CAMPAIGN=<slug|path>" >&2; exit 2; }

@@ -34,10 +34,10 @@
   unlocking requires explicit Director approval and a Root Producer edit in
   `shotlist.json` (`LOCKED` → `ITERATING`).
 - **Internal QC filters noise; the Director judges taste.** Fresh read-only
-  `reviewer-agent` lanes (fresh context, vision inspection) filter technical
-  defects, continuity breaks, `TASTE_REGRESSION`s, and `NARRATIVE_DEFECT`s
-  (Blind Viewer Read against `Narrative Lock`) before Dailies; creative
-  selection belongs solely to the Director.
+  `reviewer-agent` lanes (never self-graded) inspect `.mp4` playback,
+  `qa_media.py` JSON, `3x2` sheets, and `R5` `1:1` `--crops` to filter stutters,
+  continuity breaks, `TASTE_REGRESSION`s, and `NARRATIVE_DEFECT`s (Blind Viewer
+  Read against `Narrative Lock`) before Dailies; creative selection is Director-only.
 - **Live schemas, probed media, and receipts are truth.** Follow live
   `higgsfield` CLI schemas, `ffprobe`/`scripts/qa_media.py`, `receipts.jsonl`,
   and `Makefile` over stale prose; update stale prose in writable scope.
@@ -76,7 +76,8 @@
 Load a target only when its branch triggers (route through the owning `SKILL.md`
 first; each skill links its deep `references/`):
 
-- Multi-shot video, commercial, or branded spot → [Workflow](docs/workflow.md) (`R0`–`R6`, Dailies Packet, Taste Memory, surgical re-rolls, budget & lock invariants).
+- Automatic flow selection (scratch commercial, live-action V2V rewrite, 3D/VFX previz, performance ads, hybrid launch/motion graphics, YouTube/clipping) → [Flow Router](docs/flows.md) (`production_track` auto-detection & track skill routing).
+- Multi-shot video, commercial, or branded spot → [Workflow](docs/workflow.md) (`R0`–`R6`, mandatory real-photo grounding, Dailies Packet, Taste Memory, surgical re-rolls, budget & lock invariants).
 - Studio long-term memory (Director prefs, ACE model memory, SIM evolution log) → [`studio/director.md`](studio/director.md), [`studio/engine-memory.md`](studio/engine-memory.md), [`studio/evolution-log.md`](studio/evolution-log.md).
 - Isolated single deliverable (schema check, harness edit, local QA/assembly, or one confirmed test asset after live `generate cost`) → execute directly without a campaign folder; escalate to [Workflow](docs/workflow.md) once shots or rounds coordinate.
 - Subagents, parallel workers, Visual Critic, or retry/timeout recovery → [Delegation](docs/delegation.md).

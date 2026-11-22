@@ -33,5 +33,17 @@ Keep under 120 lines; `scripts/check-memory.py` flags `active` rules older than 
   Evidence: `.agents/skills/higgsfield-cli/references/model-selection.md`
 
 - [ENG-07] model=remotion_prores4444_endcard | helpful=2 | harmful=0 | verified=2026-11-20 | status=active
-  Export transparent brand wordmark/endcards as `1080p` ProRes 4444 (`yuva444p10le`) and composite them **after** creative 3D LUT grading so exact brand colors and typography never shift.
+  Export transparent brand wordmark/endcards as `1080p` ProRes 4444 (`yuva444p10le`) and composite them **after** creative 3D LUT grading (`assemble.sh --overlay`) so exact brand colors and typography never shift.
   Evidence: `.agents/skills/video-assembly/SKILL.md`
+
+- [ENG-08] model=seedance_2_5 | helpful=5 | harmful=0 | verified=2026-11-22 | status=active
+  Latent `480p` drafting (`--draft true`, ~3 cr./s) escalated natively via `--draft_job_id` to `1080p`/`4k` cuts multi-take iteration spend ~64% without pixel-upscale halos; native `4k` also enables clean 2x `1080p` punch-in crops via `assemble.sh`.
+  Evidence: `.agents/skills/higgsfield-cli/references/model-selection.md`
+
+- [ENG-09] model=seedance_2_0_mini | helpful=0 | harmful=3 | verified=2026-11-22 | status=active
+  Mixing economy `mini`/`flash` video drafts (`seedance_2_0_mini`, `kling_4_0_flash`) or disparate engines (`veo3_1_lite` 2.7 Mbps next to `veo3_1` 61 Mbps) on flagship live-action commercials causes severe AI sheen, physics warp, and cross-cut bitrate disparity; stick to one flagship engine per live-action block.
+  Evidence: `.agents/skills/higgsfield-cli/references/model-selection.md`
+
+- [ENG-10] model=flux_3_image | helpful=3 | harmful=0 | verified=2026-11-22 | status=active
+  Paired with uploaded real location reference photographs in `R0`/`R3`, `flux_3_image` and `seedream_5_5` eliminate postcard HDR sheen and hold authentic unretouched 35mm documentary color science on live-action scenes.
+  Evidence: `.agents/skills/higgsfield-cli/references/model-selection.md`

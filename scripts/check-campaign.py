@@ -17,7 +17,29 @@ from typing import Any
 
 VALID_ASSET_STATUSES = ("DRAFT", "IN_REVIEW", "ITERATING", "LOCKED")
 VALID_ASSET_STATUS_SET = frozenset(VALID_ASSET_STATUSES)
-VALID_LOOKBOOK_KINDS = frozenset({"character", "object", "location"})
+VALID_LOOKBOOK_KINDS = frozenset({"character", "object", "location", "outfit"})
+VALID_PRODUCTION_TRACKS = frozenset(
+    {
+        "scratch_cinema",
+        "v2v_one_take",
+        "previz_3d_vfx",
+        "performance_ads",
+        "hybrid_motion_launch",
+        "youtube_and_clipping",
+    }
+)
+VALID_SUB_FLOWS = frozenset(
+    {
+        "remotion_overlays",
+        "vfx_hero_shot",
+        "v2v_rescue_or_recam",
+        "shorts_cutdown",
+    }
+)
+PROMPT_TIME_RANGE_RE = re.compile(
+    r"(?<!\d)(\d+(?:\.\d+)?)\s*[-–—]\s*(\d+(?:\.\d+)?)\s*s\b",
+    re.IGNORECASE,
+)
 VALID_BEAT_FUNCTIONS = frozenset(
     {
         "hook",
@@ -204,6 +226,26 @@ def _validate_shotlist(
         errors.append(
             f"shotlist.json: schema_version must be 1, got {data.get('schema_version')!r}"
         )
+
+    raw_track = data.get("production_track")
+    if raw_track is not None:
+        if not isinstance(raw_track, str) or raw_track not in VALID_PRODUCTION_TRACKS:
+            errors.append(
+                f"shotlist.json: invalid production_track {raw_track!r} "
+                f"(expected one of {sorted(VALID_PRODUCTION_TRACKS)})"
+            )
+
+    raw_sub_flows = data.get("sub_flows")
+    if raw_sub_flows is not None:
+        if not isinstance(raw_sub_flows, list):
+            errors.append("shotlist.json: 'sub_flows' must be a list of valid sub-flow IDs")
+        else:
+            for sf in raw_sub_flows:
+                if not isinstance(sf, str) or sf not in VALID_SUB_FLOWS:
+                    errors.append(
+                        f"shotlist.json: invalid sub_flows entry {sf!r} "
+                        f"(expected one of {sorted(VALID_SUB_FLOWS)})"
+                    )
 
     def _check_prompt_file(val: Any, ctx: str) -> None:
         if val is None:
@@ -840,6 +882,44 @@ def _validate_shotlist(
                 )
             _check_prompt_file(shot_audio.get("prompt_file"), f"shot {sid}.audio")
 
+        # Validate optional per-shot edit spec (trim_in, trim_out, crop_4k_punchin, grade, fade_out_black_s)
+        edit_cfg = shot.get("edit")
+        if edit_cfg is not None:
+            if not isinstance(edit_cfg, dict):
+                errors.append(f"shotlist.json (shot {sid}.edit): must be a JSON object")
+            else:
+                ti = edit_cfg.get("trim_in")
+                to = edit_cfg.get("trim_out")
+                if ti is not None and (isinstance(ti, bool) or not isinstance(ti, (int, float)) or ti < 0):
+                    errors.append(f"shotlist.json (shot {sid}.edit.trim_in): must be a number >= 0")
+                if to is not None and (isinstance(to, bool) or not isinstance(to, (int, float)) or to <= 0):
+                    errors.append(f"shotlist.json (shot {sid}.edit.trim_out): must be a positive number")
+                if isinstance(ti, (int, float)) and not isinstance(ti, bool) and isinstance(to, (int, float)) and not isinstance(to, bool) and to <= ti:
+                    errors.append(f"shotlist.json (shot {sid}.edit): trim_out ({to}) must exceed trim_in ({ti})")
+                fo = edit_cfg.get("fade_out_black_s")
+                if fo is not None and (isinstance(fo, bool) or not isinstance(fo, (int, float)) or fo <= 0 or fo > 2.0):
+                    errors.append(f"shotlist.json (shot {sid}.edit.fade_out_black_s): must be in (0, 2.0]")
+
+        # Prompt timing validator for timecoded multi-beat video prompts
+        if isinstance(video, dict) and isinstance(video.get("prompt_file"), str) and video["prompt_file"].strip():
+            pf = Path(video["prompt_file"].strip())
+            resolved_pf = pf if pf.is_absolute() else (campaign_dir / pf if (campaign_dir / pf).is_file() else repo_root / pf)
+            shot_dur = shot.get("duration_s")
+            if resolved_pf.is_file() and isinstance(shot_dur, (int, float)) and not isinstance(shot_dur, bool) and shot_dur > 0:
+                try:
+                    ptxt = resolved_pf.read_text(encoding="utf-8", errors="ignore")
+                    ranges = [(float(m.group(1)), float(m.group(2))) for m in PROMPT_TIME_RANGE_RE.finditer(ptxt)]
+                    valid_ranges = [(a, b) for a, b in ranges if b > a]
+                    if len(valid_ranges) >= 2:
+                        max_end = max(b for _, b in valid_ranges)
+                        if abs(max_end - float(shot_dur)) > 0.5:
+                            warnings.append(
+                                f"shotlist.json (shot {sid}.video): prompt timecodes end at {max_end:g}s "
+                                f"but shot duration_s={float(shot_dur):g}s (delta > 0.5s)"
+                            )
+                except OSError:
+                    pass
+
     # Duration check against target_duration_s (±0.5s)
     target_dur = data.get("target_duration_s")
     if target_dur is not None:
@@ -1058,6 +1138,60 @@ def validate_campaign(
     sl = _validate_shotlist(
         shotlist_path, campaign_dir, repo_root, campaign_cap, errors, warnings
     )
+
+    # 4. Receipt reconciliation check (detect shotlist.json vs receipts.jsonl model drift)
+    receipts_path = campaign_dir / "receipts.jsonl"
+    if receipts_path.is_file():
+        try:
+            sl_data = json.loads(shotlist_path.read_text(encoding="utf-8"))
+            latest_vid_model: dict[str, str] = {}
+            for line in receipts_path.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                rec = json.loads(line)
+                if (
+                    isinstance(rec, dict)
+                    and rec.get("kind") == "video"
+                    and rec.get("status") in ("ok", "completed", "succeeded")
+                    and rec.get("shot")
+                    and rec.get("model")
+                ):
+                    latest_vid_model[str(rec["shot"])] = str(rec["model"])
+            for shot in sl_data.get("shots") or []:
+                if not isinstance(shot, dict):
+                    continue
+                sid = str(shot.get("id") or "")
+                vobj = shot.get("video")
+                if sid in latest_vid_model and isinstance(vobj, dict) and vobj.get("model"):
+                    if str(vobj["model"]) != latest_vid_model[sid]:
+                        warnings.append(
+                            f"shotlist.json (shot {sid}.video): manifest model '{vobj['model']}' differs "
+                            f"from latest completed receipt model '{latest_vid_model[sid]}'; reconcile manifest"
+                        )
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    # 5. R0 real-world visual grounding check (external brand/site URL with zero visual references)
+    if brief_path.is_file():
+        try:
+            btext = brief_path.read_text(encoding="utf-8", errors="ignore")
+            ext_urls = [
+                u for u in re.findall(r"https?://[^\s)>\"']+", btext)
+                if "higgsfield.ai" not in u.lower()
+            ]
+            sl_data = json.loads(shotlist_path.read_text(encoding="utf-8"))
+            has_refs = bool(sl_data.get("references"))
+            ref_dir = campaign_dir / "media" / "references"
+            has_ref_files = ref_dir.is_dir() and any(
+                p.is_file() and not p.name.startswith(".") for p in ref_dir.iterdir()
+            )
+            if ext_urls and not has_refs and not has_ref_files:
+                warnings.append(
+                    "R0 visual grounding: brief.md cites an external brand/site URL but no visual references "
+                    "are registered in shotlist.json or media/references/; capture real reference photos before R2"
+                )
+        except (OSError, json.JSONDecodeError):
+            pass
 
     return {
         "ok": len(errors) == 0,

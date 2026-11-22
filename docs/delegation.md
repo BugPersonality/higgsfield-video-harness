@@ -36,20 +36,25 @@ agent harness; reserve thread slots for Visual Critic QC and recovery):
   `version` bumps, scope changes, or independent QC runs.
 - **Vision & tool boundaries:** inspect `lookbook.png`, stills, `3x2` contact
   sheets, and `R5`/upscale `1:1` `--crops` strips via `view_image` (or your
-  harness's native image-reading tool); run `open <artifact>` on macOS before
-  posting Dailies when `Auto-open dailies: true`. Run all paid campaign jobs
-  through `hf_guard.py` on `higgsfield` CLI, keeping MCP read-only.
+  harness's native image-reading tool), **and watch actual `.mp4` playback via
+  `read_file` on video clips and assembled cuts** so temporal stutters and
+  artifacts are never missed; run `open <artifact>` on macOS before posting
+  Dailies when `Auto-open dailies: true`. Run all paid campaign jobs through
+  `hf_guard.py` on `higgsfield` CLI, keeping MCP read-only.
 
 ## Pre-Dailies Visual Critic
 
 Before assembling any Dailies Packet for generated media (`R2`–`R5`), spawn a
-fresh read-only `reviewer-agent` (`fork_turns: "none"`) with primary inputs only
-(`brief.md`, compiled `taste-active.md` or `taste-log.md`, `shotlist.json`,
-`qa_media.py --json` reports, reference photos, and
-`lookbook.png`/stills/`3x2` contact sheets—plus `1:1` unscaled `--crops` strips
-and `qa_media.py batch --strict --json` for `R5` masters and upscaled clips—via
-vision inspection)—zero builder rationale. Log every returned `#review-result`
-via `scripts/qa_media.py log-review` so `R6` (`studio-retro`) can mine real
+fresh read-only `reviewer-agent` (`fork_turns: "none"`) — **never self-grade
+inside the Root Producer turn** — with primary inputs only (`brief.md`,
+compiled `taste-active.md` or `taste-log.md`, `shotlist.json`, `qa_media.py
+--json` reports including temporal stutter/jerk and cross-cut luma/bitrate
+metrics, reference photos, `lookbook.png`/stills/`3x2` contact sheets, actual
+`.mp4` video clips via `read_file`, plus `1:1` unscaled `--crops` strips and
+`qa_media.py batch --strict --json` for `R5` masters) — zero builder rationale.
+Log every returned `#review-result` via `scripts/qa_media.py log-review`
+(passing `--qa-report`, `--crops` for `R5`, and `--reviewer-id`; `R4`/`R5`
+`PASS` fails closed without proof files) so `R6` (`studio-retro`) can mine real
 defect patterns.
 
 - **Filter defects, leave taste to the Director:** score strictly with the

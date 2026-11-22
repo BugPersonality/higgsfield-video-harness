@@ -202,6 +202,59 @@ Default to **one dominant camera move per shot** and specify `Locked-off static 
 **4-part motivated lighting formula** (replaces *"cinematic lighting"*):
 `<quality: soft diffused | crisp directional | dappled>` + `<temperature: cool 5200K daylight | warm 3200K tungsten>` + `<source: tall window | overcast sky | table lamp>` + `<direction: from camera-left | backlit rim | overhead practical>`.
 
+## Reference Authority, Acting Tasks & Invariant Locks (`v2` Upgrades)
+
+When generating complex multi-ref or multi-shot scenes (`Seedance 2.5`,
+`kling4_0`, `Genjutsu`), enforce these five field-proven prompt blocks:
+
+1. **Reference Authority & Exclusions (`TAKE ONLY / DON'T TAKE / OVERRIDES`):**
+   Never assume the model knows what to ignore from a reference image or video.
+   Explicitly scope every input:
+   - Character sheet: `"@Image1 defines face, hair, and build ONLY. Do NOT inherit its studio backdrop, neutral lighting, sheet dividers, or static reference pose."`
+   - Location plate: `"@Image2 defines architecture and geography ONLY — NOT a first frame or composition keyframe."`
+   - Local repair override: `"@Image3 overrides @Image2 ONLY for the close-up control panel at 21.25–22.00s."`
+   - Video authority: `"Wherever this text and @Video1 disagree about timing, lips, or camera path, @Video1 wins."`
+2. **Stanislavski `ACTING TASK` + Essential Speaker Ownership:** Replace flat
+   adjectives (*"looks nervous"*) with playable subtext:
+   - `SCENE DIRECTION (unspoken)` / `MOTIVE` / `GOAL` / `OBSTACLE` / `TACTIC`
+     (e.g., *"checks the interviewer's eyes just right of lens every few words
+     to test whether he is believed; eyes drift briefly when searching for a
+     word"*).
+   - **Eye/Gaze Realism Safety:** `"Looks are made with the head; pupils stay
+     centered within 1–2° of eye openings, never pushed into eye corners."`
+   - **Essential Speaker Ownership:** Assign every spoken line to one visible
+     mouth + timestamp and explicitly specify `"relaxed resting lips"` for
+     non-speaking listeners so silent extras never mouth dialogue.
+3. **Deterministic Invariant Counters, `PICK-UP` / `LEAVES` & `FAILURE` Block:**
+   - **Exact counts:** `"Count of into-lens gazes: zero. People: exactly two.
+     Hero vehicles: exactly one. Brand logos on gear: zero."`
+   - **Action handoffs (2–3s choreography):** Declare `PICK-UP:` (incoming
+     state) and `LEAVES:` / `End state at Xs:` on each beat so multi-shot cuts
+     stay causally unbroken; re-cover choreography from new angles via
+     `@video_1` (`RE-COVERAGE`) and finish tails with `Forward Extend`.
+   - **Iterative `FAILURE / REJECT CRITERIA` block (`v2+`):** On retries,
+     accumulate observed defects from failed takes at the bottom of the prompt
+     alongside `CRITICAL CORRECTION` so solved bugs never regress.
+4. **Dual Aesthetic Modes (`Photochemical 35mm` vs. `Neutral Digital Realism`):**
+   - Use the **Photochemical 35mm** Lookblock (`Kodak Vision3 250D`) for warm
+     narrative/documentary cinema.
+   - Use the **Neutral Digital Realism Mandate** for modern commercial, tech,
+     UGC, and clean e-com spots: `"MANDATORY color rendering: clean modern
+     digital photography with NEUTRAL white balance and true-to-life colors. No
+     sepia, no warm amber cast, no vintage filter, no film grain, no LUT look.
+     Whites read as clean white, greys as neutral grey."`
+   - **White-in-Tone-Not-Exposure & Dual-Speed Contrast:** Describe bright
+     white objects/teeth as `"perfect white in tone, not in exposure (no glow,
+     bloom, or clipped highlights)"`. For high-fashion pacing, use
+     `"people move at 0.5x slow motion while camera moves at 1x real-time."`
+5. **On-Screen Text & Background Text Discipline:**
+   - For busy streets/offices, specify `"License plates, signs, and papers carry
+     no legible lettering"` to prevent AI gibberish.
+   - When a model must render exact on-screen text (`marketing_studio_video` /
+     `minimax_h3` / static ads), add a **`TEXT LOCK`** block listing every
+     exact quoted string in order, locking one font, and forbidding translation,
+     paraphrasing, watermarks, or captions.
+
 ## Anti-IP Decomposition and Phonetic VO Rewrites
 
 - **Anti-IP:** Decompose titles, franchises, directors, and third-party brands into materials, geometry, and light:
