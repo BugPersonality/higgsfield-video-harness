@@ -714,11 +714,12 @@ class TestCheckCampaign(unittest.TestCase):
             self.assertIn("prompt timecodes end at 9s", warns, msg=res)
             self.assertIn("differs from latest completed receipt model 'veo3_1'", warns, msg=res)
 
-            # Invalid production_track, invalid sub_flows, and invalid edit.trim_out <= trim_in fail
+            # Invalid production_track, invalid sub_flows, invalid edit.trim_out <= trim_in, and invalid VO track trim fail
             data["production_track"] = "invalid_track"
             data["sub_flows"] = ["bogus_sub_flow"]
             data["shots"][0]["edit"]["trim_in"] = 4.0
             data["shots"][0]["edit"]["trim_out"] = 2.0
+            data["audio"]["voiceover"]["tracks"] = [{"trim_start_s": 2.0, "trim_end_s": 1.0}]
             shotlist_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
             code_bad, res_bad, _ = self._run(camp)
             self.assertEqual(code_bad, 1, msg=res_bad)
@@ -726,6 +727,22 @@ class TestCheckCampaign(unittest.TestCase):
             self.assertIn("production_track", errs, msg=res_bad)
             self.assertIn("sub_flows", errs, msg=res_bad)
             self.assertIn("trim_out", errs, msg=res_bad)
+            self.assertIn("trim_end_s", errs, msg=res_bad)
+
+            # kling3_0 bridging from .last_frame without canonical refs triggers photocopy-cascade warning
+            data2 = json.loads((camp / "shotlist.json").read_text(encoding="utf-8"))
+            data2["production_track"] = "scratch_cinema"
+            data2["sub_flows"] = []
+            data2["shots"][0].pop("edit", None)
+            data2["audio"]["voiceover"].pop("tracks", None)
+            data2["shots"][2]["video"]["model"] = "kling3_0"
+            data2["shots"][2]["video"]["is_workflow"] = False
+            data2["shots"][2]["video"]["start_image_from"] = "s02.last_frame"
+            data2["shots"][2]["video"]["image_references"] = []
+            shotlist_path.write_text(json.dumps(data2, indent=2), encoding="utf-8")
+            code_k3, res_k3, comb_k3 = self._run(camp)
+            self.assertEqual(code_k3, 0, msg=comb_k3)
+            self.assertIn("photocopy", " ".join(res_k3.get("warnings", [])), msg=res_k3)
 
 
 if __name__ == "__main__":
