@@ -81,14 +81,20 @@ Load only the reference needed for the current task:
      modular `PARAMS {}`, `HEX` palette, `LOCK MANIFEST`, optional `中文强制锁定`
      (`references/seedance-spec-case-study.md`).
   *(Use JSON only as an internal pipeline checklist, never as raw video-model syntax.)*
-- **Native audio, anti-subtitle dialogue & read-aloud budget:** Tie every sound
-  to a visible source + room tone, and end every non-UGC video prompt with the
-  literal line `"NO MUSIC. NO BACKGROUND SCORE. Native diegetic sound only."`.
-  For native spoken dialogue, use colon syntax (`Character says in natural
-  Russian, low calm voice: ...`) + `No subtitles, no captions, no on-screen text.`.
-  Enforce `ad-script`'s **read-aloud budget** ([Ad Craft Glossary](../../../docs/ad-craft-glossary.md):
-  `<= 2.0 wps` Russian, `<= 2.3 wps` English after subtracting `[PAUSE Ns]`)
-  and spell brand names phonetically in VO prompts.
+- **Native audio, lip-sync lock, anti-subtitle dialogue & read-aloud budget:**
+  Tie every sound to a visible source + room tone, and end every non-UGC video
+  prompt with the literal line `"NO MUSIC. NO BACKGROUND SCORE. Native diegetic
+  sound only."`. **Never paste external VO onto silent (`--sound off`) visible
+  talking-head I2V** (produces out-of-sync jaw flapping): route visible
+  on-camera speakers to audio-driven lip-sync (`intone` / Lipsync Studio) or
+  native in-model speech (`Character says in natural Russian, low calm voice:
+  ...` + `No subtitles, no captions, no on-screen text.`), or cut to `3–6s`
+  closed-mouth reaction/action/B-roll shots. In 2-character frames, explicitly
+  lock the **silent listener's mouth closed** so the wrong character never flaps
+  its mouth while the other speaks. Enforce `ad-script`'s **read-aloud budget**
+  ([Ad Craft Glossary](../../../docs/ad-craft-glossary.md): `<= 2.0 wps`
+  Russian, `<= 2.3 wps` English after subtracting `[PAUSE Ns]`) and spell brand
+  names phonetically in VO prompts.
 - **Anti-IP, typography & One Variable Per Re-roll:** Decompose IP/brands/directors
   into raw materials, silhouette, geometry, and light. Composite fine typography
   and UI in post. On `ITERATING` retries (`v1 -> v2`), change **one failing axis

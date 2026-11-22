@@ -48,6 +48,6 @@ Keep under 120 lines; `scripts/check-memory.py` flags `active` rules older than 
   Paired with uploaded real location reference photographs in `R0`/`R3`, `flux_3_image` and `seedream_5_5` eliminate postcard HDR sheen and hold authentic unretouched 35mm documentary color science on live-action scenes.
   Evidence: `.agents/skills/higgsfield-cli/references/model-selection.md`
 
-- [ENG-11] model=kling3_0 | helpful=3 | harmful=0 | verified=2026-11-22 | status=active
-  `kling3_0 --mode pro --sound off` (`~1.75 cr./s`) produces crisp native `1080p` expressive motion for stylized 3D/animated/animal characters paired with external VO; route to `intone` (`audio_references`) instead whenever exact phoneme-locked lip-sync to a pre-recorded WAV is required.
+- [ENG-11] model=kling3_0 | helpful=2 | harmful=2 | verified=2026-11-22 | status=active
+  `kling3_0 --mode pro --sound off` (`~1.75 cr./s`) is crisp for short (`3–6s`) stylized/2D/3D action and closed-mouth reaction cutaways, but **fails on visible on-camera talking faces** (causes out-of-sync random jaw flapping and wrong-speaker mouth motion) and **drifts past `8s`** (warped paws/hands, crawling background drawings, ear morphs). Route visible talking faces strictly to audio-driven lip-sync (`intone` / Lipsync Studio / native-speech models) and keep I2V beats `3–6s`.
   Evidence: `.agents/skills/higgsfield-cli/references/model-selection.md`

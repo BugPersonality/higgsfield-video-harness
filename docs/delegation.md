@@ -61,10 +61,11 @@ mine real defect patterns.
 - **Fast bounded review handoff (`<= 12` tool calls, parallel batches):** For
   masters `> 20s`, always run `qa_media.py render --verify-slices-dir
   campaigns/<slug>/qc/verify_slices` first and hand exact paths to
-  `reviewer-agent` so it reads artifacts in 2–3 parallel `read_file` batches
-  instead of running ad-hoc shell/Python slicing scripts. Parallelize per-clip
-  `R5` reviews (1–3 clips per lane) and never spawn redundant duplicate
-  reviewers on clips that already passed.
+  `reviewer-agent` so it batches text/JSON/PNGs (up to 5–6 per turn) and reads
+  **at most 2 `.mp4` files per turn** (preventing context compaction and
+  re-reads) instead of running ad-hoc shell/Python slicing scripts. Parallelize
+  per-clip `R5` reviews (1–3 clips per lane) and never spawn redundant
+  duplicate reviewers on clips that already passed.
 
 - **Filter defects, leave taste to the Director:** score strictly with the
   binary rubric in [`video-qa`](../.agents/skills/video-qa/SKILL.md) using the
