@@ -50,7 +50,7 @@ class TestRepoChecks(unittest.TestCase):
             msg=f"check-instructions.py failed:\nstdout={proc.stdout}\nstderr={proc.stderr}",
         )
         self.assertIn("roles=4", proc.stdout)
-        self.assertIn("skills=13", proc.stdout)
+        self.assertIn("skills=18", proc.stdout)
 
     def test_minimalist_docs_layout_and_thirteen_skills_exist(self) -> None:
         expected_skills = (
@@ -67,6 +67,11 @@ class TestRepoChecks(unittest.TestCase):
             "video-consistency",
             "video-qa",
             "video-assembly",
+            "video-v2v-rewrite",
+            "video-previz-vfx",
+            "performance-ads",
+            "hybrid-motion-graphics",
+            "youtube-clipping",
         )
         skills_root = REPO_ROOT / ".agents" / "skills"
         for name in expected_skills:
@@ -78,6 +83,7 @@ class TestRepoChecks(unittest.TestCase):
             self.assertTrue(sp.is_file(), msg=f"Missing studio memory file: {sp}")
 
         for doc in (
+            "flows.md",
             "workflow.md",
             "delegation.md",
             "grilling.md",

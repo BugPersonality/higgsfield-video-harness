@@ -1038,6 +1038,89 @@ class TestQaAndAssemble(unittest.TestCase):
             )
             self.assertEqual(proc_bad_grain.returncode, 2)
 
+    def test_assemble_per_shot_edit_trim_punchin_grade_duck_overlay_and_pixel_diff(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_str:
+            tmp = Path(tmp_str)
+            camp = tmp / "camp"
+            shots_dir = camp / "media" / "shots"
+            audio_dir = camp / "media" / "audio"
+            shots_dir.mkdir(parents=True, exist_ok=True)
+            audio_dir.mkdir(parents=True, exist_ok=True)
+
+            # Generate a 4s moving source clip + VO + music + transparent PNG overlay
+            src_clip = shots_dir / "long_take.mp4"
+            _ffmpeg(
+                "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=24:duration=4",
+                "-f", "lavfi", "-i", "sine=frequency=330:sample_rate=48000:duration=4",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest",
+                str(src_clip),
+            )
+            vo_wav = audio_dir / "vo.wav"
+            mus_wav = audio_dir / "music.wav"
+            _ffmpeg("-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000:duration=3", "-ac", "2", str(vo_wav))
+            _ffmpeg("-f", "lavfi", "-i", "sine=frequency=220:sample_rate=48000:duration=4", "-ac", "2", str(mus_wav))
+            overlay_png = tmp / "overlay.png"
+            _ffmpeg(
+                "-f", "lavfi", "-i", "color=c=white@0.4:s=640x360:d=1",
+                "-frames:v", "1", "-pix_fmt", "rgba", str(overlay_png),
+            )
+
+            # Harvest two trimmed segments from the SAME source clip, one with 2x center crop + grade + fade-out
+            manifest = {
+                "schema_version": 1,
+                "fps_target": 24,
+                "shots": [
+                    {
+                        "id": "s01",
+                        "video": {"selected_take": "media/shots/long_take.mp4"},
+                        "edit": {"trim_in": 0.5, "trim_out": 2.0, "grade": {"brightness": -0.02, "saturation": 0.95}},
+                    },
+                    {
+                        "id": "s02",
+                        "video": {"selected_take": "media/shots/long_take.mp4"},
+                        "edit": {"trim_in": 2.0, "trim_out": 3.5, "crop_4k_punchin": "center_2x", "fade_out_black_s": 0.3},
+                    },
+                ],
+            }
+            manifest_path = camp / "shotlist.json"
+            manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+            out_mp4 = camp / "media" / "exports" / "master.mp4"
+
+            proc = subprocess.run(
+                [
+                    "bash", str(ASSEMBLE_SCRIPT),
+                    "--campaign", str(camp),
+                    "--manifest", str(manifest_path),
+                    "--vo", str(vo_wav),
+                    "--music", str(mus_wav),
+                    "--duck-music",
+                    "--overlay", str(overlay_png),
+                    "--bpm", "120",
+                    "--out", str(out_mp4),
+                ],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(proc.returncode, 0, msg=f"assemble v2 failed:\nstdout={proc.stdout}\nstderr={proc.stderr}")
+            rep = json.loads(proc.stdout)
+            self.assertTrue(rep["ok"], msg=rep)
+            # Trimmed 1.5s + 1.5s = ~3.0s (not 4.0 + 4.0 = 8.0s!)
+            self.assertLess(rep["metadata"]["duration"], 3.6)
+            self.assertGreater(rep["metadata"]["duration"], 2.4)
+
+            # pixel-diff passes on identical plate and fails on darkened plate
+            code_ok, data_ok, comb_ok = self._run_qa("pixel-diff", str(src_clip), "--plate", str(src_clip), "--windows", "1-2")
+            self.assertEqual(code_ok, 0, msg=comb_ok)
+            self.assertTrue(data_ok["ok"], msg=data_ok)
+
+            dark_clip = tmp / "dark.mp4"
+            _ffmpeg(
+                "-i", str(src_clip),
+                "-vf", "eq=brightness=-0.25", "-c:v", "libx264", "-crf", "18", "-an", str(dark_clip),
+            )
+            code_bad, data_bad, comb_bad = self._run_qa("pixel-diff", str(dark_clip), "--plate", str(src_clip), "--windows", "1-2")
+            self.assertEqual(code_bad, 1, msg=comb_bad)
+            self.assertFalse(data_bad["ok"], msg=data_bad)
+
 
 if __name__ == "__main__":
     unittest.main()

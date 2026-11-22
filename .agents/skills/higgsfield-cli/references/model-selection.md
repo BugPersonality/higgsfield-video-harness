@@ -37,10 +37,19 @@ generations without violating anti-bot boundaries:
 
 1. **Launch in the user's logged-in browser pane:** delegate to the `browser`
    subagent (`Model: "flash"`) to open `https://higgsfield.ai`, select the
-   target model, and verify that the **Unlimited** toggle is present and **ON**
-   AND the Generate button confirms **`0` credits / Unlimited**. If no
-   `Unlimited` toggle exists or the button shows a credit charge `> 0`, STOP
-   without clicking Generate and report which models ARE `Unlimited`-enabled.
+   target model, and verify **four mandatory pre-click checks**:
+   - **`Unlimited` toggle is ON** AND the Generate button reads **`0` credits /
+     Unlimited** (fail closed: if `> 0`, STOP without clicking and report which
+     models ARE `Unlimited`-enabled).
+   - **Duration dropdown matches the prompt:** Higgsfield Web UI silently
+     retains the previous run's duration even when the prompt states another
+     length — explicitly verify and set `duration` before every click.
+   - **Genjutsu mode selector (`hf-mult-motion-control`):** Recreate/default
+     links open `Motion transfer`; manually switch to **`Objects swap`** before
+     clicking Generate for outfit or prop replacements.
+   - **`@Element` name parity:** keep identical `@char_*`, `@loc_*`, `@prop_*`
+     handles across `shotlist.json` (`element_handle`) and Cinema Studio folders
+     (`CHAR / PROPS / LOCATION / SCENES`) so pasted prompts auto-attach assets.
 2. **CAPTCHA / Login handoff (hard rule):** Never attempt to solve, click
    through, or bypass a CAPTCHA, Cloudflare Turnstile, or login wall. Pause
    immediately, notify the Director to complete login or solve the CAPTCHA
@@ -84,8 +93,11 @@ Higgsfield CLI pricing:
 
 ## Video Models — Benchmarks & Case Routing
 
-**Resolution & escalation truth (why `720p` drafts or `seedance_2_5 --draft` beat dead-end `480p`):**
-`cinematic_studio_video_4_0` only supports `480p / 720p / 1080p` (no `360p`) and does **not** expose `--draft_job_id` in CLI, while pixel-upscaling `480p` drafts (`< 1 Mbps`) into `1080p` creates halos, muddy faces, and worse economics than native `1080p`. Cut draft burn by choosing cheap `720p` draft engines (`seedance_2_0_mini`, `kling_4_0_flash`, `wan3_0`) or `seedance_2_5 --draft true` (which escalates natively via `--draft_job_id`). Follow [Mastering & Upscaling](mastering-and-upscaling.md) for every `R4 → R5` upgrade decision.
+**Resolution, latent drafting & escalation truth (pixel upscaling vs. latent `Seedance 2.5` drafting):**
+- **NEVER pixel-upscale `480p` drafts (`< 1 Mbps`) into `1080p`:** external/pixel upscalers (`bytedance_video_upscale`) on `480p` create halos, muddy faces, and shimmer. `cinematic_studio_video_4_0` does **not** expose `--draft_job_id` in CLI, so use `720p` drafts for non-latent engines.
+- **DO use `seedance_2_5 --draft true` (`480p` latent draft at `~3 cr./s`) -> native `1080p` or `4K` finalize (`--draft_job_id`):** unlike pixel upscaling, `--draft_job_id` re-renders the exact locked camera, timing, and acting natively in `1080p` or `4K` (saving ~64% across 3–4 draft tries vs. straight `4K`).
+- **Native `4K` 2× punch-in framing:** generating a flagship `Seedance 2.5` hero shot in native `4K` lets `assemble.sh` (`shots[].edit.crop_4k_punchin`) harvest both a wide and a crisp native `1080p` close-up from one take at `0 cr.`
+- **Anti-Engine-Zoo & A-Roll First:** keep one primary video engine across a live-action block (avoid mixing 3–4 engines with 4×–20× bitrate disparity, and avoid economy `mini`/`flash` engines on flagship live-action photorealism). Lock talking-head **A-Roll first** before B-Roll, and audition vocal tone cheaply via `voice_change` post-generation instead of re-rolling video. Follow [Mastering & Upscaling](mastering-and-upscaling.md) for every `R4 → R5` upgrade decision.
 
 Based on Artificial Analysis Video Arena (I2V/T2V Elo) and live CLI pricing
 (5s clips unless noted):

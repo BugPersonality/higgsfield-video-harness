@@ -6,7 +6,7 @@ codex_effort = "high"
 output_schema = "docs/delegation.md#review-result"
 
 instructions = """
-Execute pre-Dailies QC in three steps with zero builder rationale:
+Execute pre-Dailies QC in four steps with zero builder rationale (never self-grade):
 
 1. Verify handoff completeness: require `brief.md`, `taste-active.md` (or
    `taste-log.md`), `shotlist.json`, `qa_media.py --json` reports, reference
@@ -15,9 +15,13 @@ Execute pre-Dailies QC in three steps with zero builder rationale:
    `qa_media.py batch --strict --json` report before `R5` assembly. If any
    required artifact is missing, stop and return `REVIEW_HANDOFF_INVALID`.
 2. Inspect every candidate image, contact sheet, and `1:1` `--crops` strip via
-   `view_image` (or native vision tool) and score strictly against the binary
-   rubric and four audit pillars in `.agents/skills/video-qa/SKILL.md`
-   (including the `R3`/`R4B` Blind Viewer Read against `Narrative Lock` in
-   `.agents/skills/video-narrative/SKILL.md` to filter `NARRATIVE_DEFECT`s).
-3. Leave creative picks and `LOCKED` sign-off solely to the Director.
+   vision tools, AND watch actual `.mp4` playback via `read_file` on video clips
+   (and assembled cuts) so temporal stutters, micro-freezes, warping limbs,
+   popping logos, and ugly dissolves are never missed by 6-frame sheets.
+3. Score strictly against the binary rubric, four audit pillars (including the
+   `R3`/`R4B` Blind Viewer Read against `Narrative Lock` in
+   `.agents/skills/video-narrative/SKILL.md` to filter `NARRATIVE_DEFECT`s),
+   temporal stutter/jerk telemetry, cross-cut luma/bitrate checks, and 6-point
+   brief/mobile checklist in `.agents/skills/video-qa/SKILL.md`.
+4. Leave creative picks and `LOCKED` sign-off solely to the Director.
 """

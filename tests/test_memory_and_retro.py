@@ -371,6 +371,66 @@ class TestMemoryAndRetro(unittest.TestCase):
             lines = (camp / "qc" / "review-log.jsonl").read_text(encoding="utf-8").splitlines()
             self.assertEqual(len(lines), 3)
 
+            # R4 PASS without --qa-report is mechanically rejected (fail closed)
+            r4_no_proof = self._run_py(
+                "qa_media.py",
+                "log-review",
+                "--campaign",
+                str(camp),
+                "--round",
+                "R4B",
+                "--asset",
+                "s02.video",
+                "--verdict",
+                "PASS",
+                "--json",
+            )
+            self.assertEqual(r4_no_proof.returncode, 2, msg=r4_no_proof.stdout)
+            self.assertIn("REVIEW_HANDOFF_INVALID", r4_no_proof.stdout)
+
+            # R5 PASS with --qa-report but missing --crops is rejected; with both + --reviewer-id succeeds
+            qa_json = camp / "qc" / "s02_qa.json"
+            qa_json.write_text('{"ok": true}\n', encoding="utf-8")
+            crops_png = camp / "qc" / "s02_crops.png"
+            crops_png.write_bytes(b"\x89PNG\r\n\x1a\n")
+            r5_no_crops = self._run_py(
+                "qa_media.py",
+                "log-review",
+                "--campaign",
+                str(camp),
+                "--round",
+                "R5",
+                "--asset",
+                "s02.video",
+                "--verdict",
+                "PASS",
+                "--qa-report",
+                str(qa_json),
+                "--json",
+            )
+            self.assertEqual(r5_no_crops.returncode, 2, msg=r5_no_crops.stdout)
+            r5_ok = self._run_py(
+                "qa_media.py",
+                "log-review",
+                "--campaign",
+                str(camp),
+                "--round",
+                "R5",
+                "--asset",
+                "s02.video",
+                "--verdict",
+                "PASS",
+                "--qa-report",
+                str(qa_json),
+                "--crops",
+                str(crops_png),
+                "--reviewer-id",
+                "rev-lane-1",
+                "--json",
+            )
+            self.assertEqual(r5_ok.returncode, 0, msg=r5_ok.stdout + r5_ok.stderr)
+            self.assertEqual(json.loads(r5_ok.stdout)["record"]["reviewer_id"], "rev-lane-1")
+
             # Corrupt review-log.jsonl fails closed
             with (camp / "qc" / "review-log.jsonl").open("a", encoding="utf-8") as fh:
                 fh.write("{corrupt\n")

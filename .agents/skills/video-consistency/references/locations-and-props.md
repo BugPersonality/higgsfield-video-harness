@@ -166,3 +166,39 @@ Exceeding optimal counts triggers **attention dilution**, **attribute bleed**, a
 | **Grid borders or split-screen flicker in video** | Raw 2×2/3×3 contact sheet passed straight to video model | Slice with `make slice-grid ... TRIM=4`, upload individual PNG tiles via `hf_guard.py upload` |
 | **Textures turn muddy by Shot 4–5** | Photocopy cascade (chaining compressed video screenshots) | Re-anchor `R3` stills and `R4/R5` `--image_references` to original `LOCKED` `R2` Master UUIDs |
 | **One prop warps mid-take on an otherwise great clip** | Diffusion drift on moving handheld object | Rescue surgically with `hf_mult_replace_object` / `hf_mult_replace_object_flash` or `kling4_0 --mode video-edit` |
+
+## 7. Surgical 1:1 Repairs, Specialty Prop Plates & Unified Palette Cards
+
+- **Unified `Palette Card` (HEX Lock):** Define one compact HEX palette card in
+  `style-bible.md` (highlights, midtones, shadows, accent) and attach it to
+  *every* `R2` location prompt (`Soul Cinema`) so all sets share one grade
+  before video generation.
+- **Surgical `Seedream 5.0 Pro` Repairs Over Blind Re-Rolls:** Whenever a
+  location, prop, or video frame misses one concrete detail (wrong seat count,
+  garbled panel text, stray logo, wrong lighting mood), never re-roll the whole
+  asset from scratch — run a surgical 1:1 edit:
+  1. **1:1 Detail Fix:** Start with `LOCKED — the entire image one-to-one with
+     the input, highest priority`, followed by `THE ONLY CHANGE — <exact fix>`
+     and `no reframe, no zoom, no glow`.
+  2. **`RELIGHT ONLY`:** Keep exact camera, lens, and furniture; change only
+     exposure/time-of-day (`RELIGHT ONLY. Nothing moves, nothing is added or
+     removed`).
+  3. **Targeted Video Frame Repair:** Extract a broken `R4` frame (e.g., garbled
+     button/signage), repair only that zone in `Seedream 5.0 Pro`, and inject it
+     back into `Seedance 2.5` as `@Image 1` with explicit time-window override.
+- **Specialty Prop & Product Reference Formats:**
+  - *Two-Panel Closed/Open Product Sheet:* Left = closed product, Right = open
+    mechanism/interior, identical scale/height on neutral grey (`100mm macro`).
+  - *Hollow Wearable Props:* Specify `THE OBJECT IS EMPTY AND HOLLOW` (no
+    mannequin limb inside) so garments/braces fit any actor cleanly.
+  - *Isolated Text/Note Props:* Never rely on video prompts to spell handwritten
+    notes or documents — generate an isolated still on pure `#000000` (batch 4–8
+    stills) and attach the winner as `@Image`.
+  - *Heavy Props / Creatures (`Clay -> Macro -> Flash`):* Route bespoke heavy
+    props and creatures through matte dark-grey clay -> `1:1` flash macro
+    swatches -> unstylized frontal-flash "boring makeup-test photo"; **rooms
+    skip clay** and stay on `Soul Cinema` for natural wear/imperfection (see
+    [`video-previz-vfx`](../../video-previz-vfx/SKILL.md)).
+  - *Clay-Render Plate Placeholders & Exclusion Marks:* On busy street/location
+    plates, paint a flat green clay block (`Seedream 5.5`) to lock hero vehicle
+    perspective/contact shadow, or circle clutter in red for explicit removal.

@@ -18,6 +18,9 @@ SFX_VOL="0.18"
 VO=""
 LUT=""
 GRAIN=""
+OVERLAY=""
+BPM=""
+DUCK_MUSIC=0
 NO_LOUDNORM=0
 ALLOW_SILENT=0
 
@@ -29,7 +32,7 @@ Usage:
 Options:
   --out <path>              Output assembled MP4 path (required)
   --campaign <dir>          Campaign directory for resolving manifest relative paths
-  --manifest <path>         shotlist.json containing selected takes and optional audio tracks
+  --manifest <path>         shotlist.json containing selected takes, optional edit specs, and audio tracks
   --clips <c1,c2,...>       Comma-separated ordered clip paths (alternative to --manifest)
   --animatic                Build a zero-video-credit Still Animatic from stills
   --stills <p1:d1,p2:d2>    Comma-separated still image:duration_s pairs (for --animatic)
@@ -38,8 +41,11 @@ Options:
   --music-vol <float>       Music linear gain <= 0.35 (clamped <= 0.16 with --vo; default: 0.14)
   --sfx-vol <float>         Clip diegetic audio linear gain <= 0.20 (default: 0.18)
   --vo <file>               Optional voiceover track (always mixed at 1.0 per Level Law)
+  --duck-music              Sidechain-duck background music gently whenever --vo is speaking
   --lut <file.cube>         Optional 3D LUT file (.cube/.3dl) applied across concatenated video for unified grade
   --grain <float>           Optional subtle shared temporal 35mm grain strength (1..20, e.g. 3-5)
+  --overlay <file>          Optional transparent RGBA/ProRes 4444 overlay composited AFTER LUT and grain
+  --bpm <float>             Optional music BPM for absolute beat-grid alignment diagnostics
   --no-loudnorm             Skip -14 LUFS / -1.5 dBTP loudness normalization pass
   --allow-silent            Explicitly allow a silent master in final qa_media.py render check
   -h, --help                Show this help message
@@ -117,6 +123,20 @@ while [[ $# -gt 0 ]]; do
       GRAIN="$2"
       shift 2
       ;;
+    --overlay)
+      [[ $# -ge 2 ]] || die "--overlay requires a value"
+      OVERLAY="$2"
+      shift 2
+      ;;
+    --bpm)
+      [[ $# -ge 2 ]] || die "--bpm requires a value"
+      BPM="$2"
+      shift 2
+      ;;
+    --duck-music)
+      DUCK_MUSIC=1
+      shift
+      ;;
     --no-loudnorm)
       NO_LOUDNORM=1
       shift
@@ -152,6 +172,22 @@ command -v "$PYTHON_BIN" >/dev/null 2>&1 || die "${PYTHON_BIN} is required in PA
 
 if [[ -n "$LUT" ]]; then
   [[ -f "$LUT" ]] || die "--lut file not found: $LUT"
+fi
+if [[ -n "$OVERLAY" ]]; then
+  [[ -f "$OVERLAY" ]] || die "--overlay file not found: $OVERLAY"
+fi
+if [[ -n "$BPM" ]]; then
+  BPM="$("$PYTHON_BIN" - "$BPM" <<'PY'
+import math, sys
+try:
+    val = float(sys.argv[1])
+except ValueError:
+    sys.exit(2)
+if not math.isfinite(val) or val < 30.0 or val > 300.0:
+    sys.exit(2)
+print(f"{val:g}")
+PY
+  )" || die "--bpm must be a number in [30, 300], got: $BPM"
 fi
 if [[ -n "$GRAIN" ]]; then
   GRAIN="$("$PYTHON_BIN" - "$GRAIN" <<'PY'
@@ -530,14 +566,16 @@ PY
     NORM_CLIPS+=("$OUT_CLIP")
   done
 else
-  # Resolve ordered clips array (Bash 3.2 compatible)
+  # Resolve ordered clips + optional per-shot edit specs (Bash 3.2 compatible)
   CLIPS=()
+  CLIP_EDIT_JSONS=()
   if [[ -n "$CLIPS_ARG" ]]; then
     IFS=',' read -r -a RAW_CLIPS <<< "$CLIPS_ARG"
     for item in "${RAW_CLIPS[@]}"; do
       trimmed="$("$PYTHON_BIN" -c 'import sys; print(sys.argv[1].strip())' "$item")"
       if [[ -n "$trimmed" ]]; then
         CLIPS+=("$trimmed")
+        CLIP_EDIT_JSONS+=("{}")
       fi
     done
   else
@@ -561,9 +599,10 @@ for shot in shots:
     vid = shot.get("video")
     if not isinstance(vid, dict):
         continue
-    take = vid.get("selected_take")
+    edit = shot.get("edit") if isinstance(shot.get("edit"), dict) else {}
+    take = edit.get("source_clip") or vid.get("selected_take")
     if not take:
-        print(f"ERROR: shot '{shot.get('id')}' has no video.selected_take", file=sys.stderr)
+        print(f"ERROR: shot '{shot.get('id')}' has no video.selected_take (or edit.source_clip)", file=sys.stderr)
         sys.exit(2)
     p = pathlib.Path(take)
     if p.is_absolute():
@@ -572,12 +611,22 @@ for shot in shots:
         resolved = base_dir / p
     else:
         resolved = p
-    print(str(resolved))
+    spec = {
+        "id": shot.get("id") or "",
+        "trim_in": edit.get("trim_in"),
+        "trim_out": edit.get("trim_out"),
+        "crop_4k_punchin": edit.get("crop_4k_punchin"),
+        "grade": edit.get("grade") if isinstance(edit.get("grade"), dict) else None,
+        "fade_out_black_s": edit.get("fade_out_black_s"),
+    }
+    print(f"{resolved}\t{json.dumps(spec, separators=(',', ':'))}")
 PY
 )"
-    while IFS= read -r resolved_clip; do
+    DEFAULT_EDIT="{}"
+    while IFS=$'\t' read -r resolved_clip edit_json; do
       [[ -n "$resolved_clip" ]] || continue
       CLIPS+=("$resolved_clip")
+      CLIP_EDIT_JSONS+=("${edit_json:-$DEFAULT_EDIT}")
     done <<< "$RESOLVED_CLIPS"
   fi
 
@@ -648,13 +697,18 @@ PY
 )"
   read -r TARGET_W TARGET_H TARGET_FPS <<< "$PROBE_META"
 
-  for clip in "${CLIPS[@]}"; do
+  CLIP_TOTAL="${#CLIPS[@]}"
+  DEFAULT_EDIT="{}"
+  for ((ci = 0; ci < CLIP_TOTAL; ci++)); do
+    clip="${CLIPS[$ci]}"
+    edit_json="${CLIP_EDIT_JSONS[$ci]:-$DEFAULT_EDIT}"
     IDX=$((IDX + 1))
     CLIP_NAME="$(printf "clip_%02d.mp4" "$IDX")"
     OUT_CLIP="${WORKDIR}/${CLIP_NAME}"
     AUDIO_STREAM="$(ffprobe -v error -select_streams a -show_entries stream=index -of csv=p=0 "$clip" | head -n 1 || true)"
 
     CLIP_DIM_FPS="$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height,avg_frame_rate -of csv=p=0 "$clip" | head -n 1 || true)"
+    CLIP_DUR_RAW="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$clip" | head -n 1 || true)"
     if [[ -n "$CLIP_DIM_FPS" ]]; then
       IFS=',' read -r cw ch cfps <<< "$CLIP_DIM_FPS"
       if [[ -n "$cw" && -n "$ch" ]] && [[ "$cw" != "$TARGET_W" || "$ch" != "$TARGET_H" ]]; then
@@ -665,20 +719,129 @@ PY
       fi
     fi
 
-    VF_NORM="scale=${TARGET_W}:${TARGET_H}:force_original_aspect_ratio=decrease:flags=lanczos,pad=${TARGET_W}:${TARGET_H}:(ow-iw)/2:(oh-ih)/2:black,setsar=1"
+    # Build per-shot trim, optional 4K 2x punch-in crop, pre-LUT grade match, and fade-to-black filters
+    EDIT_PARSED="$("$PYTHON_BIN" - "$edit_json" "$TARGET_W" "$TARGET_H" "${CLIP_DUR_RAW:-0}" <<'PY'
+import json, math, re, sys
+spec = json.loads(sys.argv[1] or "{}")
+tw, th = int(sys.argv[2]), int(sys.argv[3])
+src_dur = float(sys.argv[4] or 0.0)
+
+trim_in = spec.get("trim_in")
+trim_out = spec.get("trim_out")
+ss_str = ""
+dur_str = ""
+eff_dur = src_dur
+
+if trim_in is not None:
+    ti = float(trim_in)
+    if not math.isfinite(ti) or ti < 0.0:
+        print(f"ERROR: invalid edit.trim_in {trim_in!r}", file=sys.stderr)
+        sys.exit(2)
+    ss_str = f"{ti:.3f}"
+    eff_dur = max(0.0, src_dur - ti)
+else:
+    ti = 0.0
+
+if trim_out is not None:
+    to = float(trim_out)
+    if not math.isfinite(to) or to <= ti:
+        print(f"ERROR: invalid edit.trim_out {trim_out!r} (must be > trim_in={ti})", file=sys.stderr)
+        sys.exit(2)
+    dur_val = to - ti
+    dur_str = f"{dur_val:.3f}"
+    eff_dur = dur_val
+
+vf_parts = []
+crop_spec = spec.get("crop_4k_punchin")
+if isinstance(crop_spec, str) and crop_spec.strip():
+    cs = crop_spec.strip()
+    if cs == "center_2x":
+        vf_parts.append("crop=iw/2:ih/2:iw/4:ih/4")
+    elif cs == "left_2x":
+        vf_parts.append("crop=iw/2:ih/2:0:ih/4")
+    elif cs == "right_2x":
+        vf_parts.append("crop=iw/2:ih/2:iw/2:ih/4")
+    elif re.match(r"^[0-9a-zA-Z_/*+-]+:[0-9a-zA-Z_/*+-]+:[0-9a-zA-Z_/*+-]+:[0-9a-zA-Z_/*+-]+$", cs):
+        vf_parts.append(f"crop={cs}")
+    else:
+        print(f"ERROR: invalid edit.crop_4k_punchin {cs!r}", file=sys.stderr)
+        sys.exit(2)
+
+vf_parts.append(f"scale={tw}:{th}:force_original_aspect_ratio=decrease:flags=lanczos")
+vf_parts.append(f"pad={tw}:{th}:(ow-iw)/2:(oh-ih)/2:black")
+vf_parts.append("setsar=1")
+
+grade = spec.get("grade")
+if isinstance(grade, dict):
+    eq_args = []
+    for key in ("brightness", "contrast", "saturation", "gamma"):
+        if key in grade and grade[key] is not None:
+            v = float(grade[key])
+            if not math.isfinite(v):
+                print(f"ERROR: non-finite edit.grade.{key}", file=sys.stderr)
+                sys.exit(2)
+            eq_args.append(f"{key}={v:.4f}")
+    if eq_args:
+        vf_parts.append("eq=" + ":".join(eq_args))
+    cb_args = []
+    wb_r = grade.get("wb_r")
+    wb_b = grade.get("wb_b")
+    if wb_r is not None:
+        v = float(wb_r)
+        if not math.isfinite(v):
+            sys.exit(2)
+        cb_args.append(f"rm={v:.4f}:rs={v * 0.5:.4f}")
+    if wb_b is not None:
+        v = float(wb_b)
+        if not math.isfinite(v):
+            sys.exit(2)
+        cb_args.append(f"bm={v:.4f}:bs={v * 0.5:.4f}")
+    if cb_args:
+        vf_parts.append("colorbalance=" + ":".join(cb_args))
+
+fade_out = spec.get("fade_out_black_s")
+if fade_out is not None:
+    fo = float(fade_out)
+    if not math.isfinite(fo) or fo <= 0.0 or fo > 2.0:
+        print(f"ERROR: edit.fade_out_black_s must be in (0, 2.0], got {fade_out!r}", file=sys.stderr)
+        sys.exit(2)
+    if eff_dur > fo:
+        st = max(0.0, eff_dur - fo)
+        vf_parts.append(f"fade=t=out:st={st:.3f}:d={fo:.3f}")
+
+print(ss_str)
+print(dur_str)
+print(",".join(vf_parts))
+PY
+)"
+    {
+      IFS= read -r TRIM_SS || true
+      IFS= read -r TRIM_DUR || true
+      IFS= read -r VF_NORM || true
+    } <<< "$EDIT_PARSED"
+
+    IN_ARGS=()
+    TRIM_OUT_ARGS=()
+    if [[ -n "$TRIM_SS" ]]; then
+      IN_ARGS+=(-ss "$TRIM_SS")
+    fi
+    if [[ -n "$TRIM_DUR" ]]; then
+      TRIM_OUT_ARGS+=(-t "$TRIM_DUR")
+    fi
 
     if [[ -n "$AUDIO_STREAM" ]]; then
       HAS_CLIP_AUDIO=1
-      ffmpeg -v error -y -i "$clip" \
+      ffmpeg -v error -y "${IN_ARGS[@]+"${IN_ARGS[@]}"}" -i "$clip" "${TRIM_OUT_ARGS[@]+"${TRIM_OUT_ARGS[@]}"}" \
         -vf "$VF_NORM" \
         -r "$TARGET_FPS" \
         -c:v libx264 -crf 18 -pix_fmt yuv420p -g 30 \
         -c:a aac -b:a 192k -ar 48000 -ac 2 \
         "$OUT_CLIP"
     else
-      ffmpeg -v error -y -i "$clip" \
+      ffmpeg -v error -y "${IN_ARGS[@]+"${IN_ARGS[@]}"}" -i "$clip" \
         -f lavfi -i "anullsrc=channel_layout=stereo:sample_rate=48000" \
         -map 0:v:0 -map 1:a:0 \
+        "${TRIM_OUT_ARGS[@]+"${TRIM_OUT_ARGS[@]}"}" \
         -vf "$VF_NORM" \
         -r "$TARGET_FPS" \
         -c:v libx264 -crf 18 -pix_fmt yuv420p -g 30 \
@@ -730,6 +893,13 @@ fi
 VIDEO_ONLY="${WORKDIR}/video_only.mp4"
 DIEGETIC_WAV="${WORKDIR}/diegetic.wav"
 
+if [[ -n "$OVERLAY" ]]; then
+  OV_IDX="$CLIP_COUNT"
+  CONCAT_INPUTS+=(-i "$OVERLAY")
+  CONCAT_FILTER="${CONCAT_FILTER};[${OV_IDX}:v]scale=${TARGET_W}:${TARGET_H}:force_original_aspect_ratio=decrease:flags=lanczos,pad=${TARGET_W}:${TARGET_H}:(ow-iw)/2:(oh-ih)/2:color=black@0,format=rgba[ovscaled];${VIDEO_MAP}[ovscaled]overlay=0:0:eof_action=pass:format=auto[vov]"
+  VIDEO_MAP="[vov]"
+fi
+
 ffmpeg -v error -y \
   "${CONCAT_INPUTS[@]}" \
   -filter_complex "$CONCAT_FILTER" \
@@ -737,6 +907,20 @@ ffmpeg -v error -y \
   -map "[acat]" -vn -c:a pcm_s16le -ar 48000 -ac 2 "$DIEGETIC_WAV"
 
 VIDEO_DURATION="$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$VIDEO_ONLY")"
+
+if [[ -n "$BPM" ]]; then
+  "$PYTHON_BIN" - "$BPM" "$VIDEO_DURATION" <<'PY' >&2
+import sys
+bpm = float(sys.argv[1])
+dur = float(sys.argv[2])
+beat_s = 60.0 / bpm
+beats = dur / beat_s
+nearest = round(beats)
+drift_ms = abs(dur - nearest * beat_s) * 1000.0
+if drift_ms > 80.0:
+    print(f"WARN: total cut duration {dur:.3f}s is {drift_ms:.0f}ms off nearest beat at {bpm:g} BPM ({nearest} beats = {nearest * beat_s:.3f}s)")
+PY
+fi
 
 # Prepare optional VO and music WAV stems
 VO_WAV="${WORKDIR}/vo.wav"
@@ -773,14 +957,22 @@ MIX_COUNT=1
 
 if [[ -n "$VO" ]]; then
   MIX_INPUTS+=(-i "$VO_WAV")
-  MIX_CHAIN="${MIX_CHAIN}[${MIX_COUNT}:a]volume=1.0[a${MIX_COUNT}];"
+  if [[ "$DUCK_MUSIC" -eq 1 && -n "$MUSIC" ]]; then
+    MIX_CHAIN="${MIX_CHAIN}[${MIX_COUNT}:a]asplit=2[vo_main][vo_sc];[vo_main]volume=1.0[a${MIX_COUNT}];"
+  else
+    MIX_CHAIN="${MIX_CHAIN}[${MIX_COUNT}:a]volume=1.0[a${MIX_COUNT}];"
+  fi
   MIX_LABELS="${MIX_LABELS}[a${MIX_COUNT}]"
   MIX_COUNT=$((MIX_COUNT + 1))
 fi
 
 if [[ -n "$MUSIC" ]]; then
   MIX_INPUTS+=(-i "$MUSIC_WAV")
-  MIX_CHAIN="${MIX_CHAIN}[${MIX_COUNT}:a]volume=${MUSIC_VOL}[a${MIX_COUNT}];"
+  if [[ "$DUCK_MUSIC" -eq 1 && -n "$VO" ]]; then
+    MIX_CHAIN="${MIX_CHAIN}[${MIX_COUNT}:a]volume=${MUSIC_VOL}[mus_pre];[mus_pre][vo_sc]sidechaincompress=threshold=0.02:ratio=4:attack=30:release=250:makeup=1[a${MIX_COUNT}];"
+  else
+    MIX_CHAIN="${MIX_CHAIN}[${MIX_COUNT}:a]volume=${MUSIC_VOL}[a${MIX_COUNT}];"
+  fi
   MIX_LABELS="${MIX_LABELS}[a${MIX_COUNT}]"
   MIX_COUNT=$((MIX_COUNT + 1))
 fi

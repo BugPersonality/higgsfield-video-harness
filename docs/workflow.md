@@ -22,13 +22,18 @@ technical or narrative craft:
 ## The 6 Rounds
 
 ### R0 — Brief (`0 cr.`)
-- **Craft:** Ground via `evidence-agent` in `higgsfield account status`,
-  `workspace list`, `studio/director.md` (plus `studio/director.local.md` if
-  present), `studio/engine-memory.md`, `brands/<brand>/{brand.md,taste.md}`, and
-  local photos under `media/references/`. Run light [Grilling](grilling.md)
-  (3–5 meaning-only questions: viewer state shift `Before -> After`, human &
-  brand truth, primary misread risk, spoken pronunciation, taboos,
-  `Campaign cap`). Scaffold with `make campaign-init`, write
+- **Craft:** First classify `production_track` (and optional `sub_flows`) via
+  [Flow Router](flows.md) and load only its owning track skill if non-default.
+  Ground via `evidence-agent` in `higgsfield account status`, `workspace list`,
+  `studio/director.md` (plus `studio/director.local.md` if present),
+  `studio/engine-memory.md`, `brands/<brand>/{brand.md,taste.md}`, and local
+  photos under `media/references/`. **Mandatory visual grounding:** whenever the
+  request references a real website, brand, product, or location URL, collect
+  real reference photographs into `media/references/` *before* `R2` (never rely
+  on text scraping alone). Run light [Grilling](grilling.md) (3–5 meaning-only
+  questions: viewer state shift `Before -> After`, human & brand truth, primary
+  misread risk, spoken pronunciation, taboos, `Campaign cap`). Scaffold with
+  `make campaign-init`, write
   plain-language `brief.md` (`status: draft`), seed `taste-log.md` from
   `brands/<brand>/taste.md` when present, compile `taste-active.md` via
   `make memory-compile CAMPAIGN=<slug>`, and run
@@ -141,26 +146,32 @@ technical or narrative craft:
   (plus `--round-cap` if CLI fallback applies).
 
 ### R4 — Motion Dailies (`0 cr.` Web Unlimited default; `~45–90 cr.` CLI fallback)
-- **Draft-to-final & camera planning:** Verify each shot's camera route
-  ([`video-direction`](../.agents/skills/video-direction/SKILL.md)), reference
-  bindings ([`video-consistency`](../.agents/skills/video-consistency/SKILL.md)),
-  and `R5` native escalation path
-  ([`higgsfield-cli`](../.agents/skills/higgsfield-cli/SKILL.md)) *before*
-  shooting `R4` (Web `Unlimited` `0 cr.` mandatory default → economy `720p` CLI
-  drafts or latent `--draft true` only when `Unlimited` is unavailable or
-  Director asks for paid CLI speed).
+- **Single-flagship-engine & draft-to-final discipline:** Keep one cohesive
+  video engine across a continuous live-action sequence (avoid mixing 3–4
+  disparate engines or starved `mini`/`flash` drafts that produce inconsistent
+  color, lens, and bitrate). Route to Web `Unlimited` (`0 cr.`) first — never
+  silently switch to paid CLI runs without Director approval. For complex
+  `8–30s` multi-shot blocks in CLI, prefer **`seedance_2_5 --draft true` (`480p`
+  latent draft at `3 cr./s`) -> native `1080p`/`4K` `--draft_job_id`** (~64%
+  savings with 1:1 timing lock) over dead-end `480p` pixel upscaling. On
+  dialogue-heavy spots, lock **A-Roll first** before shooting B-Roll, and use
+  post `Voice Change` rather than re-rolling video for vocal tone.
 - **R4A (Risk-First Pilot):** Shoot shots with `test_take_check != null` first
   via Web `Unlimited` (`0 cr.`) or approved CLI fallback
   (`hf_guard.py run --round R4A --round-cap <r4a_cap>`). Probe with
-  `scripts/qa_media.py clip <mp4> --sheet <png> --json` and inspect via fresh
-  `reviewer-agent`. Stop with **Dailies 4A** (pilot clip + `R4B` ticket).
+  `scripts/qa_media.py clip <mp4> --sheet <png> --json` (checking temporal
+  stutter/jerk telemetry) and dispatch a **fresh `reviewer-agent`** (never
+  self-grade) that watches actual `.mp4` playback via `read_file` and logs via
+  `qa_media.py log-review --qa-report <json>`. Stop with **Dailies 4A**.
   *(Skip `R4A` only when zero shots carry `test_take_check` and Director
   approved batch `R4` on Dailies 3.)*
-- **R4B (Batch Draft & Cut):** Shoot remaining unlocked shots via Web
-  `Unlimited` (`0 cr.`) or approved CLI fallback (`hf_guard.py run --round R4B
-  --round-cap <r4b_cap>`). Probe each clip (`qa_media.py clip --sheet <png>
-  --json`), filter via fresh `reviewer-agent`, record `video.selected_take` in
-  `shotlist.json`, and assemble `draft_cut.mp4` via `make assemble
+- **R4B (Batch Draft & Cut):** Shoot remaining unlocked shots (using `batch=2`
+  on hard beats and harvesting clean sub-clips via `shots[].edit.trim_in/out` in
+  `scripts/assemble.sh`, never bypassing `assemble.sh` with ad-hoc `xfade`
+  scripts). Probe every clip (`qa_media.py clip` + `qa_media.py batch`), filter
+  via **fresh `reviewer-agent`** watching `.mp4` playback, record
+  `video.selected_take` (and optional `edit` trims/grades) in `shotlist.json`,
+  and assemble `draft_cut.mp4` via `make assemble
   CAMPAIGN=<slug> OUT=campaigns/<slug>/media/exports/draft_cut.mp4` (`-14 LUFS`,
   `<= -1.0 dBTP`). Re-run `reviewer-agent`'s **Blind Viewer Read** on
   `draft_cut.mp4` (arc clarity in motion, `2 + 2` pause room, audio counterpoint)

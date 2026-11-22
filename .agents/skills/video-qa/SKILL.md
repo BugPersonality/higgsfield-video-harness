@@ -19,21 +19,27 @@ leaving `A / B / C` picks and `LOCKED` sign-off solely to the Director.
 Always pass `--json` when capturing reports for `reviewer-agent` handoffs
 (`make qa-*` runs the same checks for human output):
 
-- `scripts/qa_media.py clip <mp4> --sheet <png> [--crops <png>] [--crop-focus thirds|center|left|right] --json` (`make qa-clip`) — probes resolution, FPS, codec, duration, `video_bitrate_kbps`, `hf_edge_energy` (Laplacian sharpness proxy), audio, black gaps (`>= 0.5s`), `frozen_tail`, `fully_static_clip`, warns on `non_standard_dimensions` (`1918×1080`) and `low_video_bitrate`, writes a `3x2` contact sheet, and—when `--crops` is passed—writes an **unscaled `1:1` native-pixel 3-frame crop strip** (default `thirds` sweeps left/center/right).
-- `scripts/qa_media.py batch <clip1> <clip2> ... [--strict] --json` (`make qa-batch`) — audits cross-shot resolution, FPS, non-multiple-of-4 dimensions, low `1080p` bitrate, and `hf_sharpness_outlier` warnings (`> 1.5×` clean median) across an `R5` cut before `make assemble`.
+- `scripts/qa_media.py clip <mp4> --sheet <png> [--crops <png>] [--crop-focus thirds|center|left|right] --json` (`make qa-clip`) — probes resolution, FPS, codec, duration, `video_bitrate_kbps`, `hf_edge_energy` (Laplacian sharpness proxy), audio, black gaps (`>= 0.5s`), `frozen_tail`, `fully_static_clip`, full-FPS **temporal stutter & motion-jerk telemetry** (`duplicate_frame_ratio`, `stutter_events`, `motion_jerk_spikes`), warns on `non_standard_dimensions` (`1918×1080`) and `low_video_bitrate`, writes a `3x2` contact sheet, and—when `--crops` is passed—writes an **unscaled `1:1` native-pixel 3-frame crop strip** (default `thirds` sweeps left/center/right).
+- `scripts/qa_media.py batch <clip1> <clip2> ... [--strict] --json` (`make qa-batch`) — audits cross-shot resolution, FPS, non-multiple-of-4 dimensions, low `1080p` bitrate, `hf_sharpness_outlier` (`> 1.5×` clean median), **`inter_shot_luma_jump`** (`> 95` exposure jump across cuts), and **`bitrate_disparity`** (`> 4.0×` starved draft next to flagship) before `make assemble`.
+- `scripts/qa_media.py pixel-diff <processed.mp4> --plate <source.mp4> [--windows "2-7,12-17"] [--tolerance 3.5] --json` (`make qa-pixel-diff`) — verifies untouched pass-through frames outside active VFX/V2V windows match the source plate (catches silent AE/FFmpeg color-management darkening).
 - `scripts/qa_media.py voice <wav> --window <sec> --json` (`make qa-voice`) — checks 100ms RMS active speech bounds against the target window.
 - `scripts/qa_media.py render <mp4> --sheet <png> [--crops <png>] --json` (`make qa-render`) — enforces `-14 LUFS (±1.0 LU)` and `<= -1.0 dBTP` on `draft_cut.mp4` / `master.mp4`.
 - `make lookbook FILES="..." OUT=<png> LABELS="A,B,C"` — burns visual badges onto tiles for `R2` Lookbooks and `R3` stills strips.
 - `scripts/qa_media.py slice <sheet.png> --out-dir <dir> --rows 3 --cols 3 [--trim 4] --json` (`make slice-grid`) — splits `2x2`/`3x3` multi-angle sheets (`nano_banana_2_shots`) into standalone PNG tiles before upload.
-- `scripts/qa_media.py log-review --campaign <dir> --round <R> --asset <id> --verdict <PASS|CONCERNS|FAIL|REVIEW_HANDOFF_INVALID> [--defect-class <CLASS>] [--summary "..."] --json` — appends every `#review-result` to `campaigns/<slug>/qc/review-log.jsonl` under `flock` for `R6` (`studio-retro`) trace mining.
+- `scripts/qa_media.py log-review --campaign <dir> --round <R> --asset <id> --verdict <PASS|CONCERNS|FAIL|REVIEW_HANDOFF_INVALID> [--defect-class <CLASS>] [--qa-report <json>] [--crops <png>] [--reviewer-id <id>] [--summary "..."] --json` — appends every `#review-result` to `campaigns/<slug>/qc/review-log.jsonl` under `flock`. **Fail-closed:** `R4`/`R4A`/`R4B`/`R5` `PASS` is mechanically rejected unless `--qa-report` points to an existing JSON report (and `--crops` points to an existing `1:1` PNG for `R5`).
 
-## Mandatory `1:1` Inspection & Binary QC Rubric
+## Mandatory Direct MP4 Playback, `1:1` Inspection & Binary QC Rubric
 
-Shrunk `480px` `3x2` sheets hide halos, face melt, distorted teeth, and blotches.
-Every `R5` or upscaled handoff MUST include `--crops <png>` (targeting
-`--crop-focus center|left|right` onto hero faces for character close-ups) and
-`batch --strict --json` before assembly, inspected via vision tool against this
-exact verdict mapping:
+Shrunk `480px` `3x2` sheets hide 94% of a clip's frames (micro-stutters,
+warping limbs, popping logos, and bad dissolves) as well as halos and face melt.
+Every `R4`/`R5` video review MUST be executed by a **fresh `reviewer-agent`
+lane** (never self-graded by Root Producer) that inspects: (1) `qa_media.py`
+JSON (`temporal_stutter`, `motion_jerk`, `inter_shot_luma_jump`,
+`bitrate_disparity`), (2) **actual `.mp4` playback via `read_file`** on hero
+clips and assembled cuts, (3) `1:1` `--crops` strips + `batch --strict --json`
+for every `R5` or upscaled handoff, and (4) the **6-point brief/mobile audit**
+(product/place accuracy, zero stray logos/garbled lettering, offer/copy accuracy,
+phone-size readability, safe framing, cut-to-cut continuity):
 
 | Observed Signal (JSON or `1:1` `--crops`) | Verdict | Defect Class | `reopen_owner` & Required Action |
 | :--- | :--- | :--- | :--- |
